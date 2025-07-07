@@ -8,7 +8,7 @@ repos:
         types: [ python ]
         pass_filenames: false
         language: system
-        entry: poetry run -- nox -s fix
+        entry: poetry run -- nox -s project:fix
 
   - repo: local
     hooks:
@@ -17,7 +17,7 @@ repos:
         types: [ python ]
         pass_filenames: false
         language: system
-        entry: poetry run -- nox -s type-check
+        entry: poetry run -- nox -s lint:typing
 
   - repo: local
     hooks:
@@ -26,7 +26,7 @@ repos:
         types: [ python ]
         pass_filenames: false
         language: system
-        entry: poetry run -- nox -s lint
+        entry: poetry run -- nox -s lint:code
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
