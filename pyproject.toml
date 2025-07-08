@@ -8,7 +8,7 @@ authors = [
 ]
 readme = "README.md"
 license = "MIT"
-keywords = ['exasol', 'exasol_mcp_server']
+keywords = ['exasol', 'MCP server']
 dynamic = ["dependencies"]
 
 [tool.poetry]
@@ -38,7 +38,6 @@ source = [
 
 [tool.coverage.report]
 fail_under = 15
-ignore_errors = true
 
 [tool.black]
 line-length = 88
