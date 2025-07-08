@@ -1,0 +1,36 @@
+default_stages: [ commit ]
+repos:
+
+  - repo: local
+    hooks:
+      - id: code-format
+        name: code-format
+        types: [ python ]
+        pass_filenames: false
+        language: system
+        entry: poetry run -- nox -s project:fix
+
+  - repo: local
+    hooks:
+      - id: type-check
+        name: type-check
+        types: [ python ]
+        pass_filenames: false
+        language: system
+        entry: poetry run -- nox -s lint:typing
+
+  - repo: local
+    hooks:
+      - id: lint
+        name: lint
+        types: [ python ]
+        pass_filenames: false
+        language: system
+        entry: poetry run -- nox -s lint:code
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

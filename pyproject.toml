@@ -1,0 +1,80 @@
+[project]
+name = "exasol-mcp-server"
+version = "0.1.0"
+requires-python = ">=3.10,<4.0"
+description = "Exasol MCP Server"
+authors = [
+    {name = "Mikhail Beck", email = "mikhail.beck@exasol.com"},
+]
+readme = "README.md"
+license = "MIT"
+keywords = ['exasol', 'MCP server']
+dynamic = ["dependencies"]
+
+[tool.poetry]
+requires-poetry = ">=2.1.0"
+packages = [
+    { include = "exasol" },
+]
+
+[poetry.urls]
+repository = "https://github.com/exasol/mcp-server"
+homepage = "https://github.com/exasol/mcp-server"
+
+[tool.poetry.dependencies]
+
+[tool.poetry.group.dev.dependencies]
+exasol-toolbox = "^1.1.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.coverage.run]
+relative_files = true
+source = [
+    "exasol",
+]
+
+[tool.coverage.report]
+fail_under = 15
+
+[tool.black]
+line-length = 88
+verbose = false
+include = "\\.pyi?$"
+
+[tool.isort]
+profile = "black"
+force_grid_wrap = 2
+
+[tool.pylint.master]
+fail-under = 5.0
+output-format = "colorized,json:.lint.json,text:.lint.txt"
+ignore = [
+    "noxfile.py",
+    "noxconfig.py",
+    "version.py",
+]
+ignore-paths = [
+    ".*/test/.*",
+]
+
+[tool.pylint.format]
+max-line-length = 88
+max-module-lines = 800
+
+[tool.mypy]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "test.*",
+]
+ignore_errors = true
+
+[tool.sonar]
+projectKey = "exasol.com:mcp-server"
+hostUrl = "https://sonarcloud.io"
+organization = "exasol"
