@@ -73,3 +73,8 @@ module = [
     "test.*",
 ]
 ignore_errors = true
+
+[tool.sonar]
+projectKey = "exasol.com:mcp-server"
+hostUrl = "https://sonarcloud.io"
+organization = "exasol"
