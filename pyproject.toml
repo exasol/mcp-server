@@ -38,6 +38,7 @@ source = [
 
 [tool.coverage.report]
 fail_under = 15
+ignore_errors = true
 
 [tool.black]
 line-length = 88
