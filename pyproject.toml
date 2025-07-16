@@ -24,7 +24,7 @@ homepage = "https://github.com/exasol/mcp-server"
 [tool.poetry.dependencies]
 
 [tool.poetry.group.dev.dependencies]
-exasol-toolbox = "^1.1.0"
+exasol-toolbox = "^1.6.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
@@ -51,11 +51,6 @@ force_grid_wrap = 2
 [tool.pylint.master]
 fail-under = 5.0
 output-format = "colorized,json:.lint.json,text:.lint.txt"
-ignore = [
-    "noxfile.py",
-    "noxconfig.py",
-    "version.py",
-]
 ignore-paths = [
     ".*/test/.*",
 ]
@@ -69,7 +64,6 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = [
-    "tests.*",
     "test.*",
 ]
 ignore_errors = true
