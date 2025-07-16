@@ -72,3 +72,4 @@ ignore_errors = true
 projectKey = "exasol.com:mcp-server"
 hostUrl = "https://sonarcloud.io"
 organization = "exasol"
+exclusions = "exasol/ai/mcp/server/version.py"
