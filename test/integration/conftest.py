@@ -11,34 +11,17 @@ from textwrap import dedent
 
 import pytest
 
-# <debugging>
-from pyexasol import (
-    ExaConnection,
-    connect,
-)
-
-
-@pytest.fixture(scope="session")
-def db_schema_name() -> str:
-    return "EXASOL_MIBE"
-
-
-@pytest.fixture(scope="session")
-def pyexasol_connection(db_schema_name) -> ExaConnection:
-    return connect(
-        dsn="demodb.exasol.com:8563",
-        user="EXASOL_MIBE",
-        password="l6Cx60e3",
-        schema=db_schema_name,
-    )
-
-
-# </debugging>
-
 
 @pytest.fixture(scope="session")
 def db_schemas(db_schema_name) -> list[ExaSchema]:
-    return [ExaSchema(name=db_schema_name, comment=None, is_new=False)]
+    return [
+        ExaSchema(name=db_schema_name, comment=None, is_new=False),
+        ExaSchema(
+            name="new_schema",
+            comment="new schema for the integration tests",
+            is_new=True,
+        ),
+    ]
 
 
 @pytest.fixture(scope="session")
@@ -220,10 +203,13 @@ def setup_database(
     try:
         for schema in db_schemas:
             if schema.is_new:
-                query = f"CREATE SCHEMA IF NOT EXISTS {schema.name}"
+                query = f"CREATE OR REPLACE SCHEMA {schema.name}"
                 pyexasol_connection.execute(query=query)
-                query = f'COMMENT ON SCHEMA "{schema.name}" ' f"IS '{schema.comment}'"
-                pyexasol_connection.execute(query=query)
+                if schema.comment:
+                    query = (
+                        f'COMMENT ON SCHEMA "{schema.name}" ' f"IS '{schema.comment}'"
+                    )
+                    pyexasol_connection.execute(query=query)
             for table in db_tables:
                 query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
                 pyexasol_connection.execute(query=query)
