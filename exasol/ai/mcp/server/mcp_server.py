@@ -110,7 +110,7 @@ class McpServerSettings(BaseModel):
 
 
 def _report_error(tool_name: str, error_message: str) -> TextContent:
-    logger.error(f"Error in {tool_name}: {error_message}")
+    logger.error("Error in %s: %s", tool_name, error_message)
     error_json = json.dumps({"error": error_message})
     return TextContent(type="text", text=error_json)
 
@@ -187,7 +187,7 @@ class ExasolMCPServer(FastMCP):
             )
 
     def _build_meta_query(
-        self, meta_name: str, conf: MetaSettings, schema_name: str = "", *predicates
+        self, meta_name: str, conf: MetaSettings, schema_name: str, *predicates
     ) -> str:
         """
         Builds a metadata query.
@@ -244,7 +244,7 @@ class ExasolMCPServer(FastMCP):
                 result = self.connection.execute(query=query).fetchall()
             result_json = json.dumps(result)
             return TextContent(type="text", text=result_json)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             return _report_error(tool_name, str(e))
 
     def list_schemas(self) -> TextContent:
@@ -252,7 +252,7 @@ class ExasolMCPServer(FastMCP):
         conf = self.config.schemas
         if not conf.enable:
             return _report_error(tool_name, "Schema listing is disabled.")
-        query = self._build_meta_query("SCHEMA", conf)
+        query = self._build_meta_query("SCHEMA", conf, "")
         return self._execute_query(tool_name, query)
 
     def list_tables(
