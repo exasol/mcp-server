@@ -22,9 +22,12 @@ repository = "https://github.com/exasol/mcp-server"
 homepage = "https://github.com/exasol/mcp-server"
 
 [tool.poetry.dependencies]
+fastmcp = "^2.10.4"
+pyexasol = "^0.27.0"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.1.0"
+pytest-exasol-extension = "^0.2.3"
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
