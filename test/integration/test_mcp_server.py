@@ -26,10 +26,20 @@ async def _run_tool_async(
         return await client.call_tool(tool_name, kwargs)
 
 
+async def _list_tools_async(connection: ExaConnection, config: McpServerSettings):
+    exa_server = ExasolMCPServer(connection, config)
+    async with Client(exa_server) as client:
+        return await client.list_tools()
+
+
 def _run_tool(
     connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
 ):
     return asyncio.run(_run_tool_async(connection, config, tool_name, **kwargs))
+
+
+def _list_tools(connection: ExaConnection, config: McpServerSettings):
+    return asyncio.run(_list_tools_async(connection, config))
 
 
 def _result_sort_func(d: dict[str, Any]) -> str:
@@ -38,7 +48,9 @@ def _result_sort_func(d: dict[str, Any]) -> str:
 
 def _get_list_result_json(result) -> list[dict[str, Any]]:
     result_json = json.loads(result.content[0].text)
-    return sorted(result_json, key=_result_sort_func)
+    if isinstance(result_json, list):
+        return sorted(result_json, key=_result_sort_func)
+    return [result_json]
 
 
 def _get_expected_db_obj_json(
@@ -62,6 +74,31 @@ def _get_expected_list_json(
         if no_pattern or (name_part in db_obj.name)
     ]
     return sorted(expected_json, key=_result_sort_func)
+
+
+@pytest.mark.parametrize(
+    ["tool_name", "meta_types"],
+    [
+        ("list_schemas", ["schemas"]),
+        ("list_tables", ["tables", "views"]),
+        ("list_functions", ["functions"]),
+        ("list_scripts", ["scripts"]),
+        ("describe_table", ["columns"]),
+    ],
+)
+def test_tool_disabled(
+    pyexasol_connection,
+    tool_name,
+    meta_types,
+) -> None:
+    """
+    This test validates disabling a tool via the configuration.
+    """
+    config_dict = {meta_type: {"enable": False} for meta_type in meta_types}
+    config = McpServerSettings.model_validate(config_dict)
+    result = _list_tools(pyexasol_connection, config)
+    tool_list = [tool.name for tool in result]
+    assert tool_name not in tool_list
 
 
 @pytest.mark.parametrize(
@@ -288,3 +325,47 @@ def test_describe_table(
             result_json = _get_list_result_json(result)
             expected_json = _get_expected_list_json(table.columns, "id", config.columns)
             assert result_json == expected_json
+
+
+def test_describe_table_schema_error(
+    pyexasol_connection, setup_database, db_tables
+) -> None:
+    """
+    The test validates that the `describe_table` returns an error if the schema
+    is not provided and no current schema opened.
+    """
+    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    current_schema = pyexasol_connection.current_schema()
+    try:
+        if current_schema:
+            pyexasol_connection.execute("CLOSE SCHEMA")
+        result = _run_tool(
+            pyexasol_connection,
+            config,
+            "describe_table",
+            table_name=db_tables[0].name,
+        )
+        result_json = _get_list_result_json(result)
+        assert all(key == "error" for di in result_json for key in di.keys())
+    finally:
+        if current_schema:
+            pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
+
+
+def test_describe_table_table_error(
+    pyexasol_connection, setup_database, db_schemas
+) -> None:
+    """
+    The test validates that the `describe_table` returns an error if the table
+    name is not provided.
+    """
+    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    for schema in db_schemas:
+        result = _run_tool(
+            pyexasol_connection,
+            config,
+            "describe_table",
+            schema_name=schema.schema_name_arg,
+        )
+        result_json = _get_list_result_json(result)
+        assert all(key == "error" for di in result_json for key in di.keys())

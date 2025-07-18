@@ -250,8 +250,6 @@ class ExasolMCPServer(FastMCP):
     def list_schemas(self) -> TextContent:
         tool_name = self.list_functions.__name__
         conf = self.config.schemas
-        if not conf.enable:
-            return _report_error(tool_name, "Schema listing is disabled.")
         query = self._build_meta_query("SCHEMA", conf, "")
         return self._execute_query(tool_name, query)
 
@@ -264,10 +262,6 @@ class ExasolMCPServer(FastMCP):
         tool_name = self.list_tables.__name__
         t_conf = self.config.tables
         v_conf = self.config.views
-        if (not t_conf.enable) and (not v_conf.enable):
-            return _report_error(
-                tool_name, "Both tables and views listings are disabled."
-            )
 
         query = "\nUNION\n".join(
             self._build_meta_query(meta_name, conf, schema_name)
