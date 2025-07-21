@@ -198,17 +198,18 @@ class ExasolMCPServer(FastMCP):
             conf:
                 Metadata type settings, which is a part of the server configuration.
             schema_name:
-                The schema name provided in the call to the tool. In case it's empty
-                the current schema of the pyexasol connection may be used. If the
-                is no current schema the query will return objects from all schemas.
+                The schema name provided in the call to the tool. Ignored if meta_name
+                =='SCHEMA'. Otherwise, if it's empty the current schema of the pyexasol
+                connection may be used. If there is no current schema, the query will
+                return objects from all schemas.
             predicates:
                 Any additional predicates to be used in the WHERE clause.
         """
         predicates = [conf.select_predicate, *predicates]
         if meta_name != "SCHEMA":
             schema_name = schema_name or self.connection.current_schema()
-        if schema_name:
-            predicates.append(f"{meta_name}_SCHEMA = '{schema_name}'")
+            if schema_name:
+                predicates.append(f"{meta_name}_SCHEMA = '{schema_name}'")
         return dedent(
             f"""
             SELECT {meta_name}_NAME AS "{conf.name_column}", {meta_name}_COMMENT AS "{conf.comment_column}"
@@ -260,12 +261,12 @@ class ExasolMCPServer(FastMCP):
         ],
     ) -> TextContent:
         tool_name = self.list_tables.__name__
-        t_conf = self.config.tables
-        v_conf = self.config.views
+        table_conf = self.config.tables
+        view_conf = self.config.views
 
         query = "\nUNION\n".join(
             self._build_meta_query(meta_name, conf, schema_name)
-            for meta_name, conf in zip(["TABLE", "VIEW"], [t_conf, v_conf])
+            for meta_name, conf in zip(["TABLE", "VIEW"], [table_conf, view_conf])
             if conf.enable
         )
         return self._execute_query(tool_name, query)
