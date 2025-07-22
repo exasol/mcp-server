@@ -118,8 +118,8 @@ def test_list_schemas(
         config = McpServerSettings(
             schemas=MetaSettings(
                 enable=True,
-                name_column="the_name",
-                comment_column="the_comment",
+                name_field="the_name",
+                comment_field="the_comment",
                 like_pattern=schema.name if use_like else "",
                 regexp_pattern=schema.name if use_regexp else "",
             )
@@ -185,15 +185,15 @@ def test_list_tables(
     config = McpServerSettings(
         tables=MetaSettings(
             enable=enable_tables,
-            name_column="the_name",
-            comment_column="the_comment",
+            name_field="the_name",
+            comment_field="the_comment",
             like_pattern="%resort%" if use_like else "",
             regexp_pattern=".*resort.*" if use_regexp else "",
         ),
         views=MetaSettings(
             enable=enable_views,
-            name_column="the_name",
-            comment_column="the_comment",
+            name_field="the_name",
+            comment_field="the_comment",
             like_pattern="%run%" if use_like else "",
             regexp_pattern=".*run.*" if use_regexp else "",
         ),
@@ -234,8 +234,8 @@ def test_list_functions(
     config = McpServerSettings(
         functions=MetaSettings(
             enable=True,
-            name_column="the_name",
-            comment_column="the_comment",
+            name_field="the_name",
+            comment_field="the_comment",
             like_pattern="cut%" if use_like else "",
             regexp_pattern="cut.*" if use_regexp else "",
         )
@@ -269,8 +269,8 @@ def test_list_scripts(
     config = McpServerSettings(
         scripts=MetaSettings(
             enable=True,
-            name_column="the_name",
-            comment_column="the_comment",
+            name_field="the_name",
+            comment_field="the_comment",
             like_pattern="fibo%" if use_like else "",
             regexp_pattern="fibo.*" if use_regexp else "",
         )
@@ -304,11 +304,11 @@ def test_describe_table(
     config = McpServerSettings(
         columns=MetaColumnSettings(
             enable=True,
-            name_column="the_name",
-            comment_column="the_comment",
-            type_column="the_type",
-            primary_key_column="the_primary_key",
-            foreign_key_column="the_foreign_key",
+            name_field="the_name",
+            comment_field="the_comment",
+            type_field="the_type",
+            primary_key_field="the_primary_key",
+            foreign_key_field="the_foreign_key",
             like_pattern="%id%" if use_like else "",
             regexp_pattern=".*id.*" if use_regexp else "",
         )

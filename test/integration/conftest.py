@@ -174,7 +174,7 @@ def db_scripts() -> list[ExaFunction]:
                 """
                 CREATE OR REPLACE PYTHON3 SET SCRIPT "{schema}"."weighted_length"(
                     text VARCHAR(100000), weight DOUBLE)
-                RETURNS INTEGER
+                RETURNS DOUBLE
                 AS
                 def run(ctx):
                         more_data = True
