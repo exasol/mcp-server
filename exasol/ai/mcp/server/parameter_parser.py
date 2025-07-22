@@ -1,0 +1,150 @@
+import json
+import re
+import traceback
+from abc import (
+    ABC,
+    abstractmethod,
+)
+from textwrap import dedent
+from typing import Any
+
+from mcp.types import TextContent
+from pyexasol import ExaConnection
+
+from exasol.ai.mcp.server.server_settings import MetaParameterSettings
+from exasol.ai.mcp.server.utils import report_error
+
+
+class ParameterParser(ABC):
+    def __init__(
+        self, connection: ExaConnection, conf: MetaParameterSettings, tool_name: str
+    ) -> None:
+        self.connection = connection
+        self.conf = conf
+        self.tool_name = tool_name
+
+    def describe(
+        self,
+        schema_name: str,
+        func_name: str,
+    ) -> TextContent:
+        """
+        Requests and parses metadata for the specified function or script.
+        """
+        if not self.conf.enable:
+            return report_error(self.tool_name, "Parameter listing is disabled.")
+        schema_name = schema_name or self.connection.current_schema()
+        if not schema_name:
+            return report_error(self.tool_name, "Schema name is not provided.")
+        if not func_name:
+            return report_error(
+                self.tool_name, "Function or script name is not provided."
+            )
+
+        query = self.get_func_query(schema_name, func_name)
+        try:
+            result = self.connection.meta.execute_snapshot(query=query).fetchall()
+            if result:
+                if len(result) > 1:
+                    return report_error(self.tool_name, "Script metadata is ambiguous.")
+                script_info = result[0]
+                result = self.extract_parameters(script_info)
+                if result is not None:
+                    result_json = json.dumps(result)
+                    return TextContent(type="text", text=result_json)
+            return report_error(
+                self.tool_name, "Failed to get the function or script metadata."
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            return report_error(self.tool_name, traceback.format_exc())
+
+    def parse_parameter_list(self, params: str) -> str | list[dict[str, str]]:
+        """
+        Breaks the input string into parameter definitions. The input string should be
+        extracted from a text of a function or a script and contain a list of parameters,
+        where each parameter consists of a name and a type. The name may or may not be
+        enclosed in double quotes. The list can be either an input or, in case of an EMIT
+        UDF, the emit list.
+
+        The parameters of a UDF script can be variadic, designated with "...". In such
+        case, the function simply returns "...".
+
+        Normally, the function returns a list of dictionaries, where each dictionary
+        describes a parameter and includes its name and type. The dictionary keys are
+        defined by the provided configuration. The double quotes in the parameter name
+        gets removed.
+        """
+
+        def remove_double_quotes(di: dict[str, str]) -> dict[str, str]:
+            return {key: val.strip('"') for key, val in di.items()}
+
+        params = params.lstrip()
+        if params == "...":
+            return params
+        type_pattern = r"(?:\s*\w+(?:\s*\([\s\w,]*\))?)+"
+        pattern = (
+            rf'(?:^|,)\s*(?P<{self.conf.name_field}>\w+|"\w+")'
+            rf"\s+(?P<{self.conf.type_field}>{type_pattern})"
+        )
+        return [
+            remove_double_quotes(m.groupdict())
+            for m in re.finditer(pattern, params, re.IGNORECASE)
+        ]
+
+    def format_return_type(self, param: str) -> str | dict[str, str]:
+        return {self.conf.type_field: param}
+
+    @abstractmethod
+    def get_func_query(self, schema_name: str, func_name: str) -> str:
+        """
+        Builds a query requesting metadata for a given function or script.
+        """
+
+    @abstractmethod
+    def extract_parameters(self, script_info: dict[str, Any]) -> dict[str, Any] | None:
+        """
+        Parses a function or a UDF text, extracting its input and output parameters
+        and returning a json. If the text cannot be parsed, returns None.
+
+        Args:
+            script_info:
+                The script information obtained from reading the SYS.EXA_ALL_SCRIPTS or
+                SYS.EXA_ALL_FUNCTIONS table. This is a table row passed as a dictionary
+                {column_name: column_value}.
+        """
+
+
+class ScriptParameterParser(ParameterParser):
+
+    def get_func_query(self, schema_name: str, func_name: str) -> str:
+        return dedent(
+            f"""
+            SELECT * FROM SYS.EXA_ALL_SCRIPTS
+            WHERE SCRIPT_SCHEMA = '{schema_name}' AND SCRIPT_NAME = '{func_name}'
+        """
+        )
+
+    def extract_parameters(self, script_info: dict[str, Any]) -> dict[str, Any] | None:
+        main_pattern = (
+            rf'\A\s*CREATE\s+{script_info["SCRIPT_LANGUAGE"]}\s+'
+            rf'{script_info["SCRIPT_INPUT_TYPE"]}\s+SCRIPT\s+'
+            rf'"{script_info["SCRIPT_NAME"]}"\s*\((?P<{self.conf.input_field}>.*)\)\s*'
+            rf'{script_info["SCRIPT_RESULT_TYPE"]}'
+        )
+        if script_info["SCRIPT_RESULT_TYPE"] == "EMITS":
+            pattern = rf"{main_pattern}\s*\((?P<{self.conf.emit_field}>.*)\)\s*AS\s+"
+        else:
+            pattern = rf"{main_pattern}\s+(?P<{self.conf.return_field}>.*)\s+AS\s+"
+        m = re.match(pattern, script_info["SCRIPT_TEXT"], re.IGNORECASE)
+        if m is None:
+            return None
+        param_func = {
+            self.conf.input_field: self.parse_parameter_list,
+            self.conf.emit_field: self.parse_parameter_list,
+            self.conf.return_field: self.format_return_type,
+        }
+        return {
+            param_field: param_func[param_field](params)
+            for param_field, params in m.groupdict().items()
+            if params
+        }
