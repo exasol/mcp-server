@@ -1,18 +1,4 @@
-from typing import Annotated
-
 from pydantic import BaseModel
-from pydantic.functional_validators import AfterValidator
-
-from exasol.ai.mcp.server.utils import sql_text_value
-
-
-def check_no_double_quotes(v: str) -> str:
-    if '"' in v:
-        raise ValueError("Double-quote characters are not allowed in a field name.")
-    return v
-
-
-NoDoubleQuotesStr = Annotated[str, AfterValidator(check_no_double_quotes)]
 
 
 class MetaSettings(BaseModel):
@@ -25,12 +11,12 @@ class MetaSettings(BaseModel):
     Allows to disable the listing of a particular type of metadata.
     """
 
-    name_field: NoDoubleQuotesStr = "name"
+    name_field: str = "name"
     """
     The name of the output field that contains the object name, e.g. "table_name".
     """
 
-    comment_field: NoDoubleQuotesStr = "comment"
+    comment_field: str = "comment"
     """
     The name of the output field that contains the comment, e.g. "table_comment".
     """
@@ -62,11 +48,11 @@ class MetaSettings(BaseModel):
         conditions: list[str] = []
         if self.like_pattern:
             conditions.append(
-                f"""local."{self.name_field}" LIKE {sql_text_value(self.like_pattern)}"""
+                f"""local."{self.name_field}" LIKE '{self.like_pattern}'"""
             )
         if self.regexp_pattern:
             conditions.append(
-                f"""local."{self.name_field}" REGEXP_LIKE {sql_text_value(self.regexp_pattern)}"""
+                f"""local."{self.name_field}" REGEXP_LIKE '{self.regexp_pattern}'"""
             )
         return " AND ".join(conditions)
 
@@ -77,9 +63,9 @@ class MetaColumnSettings(MetaSettings):
     the metadata output.
     """
 
-    type_field: NoDoubleQuotesStr = "column_type"
-    primary_key_field: NoDoubleQuotesStr = "primary_key"
-    foreign_key_field: NoDoubleQuotesStr = "foreign_key"
+    type_field: str = "column_type"
+    primary_key_field: str = "primary_key"
+    foreign_key_field: str = "foreign_key"
 
 
 class MetaParameterSettings(MetaSettings):
@@ -88,10 +74,10 @@ class MetaParameterSettings(MetaSettings):
     script.
     """
 
-    type_field: NoDoubleQuotesStr = "parameter_type"
-    input_field: NoDoubleQuotesStr = "inputs"
-    return_field: NoDoubleQuotesStr = "returns"
-    emit_field: NoDoubleQuotesStr = "emits"
+    type_field: str = "parameter_type"
+    input_field: str = "inputs"
+    return_field: str = "returns"
+    emit_field: str = "emits"
 
 
 class McpServerSettings(BaseModel):

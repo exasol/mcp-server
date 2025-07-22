@@ -10,8 +10,8 @@ import pytest
 from fastmcp import Client
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.mcp_server import (
-    ExasolMCPServer,
+from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
+from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaColumnSettings,
     MetaSettings,
@@ -56,11 +56,11 @@ def _get_list_result_json(result) -> list[dict[str, Any]]:
 def _get_expected_db_obj_json(
     db_obj: ExaDbObject, conf: MetaSettings
 ) -> dict[str, Any]:
-    obj_json = {conf.name_column: db_obj.name, conf.comment_column: db_obj.comment}
+    obj_json = {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
     if isinstance(db_obj, ExaColumn) and isinstance(conf, MetaColumnSettings):
-        obj_json[conf.type_column] = db_obj.type
-        obj_json[conf.primary_key_column] = db_obj.primary_key
-        obj_json[conf.foreign_key_column] = db_obj.foreign_key
+        obj_json[conf.type_field] = db_obj.type
+        obj_json[conf.primary_key_field] = db_obj.primary_key
+        obj_json[conf.foreign_key_field] = db_obj.foreign_key
     return obj_json
 
 
