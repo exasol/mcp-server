@@ -3,6 +3,8 @@ import json
 from test.utils.db_objects import (
     ExaColumn,
     ExaDbObject,
+    ExaFunction,
+    ExaParameter,
 )
 from typing import Any
 
@@ -14,6 +16,7 @@ from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaColumnSettings,
+    MetaParameterSettings,
     MetaSettings,
 )
 
@@ -74,6 +77,26 @@ def _get_expected_list_json(
         if no_pattern or (name_part in db_obj.name)
     ]
     return sorted(expected_json, key=_result_sort_func)
+
+
+def _get_expected_param_list_json(
+    param_list: list[ExaParameter], conf: MetaParameterSettings
+) -> dict[str, str]:
+    return [
+        {conf.name_field: param.name, conf.type_field: param.type}
+        for param in param_list
+    ]
+
+
+def _get_expected_param_json(
+    func: ExaFunction, conf: MetaParameterSettings
+) -> list[dict[str, Any]]:
+    expected_json = {conf.input_field: _get_expected_param_list_json(func.inputs, conf)}
+    if func.emits:
+        expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
+    if func.returns:
+        expected_json[conf.return_field] = {conf.type_field: func.returns}
+    return expected_json
 
 
 @pytest.mark.parametrize(
@@ -369,3 +392,30 @@ def test_describe_table_table_error(
         )
         result_json = _get_list_result_json(result)
         assert all(key == "error" for di in result_json for key in di.keys())
+
+
+def test_describe_scripts(
+    pyexasol_connection, setup_database, db_schemas, db_scripts
+) -> None:
+    config = McpServerSettings(
+        parameters=MetaParameterSettings(
+            enable=True,
+            name_field="the_name",
+            type_field="the_type",
+            input_field="inputs_params",
+            emit_field="emit_params",
+            return_field="return_type",
+        )
+    )
+    for schema in db_schemas:
+        for script in db_scripts:
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "describe_script",
+                schema_name=schema.schema_name_arg,
+                script_name=script.name,
+            )
+            result_json = json.loads(result.content[0].text)
+            expected_json = _get_expected_param_json(script, config.parameters)
+            assert result_json == expected_json

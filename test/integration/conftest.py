@@ -3,6 +3,7 @@ from test.utils.db_objects import (
     ExaColumn,
     ExaConstraint,
     ExaFunction,
+    ExaParameter,
     ExaSchema,
     ExaTable,
     ExaView,
@@ -11,16 +12,40 @@ from textwrap import dedent
 
 import pytest
 
+# <debugging>
+from pyexasol import (
+    ExaConnection,
+    connect,
+)
+
+
+@pytest.fixture(scope="session")
+def db_schema_name() -> str:
+    return "EXASOL_MIBE"
+
+
+@pytest.fixture(scope="session")
+def pyexasol_connection(db_schema_name) -> ExaConnection:
+    return connect(
+        dsn="demodb.exasol.com:8563",
+        user="EXASOL_MIBE",
+        password="l6Cx60e3",
+        schema=db_schema_name,
+    )
+
+
+# </debugging>
+
 
 @pytest.fixture(scope="session")
 def db_schemas(db_schema_name) -> list[ExaSchema]:
     return [
         ExaSchema(name=db_schema_name, comment=None, is_new=False),
-        ExaSchema(
-            name="new_schema",
-            comment="new schema for the integration tests",
-            is_new=True,
-        ),
+        # ExaSchema(
+        #     name="new_schema",
+        #     comment="new schema for the integration tests",
+        #     is_new=True,
+        # ),
     ]
 
 
@@ -98,6 +123,7 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="cut_middle",
             comment="cuts a middle of the provided text",
+            inputs=[],
             body=dedent(
                 """
                 CREATE OR REPLACE FUNCTION "{schema}"."cut_middle"(
@@ -122,6 +148,7 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="factorial",
             comment="computes the factorial of a number",
+            inputs=[],
             body=dedent(
                 """
                 CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num INTEGER)
@@ -149,6 +176,11 @@ def db_scripts() -> list[ExaFunction]:
         ExaFunction(
             name="fibonacci",
             comment="emits Fibonacci sequence of the given length",
+            inputs=[ExaParameter(name="seq_length", type="DECIMAL(18,0)")],
+            emits=[
+                ExaParameter(name="NUM", type="DECIMAL(18,0)"),
+                ExaParameter(name="VAL", type="DECIMAL(18,0)"),
+            ],
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{schema}"."fibonacci"(
@@ -170,6 +202,11 @@ def db_scripts() -> list[ExaFunction]:
         ExaFunction(
             name="weighted_length",
             comment="computes weighted sum of the input text lengths",
+            inputs=[
+                ExaParameter(name="text", type="VARCHAR(100000) UTF8"),
+                ExaParameter(name="weight", type="DOUBLE"),
+            ],
+            returns="DOUBLE",
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SET SCRIPT "{schema}"."weighted_length"(
