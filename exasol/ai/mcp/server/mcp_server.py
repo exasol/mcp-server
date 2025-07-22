@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import traceback
 from textwrap import dedent
 from typing import Annotated
 
@@ -246,8 +247,8 @@ class ExasolMCPServer(FastMCP):
                 result = self.connection.execute(query=query).fetchall()
             result_json = json.dumps(result)
             return TextContent(type="text", text=result_json)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            return _report_error(tool_name, str(e))
+        except Exception:  # pylint: disable=broad-exception-caught
+            return _report_error(tool_name, traceback.format_exc())
 
     def list_schemas(self) -> TextContent:
         tool_name = self.list_functions.__name__
