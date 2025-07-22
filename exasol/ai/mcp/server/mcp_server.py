@@ -285,7 +285,7 @@ class ExasolMCPServer(FastMCP):
                     "the primary key flag and the foreign key flag."
                 ),
             )
-        if self.config.columns.enable:
+        if self.config.parameters.enable:
             self.tool(
                 self.describe_script,
                 description=(
