@@ -203,7 +203,7 @@ def setup_database(
     try:
         for schema in db_schemas:
             if schema.is_new:
-                query = f'DROP SCHEMA IF EXISTS "{schema.name}"'
+                query = f'DROP SCHEMA IF EXISTS "{schema.name}" CASCADE'
                 pyexasol_connection.execute(query=query)
                 query = f'CREATE SCHEMA "{schema.name}"'
                 pyexasol_connection.execute(query=query)
@@ -235,7 +235,7 @@ def setup_database(
     finally:
         for schema in db_schemas:
             if schema.is_new:
-                query = f'DROP SCHEMA IF EXISTS "{schema.name}"'
+                query = f'DROP SCHEMA IF EXISTS "{schema.name}" CASCADE'
                 pyexasol_connection.execute(query=query)
             else:
                 for table in db_tables[::-1]:
