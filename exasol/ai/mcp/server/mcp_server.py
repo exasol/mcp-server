@@ -28,14 +28,14 @@ class MetaSettings(BaseModel):
     Allows to disable the listing of a particular type of metadata.
     """
 
-    name_column: str = "name"
+    name_field: str = "name"
     """
-    The name of the output column that contains the object name, e.g. "table_name".
+    The name of the output field that contains the object name, e.g. "table_name".
     """
 
-    comment_column: str = "comment"
+    comment_field: str = "comment"
     """
-    The name of the output column that contains the comment, e.g. "table_comment".
+    The name of the output field that contains the comment, e.g. "table_comment".
     """
 
     like_pattern: str | None = None
@@ -65,23 +65,24 @@ class MetaSettings(BaseModel):
         conditions: list[str] = []
         if self.like_pattern:
             conditions.append(
-                f"""local."{self.name_column}" LIKE '{self.like_pattern}'"""
+                f"""local."{self.name_field}" LIKE '{self.like_pattern}'"""
             )
         if self.regexp_pattern:
             conditions.append(
-                f"""local."{self.name_column}" REGEXP_LIKE '{self.regexp_pattern}'"""
+                f"""local."{self.name_field}" REGEXP_LIKE '{self.regexp_pattern}'"""
             )
         return " AND ".join(conditions)
 
 
 class MetaColumnSettings(MetaSettings):
     """
-    The settings for the column listing. Adds few more columns to the metadata output.
+    The settings for listing columns when describing a table. Adds few more fields to
+    the metadata output.
     """
 
-    type_column: str = "column_type"
-    primary_key_column: str = "primary_key"
-    foreign_key_column: str = "foreign_key"
+    type_field: str = "column_type"
+    primary_key_field: str = "primary_key"
+    foreign_key_field: str = "foreign_key"
 
 
 class McpServerSettings(BaseModel):
@@ -90,22 +91,22 @@ class McpServerSettings(BaseModel):
     """
 
     schemas: MetaSettings = MetaSettings(
-        name_column="schema_name", comment_column="schema_comment"
+        name_field="schema_name", comment_field="schema_comment"
     )
     tables: MetaSettings = MetaSettings(
-        name_column="table_name", comment_column="table_comment"
+        name_field="table_name", comment_field="table_comment"
     )
     views: MetaSettings = MetaSettings(
-        enable=False, name_column="table_name", comment_column="table_comment"
+        enable=False, name_field="table_name", comment_field="table_comment"
     )
     functions: MetaSettings = MetaSettings(
-        name_column="function_name", comment_column="function_comment"
+        name_field="function_name", comment_field="function_comment"
     )
     scripts: MetaSettings = MetaSettings(
-        name_column="script_name", comment_column="script_comment"
+        name_field="script_name", comment_field="script_comment"
     )
     columns: MetaColumnSettings = MetaColumnSettings(
-        name_column="column_name", comment_column="column_comment"
+        name_field="column_name", comment_field="column_comment"
     )
 
 
@@ -212,7 +213,7 @@ class ExasolMCPServer(FastMCP):
                 predicates.append(f"{meta_name}_SCHEMA = '{schema_name}'")
         return dedent(
             f"""
-            SELECT {meta_name}_NAME AS "{conf.name_column}", {meta_name}_COMMENT AS "{conf.comment_column}"
+            SELECT {meta_name}_NAME AS "{conf.name_field}", {meta_name}_COMMENT AS "{conf.comment_field}"
             FROM SYS.EXA_ALL_{meta_name}S
             {_where_clause(*predicates)}
         """
@@ -311,7 +312,7 @@ class ExasolMCPServer(FastMCP):
         tool_name = self.describe_table.__name__
         conf = self.config.columns
         if not conf.enable:
-            return _report_error(tool_name, "Table description is disabled.")
+            return _report_error(tool_name, "Column listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
         if not schema_name:
             return _report_error(tool_name, "Schema name is not provided.")
@@ -329,11 +330,11 @@ class ExasolMCPServer(FastMCP):
         query = dedent(
             f"""
             SELECT
-                    C.COLUMN_NAME AS "{conf.name_column}",
-                    C.COLUMN_TYPE AS "{conf.type_column}",
-                    C.COLUMN_COMMENT AS "{conf.comment_column}",
-                    NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_column}",
-                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_column}"
+                    C.COLUMN_NAME AS "{conf.name_field}",
+                    C.COLUMN_TYPE AS "{conf.type_field}",
+                    C.COLUMN_COMMENT AS "{conf.comment_field}",
+                    NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_field}",
+                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_field}"
             FROM SYS.EXA_ALL_COLUMNS C
             LEFT JOIN (
                     SELECT COLUMN_NAME
