@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ExaDbObject:
-    name: str
+    name: str | None
     comment: str | None
 
     @property
@@ -21,6 +21,7 @@ class ExaConstraint:
         return f'{self.type} ("{column_name}"){col_ref}'
 
 
+@dataclass
 @dataclass
 class ExaColumn(ExaDbObject):
     type: str
@@ -62,8 +63,17 @@ class ExaView(ExaDbObject):
 
 
 @dataclass
+class ExaParameter:
+    type: str
+    name: str
+
+
+@dataclass
 class ExaFunction(ExaDbObject):
     body: str
+    inputs: list[ExaParameter]
+    emits: list[ExaParameter] | None = None
+    returns: str | None = None
 
 
 @dataclass
