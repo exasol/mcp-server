@@ -350,11 +350,20 @@ def test_describe_table(
             assert result_json == expected_json
 
 
-def test_describe_table_schema_error(
-    pyexasol_connection, setup_database, db_tables
+@pytest.mark.parametrize(
+    ["tool_name", "other_kwargs"],
+    [
+        ("describe_table", {"table_name": "ski_resort"}),
+        ("describe_function", {"func_name": "factorial"}),
+        ("describe_script", {"script_name": "fibonacci"}),
+    ],
+    ids=["describe_table", "describe_function", "describe_script"],
+)
+def test_describe_schema_error(
+    pyexasol_connection, setup_database, tool_name, other_kwargs
 ) -> None:
     """
-    The test validates that the `describe_table` returns an error if the schema
+    The test validates that the `describe_xxx` tool returns an error if the schema
     is not provided and no current schema opened.
     """
     config = McpServerSettings(columns=MetaColumnSettings(enable=True))
@@ -363,10 +372,7 @@ def test_describe_table_schema_error(
         if current_schema:
             pyexasol_connection.execute("CLOSE SCHEMA")
         result = _run_tool(
-            pyexasol_connection,
-            config,
-            "describe_table",
-            table_name=db_tables[0].name,
+            pyexasol_connection, config, tool_name=tool_name, **other_kwargs
         )
         result_json = _get_list_result_json(result)
         assert all(key == "error" for di in result_json for key in di.keys())
@@ -375,34 +381,71 @@ def test_describe_table_schema_error(
             pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
 
 
-def test_describe_table_table_error(
-    pyexasol_connection, setup_database, db_schemas
+@pytest.mark.parametrize(
+    "tool_name", ["describe_table", "describe_function", "describe_script"]
+)
+def test_describe_db_object_error(
+    pyexasol_connection, setup_database, db_schemas, tool_name
 ) -> None:
     """
-    The test validates that the `describe_table` returns an error if the table
-    name is not provided.
+    The test validates that the `describe_xxx` returns an error if the name of the
+    db object to be described is not provided.
     """
     config = McpServerSettings(columns=MetaColumnSettings(enable=True))
     for schema in db_schemas:
         result = _run_tool(
             pyexasol_connection,
             config,
-            "describe_table",
+            tool_name=tool_name,
             schema_name=schema.schema_name_arg,
         )
         result_json = _get_list_result_json(result)
         assert all(key == "error" for di in result_json for key in di.keys())
 
 
-def test_describe_scripts(
-    pyexasol_connection, setup_database, db_schemas, db_scripts
+def test_describe_function(
+    pyexasol_connection, setup_database, db_schemas, db_functions
 ) -> None:
+    """
+    Test the `describe_function` tool. The tool is tested on each function
+    of every schema.
+    """
     config = McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
             name_field="the_name",
             type_field="the_type",
-            input_field="inputs_params",
+            input_field="input_params",
+            return_field="return_type",
+        )
+    )
+    for schema in db_schemas:
+        for func in db_functions:
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "describe_function",
+                schema_name=schema.schema_name_arg,
+                func_name=func.name,
+            )
+            result_json = json.loads(result.content[0].text)
+            expected_json = _get_expected_param_json(func, config.parameters)
+            assert result_json == expected_json
+
+
+def test_describe_script(
+    pyexasol_connection, setup_database, db_schemas, db_scripts
+) -> None:
+    """
+    Test the `describe_script` tool. The tool is tested on each script
+    of every schema.
+    """
+    config = McpServerSettings(
+        parameters=MetaParameterSettings(
+            enable=True,
+            name_field="the_name",
+            type_field="the_type",
+            input_field="input_params",
             emit_field="emit_params",
             return_field="return_type",
         )

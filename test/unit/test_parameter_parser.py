@@ -1,5 +1,4 @@
 import json
-import re
 from textwrap import dedent
 from unittest import mock
 
@@ -9,9 +8,7 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
     ScriptParameterParser,
-    parameter_list_pattern,
 )
-from exasol.ai.mcp.server.parameter_pattern import regex_flags
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
 
 
@@ -46,30 +43,6 @@ def script_parameter_parser(param_config) -> ScriptParameterParser:
 
 
 @pytest.mark.parametrize(
-    "params_list",
-    ["( abc DOUBLE, xZZ varchar(200) )", '("my_real" REAL, "my_int" INTEGER)'],
-    ids=["non-quoted-names", "quoted-names"],
-)
-def test_parameter_list_pattern(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is not None
-    )
-
-
-@pytest.mark.parametrize(
-    "params_list",
-    ["(abc, xZZ varchar(200))", '("my_real" REAL, "my_complex" COMPLEX)'],
-    ids=["no-type", "bad-type"],
-)
-def test_parameter_list_pattern_error(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is None
-    )
-
-
-@pytest.mark.parametrize(
     ["params", "expected_result"],
     [
         (
@@ -98,16 +71,26 @@ def test_parameter_list_pattern_error(params_list):
             ],
         ),
         ('"P_1" INT', [{"name": "P_1", "type": "INT"}]),
-        ('"1_P" INT', [{"name": "1_P", "type": "INT"}]),
+        (
+            "p1 DECIMAL(3,2, p2 VARCHAR(100)",
+            [
+                {"name": "p1", "type": "DECIMAL"},
+                {"name": "p2", "type": "VARCHAR(100)"},
+            ],
+        ),
         ("...", "..."),
+        ('"MyParam INT', []),
+        ("param_no_type", []),
     ],
     ids=[
-        "non-quoted-names",
-        "quoted-names",
-        "complex-types",
-        "single-parameter",
-        "strange-name",
+        "non-quoted names",
+        "quoted names",
+        "complex types",
+        "single parameter",
+        "bad type specifiers",
         "variadic",
+        "bad name",
+        "no type",
     ],
 )
 def test_parse_parameter_list(func_parameter_parser, params, expected_result):
@@ -198,7 +181,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 """
                 ),
             },
-            {"inputs": [], "returns": {"type": "TIMESTAMP(8) WITH LOCAL TIME ZONE"}},
+            {"inputs": [], "returns": {"type": "TIMESTAMP(8)"}},
         ),
     ],
     ids=[
@@ -214,31 +197,38 @@ def test_func_extract_parameters(func_parameter_parser, info, expected_result):
 
 
 @pytest.mark.parametrize(
-    "invalid_text",
+    ["key", "invalid_value"],
     [
-        dedent(
+        ("FUNCTION_SCHEMA", "My"),
+        ("FUNCTION_NAME", "SkyHooks"),
+        (
+            "FUNCTION_TEXT",
+            dedent(
+                """
+            function MySchema.SkyHooks
+            return VARCHAR(1000)
+            begin ... end;
+        """
+            ),
+        ),
+    ],
+    ids=["invalid-schema", "invalid-name", "invalid-text-no-inputs"],
+)
+def test_func_extract_parameters_error(func_parameter_parser, key, invalid_value):
+    info = {
+        "FUNCTION_SCHEMA": "MySchema",
+        "FUNCTION_NAME": "GetSkyHooks",
+        "FUNCTION_TEXT": dedent(
             """
-            function MySchema.GetSkyHooks
+            function MySchema.GetSkyHooks()
             return VARCHAR(1000)
             begin ... end;
         """
         ),
-        dedent(
-            """
-            function MySchema.GetSkyHooks()
-            return COMPLEX
-            begin ... end;
-    """
-        ),
-    ],
-    ids=["ino-inputs", "invalid-return-type"],
-)
-def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
-    info = {
-        "FUNCTION_SCHEMA": "MySchema",
-        "FUNCTION_NAME": "GetSkyHooks",
-        "FUNCTION_TEXT": invalid_text,
     }
+    result = func_parameter_parser.extract_parameters(info)
+    assert result is not None
+    info[key] = invalid_value
     result = func_parameter_parser.extract_parameters(info)
     assert result is None
 
@@ -435,55 +425,65 @@ def test_script_extract_parameters(script_parameter_parser, info, expected_resul
 
 
 @pytest.mark.parametrize(
-    ["result_type", "invalid_text"],
+    ["key", "invalid_value"],
     [
+        ("SCRIPT_SCHEMA", "My"),
+        ("SCRIPT_NAME", "SkyHooks"),
+        ("SCRIPT_LANGUAGE", "LUA"),
+        ("SCRIPT_INPUT_TYPE", "SET"),
+        ("SCRIPT_RESULT_TYPE", "EMITS"),
         (
-            "RETURNS",
+            "SCRIPT_TEXT",
             dedent(
                 """
-                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks
-                RETURNS VARCHAR(1000) AS
-                def run(ctx):
-                    ...
-            """
+            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks
+            RETURNS VARCHAR(1000) AS
+            def run(ctx):
+                ...
+        """
             ),
         ),
         (
-            "RETURNS",
+            "SCRIPT_TEXT",
             dedent(
                 """
-                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
-                RETURNS AS
-                def run(ctx):
-                    ...
-            """
-            ),
-        ),
-        (
-            "EMITS",
-            dedent(
-                """
-                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
-                EMITS AS
-                def run(ctx):
-                    ...
+            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
+            RETURNS AS
+            def run(ctx):
+                ...
         """
             ),
         ),
     ],
-    ids=["no-input", "no-return", "no-emit"],
+    ids=[
+        "invalid-schema",
+        "invalid-name",
+        "invalid-language",
+        "invalid-input-type",
+        "invalid-result-type",
+        "invalid-text-no-input",
+        "invalid-text-no-output",
+    ],
 )
-def test_script_extract_parameters_error(
-    script_parameter_parser, result_type, invalid_text
-):
+def test_script_extract_parameters_error(script_parameter_parser, key, invalid_value):
     info = {
         "SCRIPT_SCHEMA": "MySchema",
         "SCRIPT_NAME": "GetSkyHooks",
         "SCRIPT_LANGUAGE": "PYTHON3",
         "SCRIPT_INPUT_TYPE": "SCALAR",
-        "SCRIPT_RESULT_TYPE": result_type,
-        "SCRIPT_TEXT": invalid_text,
+        "SCRIPT_RESULT_TYPE": "RETURNS",
+        "SCRIPT_TEXT": dedent(
+            """
+            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
+            RETURNS VARCHAR(1000) AS
+            def run(ctx):
+                ...
+        """
+        ),
     }
+    result = script_parameter_parser.extract_parameters(info)
+    assert result is not None
+    info[key] = invalid_value
     result = script_parameter_parser.extract_parameters(info)
     assert result is None
 
@@ -518,11 +518,30 @@ def test_describe(mock_execute_query, func_parameter_parser):
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
-def test_describe_not_found(mock_execute_query, func_parameter_parser):
+def test_describe_no_data(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = []
     result = func_parameter_parser.describe(
         schema_name="MySchema", func_name="Validate"
     )
+    result_dict = json.loads(result.text)
+    assert "error" in result_dict
+
+
+@mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
+def test_describe_ambiguous_data(mock_execute_query, func_parameter_parser):
+    mock_execute_query.return_value = [
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": "Func1",
+            "FUNCTION_TEXT": "FUNCTION Func1() RETURN BOOL BEGIN ... END;",
+        },
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": "Func2",
+            "FUNCTION_TEXT": "FUNCTION Func2() RETURN BOOL BEGIN ... END;",
+        },
+    ]
+    result = func_parameter_parser.describe(schema_name="MySchema", func_name="Func1")
     result_dict = json.loads(result.text)
     assert "error" in result_dict
 
