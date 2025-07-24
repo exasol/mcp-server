@@ -12,7 +12,10 @@ from pyexasol import (
     connect,
 )
 
-from exasol.ai.mcp.server.parameter_parser import ScriptParameterParser
+from exasol.ai.mcp.server.parameter_parser import (
+    FuncParameterParser,
+    ScriptParameterParser,
+)
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaSettings,
@@ -92,11 +95,20 @@ class ExasolMCPServer(FastMCP):
             )
         if self.config.parameters.enable:
             self.tool(
+                self.describe_function,
+                description=(
+                    "Describes the specified function in the specified schema of the "
+                    "Exasol Database. Returns the list of input parameters and the "
+                    "return type. For each parameter provides the name and the type."
+                ),
+            )
+            self.tool(
                 self.describe_script,
                 description=(
                     "Describes the specified script in the specified schema of the "
-                    "Exasol Database. Returns the list of the input and output "
-                    "parameters. For each parameter provides the name and the type."
+                    "Exasol Database. Returns the list of input parameters, the list "
+                    "or emitted parameters or the return type. For each parameter "
+                    "provides the name and the type."
                 ),
             )
 
@@ -263,6 +275,22 @@ class ExasolMCPServer(FastMCP):
         """
         )
         return self._execute_query(tool_name, query)
+
+    def describe_function(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        func_name: Annotated[
+            str, Field(description="name of the function", default="")
+        ],
+    ) -> TextContent:
+        parser = FuncParameterParser(
+            connection=self.connection,
+            conf=self.config.parameters,
+            tool_name=self.describe_function.__name__,
+        )
+        return parser.describe(schema_name, func_name)
 
     def describe_script(
         self,

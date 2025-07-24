@@ -123,11 +123,16 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="cut_middle",
             comment="cuts a middle of the provided text",
-            inputs=[],
+            inputs=[
+                ExaParameter(name="inp_text", type="VARCHAR(1000)"),
+                ExaParameter(name="cut_from", type="DECIMAL(18,0)"),
+                ExaParameter(name="cut_to", type="DECIMAL(18,0)"),
+            ],
+            returns="VARCHAR(1000)",
             body=dedent(
                 """
                 CREATE OR REPLACE FUNCTION "{schema}"."cut_middle"(
-                    inp_text VARCHAR(1000), cut_from INTEGER, cut_to INTEGER)
+                    inp_text VARCHAR(1000), cut_from DECIMAL(18,0), cut_to DECIMAL(18,0))
                 RETURN VARCHAR(1000)
                 IS
                     len INTEGER;
@@ -148,11 +153,12 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="factorial",
             comment="computes the factorial of a number",
-            inputs=[],
+            inputs=[ExaParameter(name="num", type="DECIMAL(18,0)")],
+            returns="DECIMAL(18,0)",
             body=dedent(
                 """
-                CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num INTEGER)
-                RETURN VARCHAR(1000)
+                CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num DECIMAL(18,0))
+                RETURN DECIMAL(18,0)
                 IS
                     res INTEGER;
                 BEGIN
