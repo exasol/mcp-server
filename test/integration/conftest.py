@@ -12,40 +12,16 @@ from textwrap import dedent
 
 import pytest
 
-# <debugging>
-from pyexasol import (
-    ExaConnection,
-    connect,
-)
-
-
-@pytest.fixture(scope="session")
-def db_schema_name() -> str:
-    return "EXASOL_MIBE"
-
-
-@pytest.fixture(scope="session")
-def pyexasol_connection(db_schema_name) -> ExaConnection:
-    return connect(
-        dsn="demodb.exasol.com:8563",
-        user="EXASOL_MIBE",
-        password="l6Cx60e3",
-        schema=db_schema_name,
-    )
-
-
-# </debugging>
-
 
 @pytest.fixture(scope="session")
 def db_schemas(db_schema_name) -> list[ExaSchema]:
     return [
         ExaSchema(name=db_schema_name, comment=None, is_new=False),
-        # ExaSchema(
-        #     name="new_schema",
-        #     comment="new schema for the integration tests",
-        #     is_new=True,
-        # ),
+        ExaSchema(
+            name="new_schema",
+            comment="new schema for the integration tests",
+            is_new=True,
+        ),
     ]
 
 
