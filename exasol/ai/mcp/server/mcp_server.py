@@ -20,7 +20,10 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaSettings,
 )
-from exasol.ai.mcp.server.utils import report_error
+from exasol.ai.mcp.server.utils import (
+    report_error,
+    sql_text_value,
+)
 
 
 def _where_clause(*predicates) -> str:
@@ -135,7 +138,7 @@ class ExasolMCPServer(FastMCP):
         if meta_name != "SCHEMA":
             schema_name = schema_name or self.connection.current_schema()
             if schema_name:
-                predicates.append(f"{meta_name}_SCHEMA = '{schema_name}'")
+                predicates.append(f"{meta_name}_SCHEMA = {sql_text_value(schema_name)}")
         return dedent(
             f"""
             SELECT {meta_name}_NAME AS "{conf.name_field}", {meta_name}_COMMENT AS "{conf.comment_field}"
@@ -245,12 +248,12 @@ class ExasolMCPServer(FastMCP):
             return report_error(tool_name, "Table name is not provided.")
 
         c_predicates = [
-            f"COLUMN_SCHEMA = '{schema_name}'",
-            f"COLUMN_TABLE = '{table_name}'",
+            f"COLUMN_SCHEMA = {sql_text_value(schema_name)}",
+            f"COLUMN_TABLE = {sql_text_value(table_name)}",
         ]
         s_predicates = [
-            f"CONSTRAINT_SCHEMA = '{schema_name}'",
-            f"CONSTRAINT_TABLE = '{table_name}'",
+            f"CONSTRAINT_SCHEMA = {sql_text_value(schema_name)}",
+            f"CONSTRAINT_TABLE = {sql_text_value(table_name)}",
         ]
         query = dedent(
             f"""
