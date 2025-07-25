@@ -11,6 +11,11 @@ from pyexasol import (
     ExaConnection,
     connect,
 )
+from sqlglot import (
+    exp,
+    parse_one,
+)
+from sqlglot.errors import ParseError
 
 from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
@@ -31,6 +36,20 @@ def _where_clause(*predicates) -> str:
     if condition:
         return f"WHERE {condition}"
     return ""
+
+
+def vet_query(query: str) -> bool:
+    """
+    Verifies that the query is a valid SELECT query.
+    Declines any other types of statements including the SELECT INTO.
+    """
+    try:
+        ast = parse_one(query, read="exasol")
+        if isinstance(ast, exp.Select):
+            return "into" not in ast.args
+        return False
+    except ParseError:
+        return False
 
 
 class ExasolMCPServer(FastMCP):
@@ -112,6 +131,15 @@ class ExasolMCPServer(FastMCP):
                     "Exasol Database. Returns the list of input parameters, the list "
                     "or emitted parameters or the return type. For each parameter "
                     "provides the name and the type."
+                ),
+            )
+        if self.config.enable_query:
+            self.tool(
+                self.execute_query,
+                description=(
+                    "Executes the specified query in the specified schema of the "
+                    "Exasol Database. The query must be a SELECT statement. Returns "
+                    "the results selected by the query."
                 ),
             )
 
@@ -310,6 +338,16 @@ class ExasolMCPServer(FastMCP):
             tool_name=self.describe_script.__name__,
         )
         return parser.describe(schema_name, script_name)
+
+    def execute_query(
+        self, query: Annotated[str, Field(description="select query")]
+    ) -> TextContent:
+        tool_name = self.execute_query.__name__
+        if vet_query(query):
+            return self._execute_query(tool_name, query, use_snapshot=False)
+        return report_error(
+            tool_name, "The query is invalid or not a SELECT statement."
+        )
 
 
 if __name__ == "__main__":

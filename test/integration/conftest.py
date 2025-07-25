@@ -9,8 +9,22 @@ from test.utils.db_objects import (
     ExaView,
 )
 from textwrap import dedent
+from typing import Any
 
 import pytest
+
+
+def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
+    def format_value(val: Any) -> str:
+        if isinstance(val, str):
+            return f"'{val}'"
+        return str(val)
+
+    def format_row(row: tuple[Any, ...]) -> str:
+        column_list = ", ".join(map(format_value, row))
+        return f"({column_list})"
+
+    return ", ".join(map(format_row, rows))
 
 
 @pytest.fixture(scope="session")
@@ -38,12 +52,18 @@ def db_tables() -> list[ExaTable]:
                     type="DECIMAL(18,0)",
                     constraint=ExaConstraint(type="PRIMARY KEY"),
                 ),
+                ExaColumn(name="resort_name", comment=None, type="VARCHAR(1000) UTF8"),
                 ExaColumn(name="country", comment=None, type="VARCHAR(100) UTF8"),
                 ExaColumn(
                     name="altitude",
                     comment="the ski resort altitude above the see level in meters",
                     type="DECIMAL(18,0)",
                 ),
+            ],
+            rows=[
+                (1000, "Val Thorens", "France", 2300),
+                (1001, "Courchevel", "France", 1850),
+                (1002, "Kitzbuhel", "Austria", 762),
             ],
         ),
         ExaTable(
@@ -69,6 +89,15 @@ def db_tables() -> list[ExaTable]:
                     comment="the run length in meters",
                     type="DECIMAL(18,0)",
                 ),
+            ],
+            rows=[
+                (1000, "Christine", "Blue", 1200),
+                (1000, "Allamande", "Red", 950),
+                (1001, "Combe de la Saulire", "Red", 1550),
+                (1001, "Chanrossa", "Black", 800),
+                (1002, "Hochsaukaser", "Red", 1900),
+                (1002, "Steilhang", "Black", 1200),
+                (1002, "Sonnenrast", "Green", 200),
             ],
         ),
     ]
@@ -233,6 +262,11 @@ def setup_database(
                     pyexasol_connection.execute(query=query)
             for table in db_tables:
                 query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
+                pyexasol_connection.execute(query=query)
+                query = (
+                    f'INSERT INTO "{schema.name}"."{table.name}" '
+                    f"VALUES {format_table_rows(table.rows)}"
+                )
                 pyexasol_connection.execute(query=query)
             for view in db_views:
                 query = f"CREATE OR REPLACE VIEW {view.decl(schema.name)}"

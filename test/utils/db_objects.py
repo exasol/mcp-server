@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -44,6 +45,7 @@ class ExaColumn(ExaDbObject):
 @dataclass
 class ExaTable(ExaDbObject):
     columns: list[ExaColumn]
+    rows: list[tuple[Any, ...]]
 
     def decl(self, schema_name: str) -> str:
         column_def = ", ".join(col.decl() for col in self.columns)
