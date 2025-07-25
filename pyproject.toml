@@ -24,6 +24,7 @@ homepage = "https://github.com/exasol/mcp-server"
 [tool.poetry.dependencies]
 fastmcp = "^2.10.4"
 pyexasol = "^0.27.0"
+sqlglot = "^27.2.0"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"

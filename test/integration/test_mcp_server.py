@@ -462,3 +462,14 @@ def test_describe_script(
             result_json = json.loads(result.content[0].text)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
+
+
+def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+    config = McpServerSettings(enable_query=True)
+    for schema in db_schemas:
+        for table in db_tables:
+            query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+            result = _run_tool(
+                pyexasol_connection, config, tool_name="execute_query", query=query
+            )
+            result_json = json.loads(result.content[0].text)
