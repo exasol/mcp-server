@@ -13,11 +13,37 @@ from typing import Any
 
 import pytest
 
+# <debugging>
+from pyexasol import (
+    ExaConnection,
+    connect,
+)
+
+from exasol.ai.mcp.server.utils import sql_text_value
+
+
+@pytest.fixture(scope="session")
+def db_schema_name() -> str:
+    return "EXASOL_MIBE"
+
+
+@pytest.fixture(scope="session")
+def pyexasol_connection(db_schema_name) -> ExaConnection:
+    return connect(
+        dsn="demodb.exasol.com:8563",
+        user="EXASOL_MIBE",
+        password="l6Cx60e3",
+        schema=db_schema_name,
+    )
+
+
+# </debugging>
+
 
 def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
     def format_value(val: Any) -> str:
         if isinstance(val, str):
-            return f"'{val}'"
+            return sql_text_value(val)
         return str(val)
 
     def format_row(row: tuple[Any, ...]) -> str:
@@ -31,11 +57,11 @@ def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
 def db_schemas(db_schema_name) -> list[ExaSchema]:
     return [
         ExaSchema(name=db_schema_name, comment=None, is_new=False),
-        ExaSchema(
-            name="new_schema",
-            comment="new schema for the integration tests",
-            is_new=True,
-        ),
+        # ExaSchema(
+        #     name="new_schema",
+        #     comment="new schema for the integration tests",
+        #     is_new=True,
+        # ),
     ]
 
 
