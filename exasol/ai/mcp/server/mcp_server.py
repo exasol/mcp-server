@@ -54,7 +54,7 @@ class ExasolMCPServer(FastMCP):
                 self.list_schemas,
                 description=(
                     "Lists schemas in the Exasol Database. "
-                    "For each shema provides the name and an optional comment."
+                    "For each schema provides the name and an optional comment."
                 ),
             )
         if self.config.tables.enable or self.config.views.enable:
