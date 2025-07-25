@@ -12,7 +12,10 @@ from mcp.types import TextContent
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-from exasol.ai.mcp.server.utils import report_error
+from exasol.ai.mcp.server.utils import (
+    report_error,
+    sql_text_value,
+)
 
 
 class ParameterParser(ABC):
@@ -129,7 +132,8 @@ class FuncParameterParser(ParameterParser):
         return dedent(
             f"""
             SELECT * FROM SYS.EXA_ALL_FUNCTIONS
-            WHERE FUNCTION_SCHEMA = '{schema_name}' AND FUNCTION_NAME = '{func_name}'
+            WHERE FUNCTION_SCHEMA = {sql_text_value(schema_name)} AND
+                FUNCTION_NAME = {sql_text_value(func_name)}
         """
         )
 
@@ -167,7 +171,8 @@ class ScriptParameterParser(ParameterParser):
         return dedent(
             f"""
             SELECT * FROM SYS.EXA_ALL_SCRIPTS
-            WHERE SCRIPT_SCHEMA = '{schema_name}' AND SCRIPT_NAME = '{func_name}'
+            WHERE SCRIPT_SCHEMA = {sql_text_value(schema_name)} AND
+                SCRIPT_NAME = {sql_text_value(func_name)}
         """
         )
 
