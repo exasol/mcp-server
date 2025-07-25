@@ -62,8 +62,17 @@ class ExaView(ExaDbObject):
 
 
 @dataclass
+class ExaParameter:
+    type: str
+    name: str
+
+
+@dataclass
 class ExaFunction(ExaDbObject):
     body: str
+    inputs: list[ExaParameter]
+    emits: list[ExaParameter] | None = None
+    returns: str | None = None
 
 
 @dataclass
