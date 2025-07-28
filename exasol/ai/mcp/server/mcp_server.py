@@ -1,11 +1,9 @@
 import json
 import os
-import traceback
 from textwrap import dedent
 from typing import Annotated
 
 from fastmcp import FastMCP
-from mcp.types import TextContent
 from pydantic import Field
 from pyexasol import (
     ExaConnection,
@@ -22,13 +20,11 @@ from exasol.ai.mcp.server.parameter_parser import (
     ScriptParameterParser,
 )
 from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
     McpServerSettings,
     MetaSettings,
 )
-from exasol.ai.mcp.server.utils import (
-    report_error,
-    sql_text_value,
-)
+from exasol.ai.mcp.server.utils import sql_text_value
 
 
 def _where_clause(*predicates) -> str:
@@ -175,88 +171,63 @@ class ExasolMCPServer(FastMCP):
         """
         )
 
-    def _execute_query(
-        self, tool_name: str, query: str, use_snapshot: bool = True
-    ) -> TextContent:
-        """
-        Executes the specified query and returns the result data in the form of json
-        wrapped in a TextContent. For example
-        TextContent(
-            type='text',
-            text='[{"name": "MY_TABLE1", "comment": "first table"}, {"name": "MY_TABLE2", "comment": "second table"}]'
-        )
-        If an error occurs, returns
-        TextContent(
-            type='text',
-            text='{"error": "<error stack>"}'
-        )
+    def _execute_meta_query(self, query: str) -> ExaDbResult:
+        result = self.connection.meta.execute_snapshot(query=query).fetchall()
+        return ExaDbResult(result)
 
-        By default, executes a lock-free request using the pyexasol
-        `meta.execute_snapshot` method. This is a recommended way of running a metadata
-        query. For a normal query the `use_snapshot` should be set to `False`.
-        """
-        try:
-            if use_snapshot:
-                result = self.connection.meta.execute_snapshot(query=query).fetchall()
-            else:
-                result = self.connection.execute(query=query).fetchall()
-            result_json = json.dumps(result)
-            return TextContent(type="text", text=result_json)
-        except Exception:  # pylint: disable=broad-exception-caught
-            return report_error(tool_name, traceback.format_exc())
-
-    def list_schemas(self) -> TextContent:
-        tool_name = self.list_functions.__name__
+    def list_schemas(self) -> ExaDbResult:
         conf = self.config.schemas
+        if not conf.enable:
+            raise RuntimeError("Schema listing is disabled.")
+
         query = self._build_meta_query("SCHEMA", conf, "")
-        return self._execute_query(tool_name, query)
+        return self._execute_meta_query(query)
 
     def list_tables(
         self,
         schema_name: Annotated[
             str, Field(description="name of the database schema", default="")
         ],
-    ) -> TextContent:
-        tool_name = self.list_tables.__name__
+    ) -> ExaDbResult:
         table_conf = self.config.tables
         view_conf = self.config.views
+        if (not table_conf.enable) and (not view_conf.enable):
+            raise RuntimeError("Both table and view listings are disabled.")
 
         query = "\nUNION\n".join(
             self._build_meta_query(meta_name, conf, schema_name)
             for meta_name, conf in zip(["TABLE", "VIEW"], [table_conf, view_conf])
             if conf.enable
         )
-        return self._execute_query(tool_name, query)
+        return self._execute_meta_query(query)
 
     def list_functions(
         self,
         schema_name: Annotated[
             str, Field(description="name of the database schema", default="")
         ],
-    ) -> TextContent:
-        tool_name = self.list_functions.__name__
+    ) -> ExaDbResult:
         conf = self.config.functions
         if not conf.enable:
-            return report_error(tool_name, "Function listing is disabled.")
+            raise RuntimeError("Function listing is disabled.")
 
         query = self._build_meta_query("FUNCTION", conf, schema_name)
-        return self._execute_query(tool_name, query)
+        return self._execute_meta_query(query)
 
     def list_scripts(
         self,
         schema_name: Annotated[
             str, Field(description="name of the database schema", default="")
         ],
-    ) -> TextContent:
-        tool_name = self.list_scripts.__name__
+    ) -> ExaDbResult:
         conf = self.config.scripts
         if not conf.enable:
-            return report_error(tool_name, "Script listing is disabled.")
+            raise RuntimeError("Script listing is disabled.")
 
         query = self._build_meta_query(
             "SCRIPT", conf, schema_name, "SCRIPT_TYPE = 'UDF'"
         )
-        return self._execute_query(tool_name, query)
+        return self._execute_meta_query(query)
 
     def describe_table(
         self,
@@ -264,16 +235,15 @@ class ExasolMCPServer(FastMCP):
             str, Field(description="name of the database schema", default="")
         ],
         table_name: Annotated[str, Field(description="name of the table", default="")],
-    ) -> TextContent:
-        tool_name = self.describe_table.__name__
+    ) -> ExaDbResult:
         conf = self.config.columns
         if not conf.enable:
-            return report_error(tool_name, "Column listing is disabled.")
+            raise RuntimeError("Column listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
         if not schema_name:
-            return report_error(tool_name, "Schema name is not provided.")
+            raise ValueError("Schema name is not provided.")
         if not table_name:
-            return report_error(tool_name, "Table name is not provided.")
+            raise ValueError("Table name is not provided.")
 
         c_predicates = [
             f"COLUMN_SCHEMA = {sql_text_value(schema_name)}",
@@ -305,7 +275,7 @@ class ExasolMCPServer(FastMCP):
             {_where_clause(*c_predicates, conf.select_predicate)}
         """
         )
-        return self._execute_query(tool_name, query)
+        return self._execute_meta_query(query)
 
     def describe_function(
         self,
@@ -315,7 +285,7 @@ class ExasolMCPServer(FastMCP):
         func_name: Annotated[
             str, Field(description="name of the function", default="")
         ],
-    ) -> TextContent:
+    ) -> ExaDbResult:
         parser = FuncParameterParser(
             connection=self.connection,
             conf=self.config.parameters,
@@ -331,7 +301,7 @@ class ExasolMCPServer(FastMCP):
         script_name: Annotated[
             str, Field(description="name of the script", default="")
         ],
-    ) -> TextContent:
+    ) -> ExaDbResult:
         parser = ScriptParameterParser(
             connection=self.connection,
             conf=self.config.parameters,
@@ -341,13 +311,11 @@ class ExasolMCPServer(FastMCP):
 
     def execute_query(
         self, query: Annotated[str, Field(description="select query")]
-    ) -> TextContent:
-        tool_name = self.execute_query.__name__
+    ) -> ExaDbResult:
         if vet_query(query):
-            return self._execute_query(tool_name, query, use_snapshot=False)
-        return report_error(
-            tool_name, "The query is invalid or not a SELECT statement."
-        )
+            result = self.connection.execute(query=query).fetchall()
+            return ExaDbResult(result)
+        raise ValueError("The query is invalid or not a SELECT statement.")
 
 
 if __name__ == "__main__":

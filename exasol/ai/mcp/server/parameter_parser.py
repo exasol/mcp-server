@@ -1,6 +1,4 @@
-import json
 import re
-import traceback
 from abc import (
     ABC,
     abstractmethod,
@@ -11,11 +9,11 @@ from typing import Any
 from mcp.types import TextContent
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-from exasol.ai.mcp.server.utils import (
-    report_error,
-    sql_text_value,
+from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
+    MetaParameterSettings,
 )
+from exasol.ai.mcp.server.utils import sql_text_value
 
 
 class ParameterParser(ABC):
@@ -33,36 +31,33 @@ class ParameterParser(ABC):
         self,
         schema_name: str,
         func_name: str,
-    ) -> TextContent:
+    ) -> ExaDbResult:
         """
         Requests and parses metadata for the specified function or script.
         """
         if not self.conf.enable:
-            return report_error(self.tool_name, "Parameter listing is disabled.")
+            raise RuntimeError("Parameter listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
         if not schema_name:
-            return report_error(self.tool_name, "Schema name is not provided.")
+            raise ValueError("Schema name is not provided.")
         if not func_name:
-            return report_error(
-                self.tool_name, "Function or script name is not provided."
-            )
+            raise ValueError("Function or script name is not provided.")
 
         query = self.get_func_query(schema_name, func_name)
-        try:
-            result = self._execute_query(query=query)
-            if result:
-                if len(result) > 1:
-                    return report_error(self.tool_name, "Script metadata is ambiguous.")
-                script_info = result[0]
-                result = self.extract_parameters(script_info)
-                if result is not None:
-                    result_json = json.dumps(result)
-                    return TextContent(type="text", text=result_json)
-            return report_error(
-                self.tool_name, "Failed to get the function or script metadata."
+        result = self._execute_query(query=query)
+        if not result:
+            raise ValueError(
+                "Failed to get metadata for the function or script "
+                f'"{func_name}" in the schema "{schema_name}"'
             )
-        except Exception:  # pylint: disable=broad-exception-caught
-            return report_error(self.tool_name, traceback.format_exc())
+        if len(result) > 1:
+            raise ValueError(
+                f'Metadata for the function or script "{func_name}" '
+                f'in the schema "{schema_name}" is ambiguous.'
+            )
+        script_info = result[0]
+        result = self.extract_parameters(script_info)
+        return ExaDbResult(result)
 
     def parse_parameter_list(self, params: str) -> str | list[dict[str, str]]:
         """

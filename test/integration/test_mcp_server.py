@@ -14,6 +14,7 @@ from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
     McpServerSettings,
     MetaColumnSettings,
     MetaParameterSettings,
@@ -49,11 +50,12 @@ def _result_sort_func(d: dict[str, Any]) -> str:
     return ",".join(str(v) for v in d.values())
 
 
-def _get_list_result_json(result) -> list[dict[str, Any]]:
+def _get_list_result_json(result) -> ExaDbResult:
     result_json = json.loads(result.content[0].text)
-    if isinstance(result_json, list):
-        return sorted(result_json, key=_result_sort_func)
-    return [result_json]
+    unsorted = ExaDbResult(**result_json)
+    if isinstance(unsorted.result, list):
+        return ExaDbResult(sorted(unsorted.result, key=_result_sort_func))
+    return unsorted
 
 
 def _get_expected_db_obj_json(
@@ -69,14 +71,14 @@ def _get_expected_db_obj_json(
 
 def _get_expected_list_json(
     db_objects: list[ExaDbObject], name_part: str, conf: MetaSettings
-) -> list[dict[str, Any]]:
+) -> ExaDbResult:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
         _get_expected_db_obj_json(db_obj, conf)
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
-    return sorted(expected_json, key=_result_sort_func)
+    return ExaDbResult(sorted(expected_json, key=_result_sort_func))
 
 
 def _get_expected_param_list_json(
@@ -90,13 +92,13 @@ def _get_expected_param_list_json(
 
 def _get_expected_param_json(
     func: ExaFunction, conf: MetaParameterSettings
-) -> list[dict[str, Any]]:
+) -> ExaDbResult:
     expected_json = {conf.input_field: _get_expected_param_list_json(func.inputs, conf)}
     if func.emits:
         expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
     if func.returns:
         expected_json[conf.return_field] = {conf.type_field: func.returns}
-    return expected_json
+    return ExaDbResult(expected_json)
 
 
 @pytest.mark.parametrize(
@@ -107,6 +109,8 @@ def _get_expected_param_json(
         ("list_functions", ["functions"]),
         ("list_scripts", ["scripts"]),
         ("describe_table", ["columns"]),
+        ("describe_function", ["parameters"]),
+        ("describe_script", ["parameters"]),
     ],
 )
 def test_tool_disabled(
@@ -153,7 +157,7 @@ def test_list_schemas(
         if use_like or use_regexp:
             assert result_json == expected_json
         else:
-            assert expected_json[0] in result_json
+            assert expected_json.result[0] in result_json.result
 
 
 @pytest.mark.parametrize(
@@ -231,14 +235,14 @@ def test_list_tables(
             schema_name=schema.schema_name_arg,
         )
         result_json = _get_list_result_json(result)
-        expected_json: list[dict[str, Any]] = []
+        expected_result: list[dict[str, Any]] = []
         if enable_tables:
-            expected_json.extend(
-                _get_expected_list_json(db_tables, "resort", config.tables)
-            )
+            expected_json = _get_expected_list_json(db_tables, "resort", config.tables)
+            expected_result.extend(expected_json.result)
         if enable_views:
-            expected_json.extend(_get_expected_list_json(db_views, "run", config.views))
-        expected_json = sorted(expected_json, key=_result_sort_func)
+            expected_json = _get_expected_list_json(db_views, "run", config.views)
+            expected_result.extend(expected_json.result)
+        expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
         assert result_json == expected_json
 
 
@@ -366,7 +370,10 @@ def test_describe_schema_error(
     The test validates that the `describe_xxx` tool returns an error if the schema
     is not provided and no current schema opened.
     """
-    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    config = McpServerSettings(
+        columns=MetaColumnSettings(enable=True),
+        parameters=MetaParameterSettings(enable=True),
+    )
     current_schema = pyexasol_connection.current_schema()
     try:
         if current_schema:
@@ -428,7 +435,7 @@ def test_describe_function(
                 schema_name=schema.schema_name_arg,
                 func_name=func.name,
             )
-            result_json = json.loads(result.content[0].text)
+            _get_list_result_json(result)
             expected_json = _get_expected_param_json(func, config.parameters)
             assert result_json == expected_json
 
