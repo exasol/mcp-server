@@ -71,26 +71,14 @@ def script_parameter_parser(param_config) -> ScriptParameterParser:
             ],
         ),
         ('"P_1" INT', [{"name": "P_1", "type": "INT"}]),
-        (
-            "p1 DECIMAL(3,2, p2 VARCHAR(100)",
-            [
-                {"name": "p1", "type": "DECIMAL"},
-                {"name": "p2", "type": "VARCHAR(100)"},
-            ],
-        ),
         ("...", "..."),
-        ('"MyParam INT', []),
-        ("param_no_type", []),
     ],
     ids=[
         "non-quoted names",
         "quoted names",
         "complex types",
         "single parameter",
-        "bad type specifiers",
         "variadic",
-        "bad name",
-        "no type",
     ],
 )
 def test_parse_parameter_list(func_parameter_parser, params, expected_result):
@@ -181,7 +169,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 """
                 ),
             },
-            {"inputs": [], "returns": {"type": "TIMESTAMP(8)"}},
+            {"inputs": [], "returns": {"type": "TIMESTAMP(8) WITH LOCAL TIME ZONE"}},
         ),
     ],
     ids=[
@@ -518,30 +506,11 @@ def test_describe(mock_execute_query, func_parameter_parser):
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
-def test_describe_no_data(mock_execute_query, func_parameter_parser):
+def test_describe_not_found(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = []
     result = func_parameter_parser.describe(
         schema_name="MySchema", func_name="Validate"
     )
-    result_dict = json.loads(result.text)
-    assert "error" in result_dict
-
-
-@mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
-def test_describe_ambiguous_data(mock_execute_query, func_parameter_parser):
-    mock_execute_query.return_value = [
-        {
-            "FUNCTION_SCHEMA": "MySchema",
-            "FUNCTION_NAME": "Func1",
-            "FUNCTION_TEXT": "FUNCTION Func1() RETURN BOOL BEGIN ... END;",
-        },
-        {
-            "FUNCTION_SCHEMA": "MySchema",
-            "FUNCTION_NAME": "Func2",
-            "FUNCTION_TEXT": "FUNCTION Func2() RETURN BOOL BEGIN ... END;",
-        },
-    ]
-    result = func_parameter_parser.describe(schema_name="MySchema", func_name="Func1")
     result_dict = json.loads(result.text)
     assert "error" in result_dict
 

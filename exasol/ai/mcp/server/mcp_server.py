@@ -108,10 +108,21 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.describe_script,
                 description=(
-                    "Describes the specified script in the specified schema of the "
-                    "Exasol Database. Returns the list of input parameters, the list "
-                    "or emitted parameters or the return type. For each parameter "
-                    "provides the name and the type."
+                    "Describes the specified user defined function in the specified "
+                    "schema of the Exasol Database. Returns the list of input "
+                    "parameters, the list or emitted parameters or the SQL type of a "
+                    "single returned value. For each parameter provides the name and "
+                    "the SQL type. Both the input and the emitted parameters can by "
+                    "dynamic, or, in other words, flexible. The dynamic parameters are "
+                    "indicated with ... (triple dot) string instead of the parameter "
+                    "list. A user defined function with dynamic input parameters can "
+                    "be called using the same syntax as a normal function. If the "
+                    "function output is emitted dynamically, the list of output "
+                    "parameters must be provided in the call. This can be achieved by "
+                    "appending the select statement with the special term "
+                    "emits"
+                    " "
+                    "followed by the parameter list in the brackets."
                 ),
             )
 
