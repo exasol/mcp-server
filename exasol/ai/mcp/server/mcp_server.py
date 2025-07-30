@@ -1,7 +1,10 @@
 import json
 import os
 from textwrap import dedent
-from typing import Annotated
+from typing import (
+    Annotated,
+    Any,
+)
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -296,11 +299,9 @@ class ExasolMCPServer(FastMCP):
         func_name: Annotated[
             str, Field(description="name of the function", default="")
         ],
-    ) -> ExaDbResult:
+    ) -> dict[str, Any]:
         parser = FuncParameterParser(
-            connection=self.connection,
-            conf=self.config.parameters,
-            tool_name=self.describe_function.__name__,
+            connection=self.connection, conf=self.config.parameters
         )
         return parser.describe(schema_name, func_name)
 
@@ -312,11 +313,9 @@ class ExasolMCPServer(FastMCP):
         script_name: Annotated[
             str, Field(description="name of the script", default="")
         ],
-    ) -> ExaDbResult:
+    ) -> dict[str, Any]:
         parser = ScriptParameterParser(
-            connection=self.connection,
-            conf=self.config.parameters,
-            tool_name=self.describe_script.__name__,
+            connection=self.connection, conf=self.config.parameters
         )
         return parser.describe(schema_name, script_name)
 

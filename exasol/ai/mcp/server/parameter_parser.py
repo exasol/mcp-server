@@ -1,6 +1,4 @@
-import json
 import re
-import traceback
 from abc import (
     ABC,
     abstractmethod,
@@ -8,7 +6,6 @@ from abc import (
 from textwrap import dedent
 from typing import Any
 
-from mcp.types import TextContent
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.parameter_pattern import (
@@ -18,53 +15,41 @@ from exasol.ai.mcp.server.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-from exasol.ai.mcp.server.utils import (
-    report_error,
-    sql_text_value,
-)
+from exasol.ai.mcp.server.utils import sql_text_value
 
 
 class ParameterParser(ABC):
-    def __init__(
-        self, connection: ExaConnection, conf: MetaParameterSettings, tool_name: str
-    ) -> None:
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
         self.connection = connection
         self.conf = conf
-        self.tool_name = tool_name
 
-    def _execute_query(self, query: TextContent) -> list[dict[str, Any]]:
+    def _execute_query(self, query: str) -> list[dict[str, Any]]:
         return self.connection.meta.execute_snapshot(query=query).fetchall()
 
     def describe(
         self,
         schema_name: str,
         func_name: str,
-    ) -> TextContent:
+    ) -> dict[str, Any]:
         """
         Requests and parses metadata for the specified function or script.
         """
         if not self.conf.enable:
-            return report_error(self.tool_name, "Parameter listing is disabled.")
+            raise RuntimeError("Parameter listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
         if not schema_name:
-            return report_error(self.tool_name, "Schema name is not provided.")
+            raise ValueError("Schema name is not provided.")
         if not func_name:
-            return report_error(
-                self.tool_name, "Function or script name is not provided."
-            )
+            raise ValueError("Function or script name is not provided.")
 
         query = self.get_func_query(schema_name, func_name)
-        try:
-            result = self._execute_query(query=query)
-            if result:
-                script_info = result[0]
-                result = self.extract_parameters(script_info)
-                if result is not None:
-                    result_json = json.dumps(result)
-                    return TextContent(type="text", text=result_json)
-            return report_error(self.tool_name, "The function or script not found.")
-        except Exception:  # pylint: disable=broad-exception-caught
-            return report_error(self.tool_name, traceback.format_exc())
+        result = self._execute_query(query=query)
+        if not result:
+            raise ValueError(
+                f"The function or script {schema_name}.{func_name} not found."
+            )
+        script_info = result[0]
+        return self.extract_parameters(script_info)
 
     def parse_parameter_list(
         self, params: str, allow_dynamic: bool = True, allow_double_quotes: bool = True
@@ -125,11 +110,10 @@ class ParameterParser(ABC):
         """
 
     @abstractmethod
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any] | None:
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         """
         Parses the text of a function or a UDF script, extracting its input and output
-        parameters and/or return type. Returns the result in a json form. If the text
-        cannot be parsed, returns None.
+        parameters and/or return type. Returns the result in a json form.
 
         Note: This function does not validate the entire function or script text. It is
         only looking at its header.
@@ -152,7 +136,7 @@ class FuncParameterParser(ParameterParser):
         """
         )
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any] | None:
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         # The pattern matches zero, one or more instances of parameter pairs
         # (name, type). A pair may start from a comma (for a parameter other than
         # the first one): ,?. The lookahead symbol after the pair should be either
@@ -169,7 +153,10 @@ class FuncParameterParser(ParameterParser):
         )
         m = re.match(pattern, info["FUNCTION_TEXT"], flags=regex_flags)
         if m is None:
-            return None
+            raise ValueError(
+                "Failed to parse the text of the function "
+                f'{info["FUNCTION_SCHEMA"]}.{info["FUNCTION_NAME"]}.'
+            )
         return {
             self.conf.input_field: self.parse_parameter_list(
                 m.group(self.conf.input_field),
@@ -193,7 +180,7 @@ class ScriptParameterParser(ParameterParser):
         """
         )
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any] | None:
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         # The pattern matches the parameter list, as in FuncParameterParser, but with
         # quoted parameter names.
         parameter_list_pattern = (
@@ -218,7 +205,10 @@ class ScriptParameterParser(ParameterParser):
         )
         m = re.match(pattern, info["SCRIPT_TEXT"], flags=regex_flags)
         if m is None:
-            return None
+            raise ValueError(
+                "Failed to parse the text of the UDF script "
+                f'{info["SCRIPT_SCHEMA"]}.{info["SCRIPT_NAME"]}.'
+            )
         param_func = {
             self.conf.input_field: self.parse_parameter_list,
             self.conf.emit_field: self.parse_parameter_list,
