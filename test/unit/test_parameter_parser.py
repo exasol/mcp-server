@@ -30,18 +30,14 @@ def param_config() -> MetaParameterSettings:
 @pytest.fixture
 def func_parameter_parser(param_config) -> FuncParameterParser:
     return FuncParameterParser(
-        connection=mock.create_autospec(ExaConnection),
-        conf=param_config,
-        tool_name="test_tool",
+        connection=mock.create_autospec(ExaConnection), conf=param_config
     )
 
 
 @pytest.fixture
 def script_parameter_parser(param_config) -> ScriptParameterParser:
     return ScriptParameterParser(
-        connection=mock.create_autospec(ExaConnection),
-        conf=param_config,
-        tool_name="test_tool",
+        connection=mock.create_autospec(ExaConnection), conf=param_config
     )
 
 
@@ -239,8 +235,8 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
         "FUNCTION_NAME": "GetSkyHooks",
         "FUNCTION_TEXT": invalid_text,
     }
-    result = func_parameter_parser.extract_parameters(info)
-    assert result is None
+    with pytest.raises(ValueError, match="Failed to parse"):
+        func_parameter_parser.extract_parameters(info)
 
 
 @pytest.mark.parametrize(
@@ -484,8 +480,8 @@ def test_script_extract_parameters_error(
         "SCRIPT_RESULT_TYPE": result_type,
         "SCRIPT_TEXT": invalid_text,
     }
-    result = script_parameter_parser.extract_parameters(info)
-    assert result is None
+    with pytest.raises(ValueError, match="Failed to parse"):
+        script_parameter_parser.extract_parameters(info)
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
@@ -506,25 +502,21 @@ def test_describe(mock_execute_query, func_parameter_parser):
     result = func_parameter_parser.describe(
         schema_name="MySchema", func_name="Validate"
     )
-    expected_parse_result = {
+    expected_result = {
         "inputs": [
             {"name": "user_name", "type": "VARCHAR(100)"},
             {"name": "password", "type": "VARCHAR(100)"},
         ],
         "returns": {"type": "BOOL"},
     }
-    expected_json = json.dumps(expected_parse_result)
-    assert result.text == expected_json
+    assert result == expected_result
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
 def test_describe_not_found(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = []
-    result = func_parameter_parser.describe(
-        schema_name="MySchema", func_name="Validate"
-    )
-    result_dict = json.loads(result.text)
-    assert "error" in result_dict
+    with pytest.raises(ValueError, match="not found"):
+        func_parameter_parser.describe(schema_name="MySchema", func_name="Validate")
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
@@ -536,6 +528,5 @@ def test_describe_invalid_data(mock_execute_query, func_parameter_parser):
             "FUNCTION_TEXT": "FUNCTION Func1 RETURN BOOL BEGIN ... END;",
         }
     ]
-    result = func_parameter_parser.describe(schema_name="MySchema", func_name="Func1")
-    result_dict = json.loads(result.text)
-    assert "error" in result_dict
+    with pytest.raises(ValueError, match="Failed to parse"):
+        func_parameter_parser.describe(schema_name="MySchema", func_name="Func1")

@@ -10,10 +10,12 @@ from typing import Any
 
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
     McpServerSettings,
     MetaColumnSettings,
     MetaParameterSettings,
@@ -49,11 +51,16 @@ def _result_sort_func(d: dict[str, Any]) -> str:
     return ",".join(str(v) for v in d.values())
 
 
-def _get_list_result_json(result) -> list[dict[str, Any]]:
-    result_json = json.loads(result.content[0].text)
-    if isinstance(result_json, list):
-        return sorted(result_json, key=_result_sort_func)
-    return [result_json]
+def _get_result_json(result):
+    return json.loads(result.content[0].text)
+
+
+def _get_list_result_json(result) -> ExaDbResult:
+    result_json = _get_result_json(result)
+    unsorted = ExaDbResult(**result_json)
+    if isinstance(unsorted.result, list):
+        return ExaDbResult(sorted(unsorted.result, key=_result_sort_func))
+    return unsorted
 
 
 def _get_expected_db_obj_json(
@@ -69,14 +76,14 @@ def _get_expected_db_obj_json(
 
 def _get_expected_list_json(
     db_objects: list[ExaDbObject], name_part: str, conf: MetaSettings
-) -> list[dict[str, Any]]:
+) -> ExaDbResult:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
         _get_expected_db_obj_json(db_obj, conf)
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
-    return sorted(expected_json, key=_result_sort_func)
+    return ExaDbResult(sorted(expected_json, key=_result_sort_func))
 
 
 def _get_expected_param_list_json(
@@ -90,7 +97,7 @@ def _get_expected_param_list_json(
 
 def _get_expected_param_json(
     func: ExaFunction, conf: MetaParameterSettings
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     expected_json = {conf.input_field: _get_expected_param_list_json(func.inputs, conf)}
     if func.emits:
         expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
@@ -107,6 +114,8 @@ def _get_expected_param_json(
         ("list_functions", ["functions"]),
         ("list_scripts", ["scripts"]),
         ("describe_table", ["columns"]),
+        ("describe_function", ["parameters"]),
+        ("describe_script", ["parameters"]),
     ],
 )
 def test_tool_disabled(
@@ -153,7 +162,7 @@ def test_list_schemas(
         if use_like or use_regexp:
             assert result_json == expected_json
         else:
-            assert expected_json[0] in result_json
+            assert expected_json.result[0] in result_json.result
 
 
 @pytest.mark.parametrize(
@@ -231,14 +240,14 @@ def test_list_tables(
             schema_name=schema.schema_name_arg,
         )
         result_json = _get_list_result_json(result)
-        expected_json: list[dict[str, Any]] = []
+        expected_result: list[dict[str, Any]] = []
         if enable_tables:
-            expected_json.extend(
-                _get_expected_list_json(db_tables, "resort", config.tables)
-            )
+            expected_json = _get_expected_list_json(db_tables, "resort", config.tables)
+            expected_result.extend(expected_json.result)
         if enable_views:
-            expected_json.extend(_get_expected_list_json(db_views, "run", config.views))
-        expected_json = sorted(expected_json, key=_result_sort_func)
+            expected_json = _get_expected_list_json(db_views, "run", config.views)
+            expected_result.extend(expected_json.result)
+        expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
         assert result_json == expected_json
 
 
@@ -359,48 +368,56 @@ def test_describe_table(
     ],
     ids=["describe_table", "describe_function", "describe_script"],
 )
-def test_describe_schema_error(
+def test_describe_no_schema_name(
     pyexasol_connection, setup_database, tool_name, other_kwargs
 ) -> None:
     """
     The test validates that the `describe_xxx` tool returns an error if the schema
     is not provided and no current schema opened.
     """
-    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    config = McpServerSettings(
+        columns=MetaColumnSettings(enable=True),
+        parameters=MetaParameterSettings(enable=True),
+    )
     current_schema = pyexasol_connection.current_schema()
     try:
         if current_schema:
             pyexasol_connection.execute("CLOSE SCHEMA")
-        result = _run_tool(
-            pyexasol_connection, config, tool_name=tool_name, **other_kwargs
-        )
-        result_json = _get_list_result_json(result)
-        assert all(key == "error" for di in result_json for key in di.keys())
+        with pytest.raises(ToolError, match="Schema name"):
+            _run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
     finally:
         if current_schema:
             pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
 
 
 @pytest.mark.parametrize(
-    "tool_name", ["describe_table", "describe_function", "describe_script"]
+    ["tool_name", "error_match"],
+    [
+        ("describe_table", "Table name"),
+        ("describe_function", "Function or script name"),
+        ("describe_script", "Function or script name"),
+    ],
+    ids=["describe_table", "describe_function", "describe_script"],
 )
-def test_describe_db_object_error(
-    pyexasol_connection, setup_database, db_schemas, tool_name
+def test_describe_no_db_object_name(
+    pyexasol_connection, setup_database, db_schemas, tool_name, error_match
 ) -> None:
     """
     The test validates that the `describe_xxx` returns an error if the name of the
     db object to be described is not provided.
     """
-    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    config = McpServerSettings(
+        columns=MetaColumnSettings(enable=True),
+        parameters=MetaParameterSettings(enable=True),
+    )
     for schema in db_schemas:
-        result = _run_tool(
-            pyexasol_connection,
-            config,
-            tool_name=tool_name,
-            schema_name=schema.schema_name_arg,
-        )
-        result_json = _get_list_result_json(result)
-        assert all(key == "error" for di in result_json for key in di.keys())
+        with pytest.raises(ToolError, match=error_match):
+            _run_tool(
+                pyexasol_connection,
+                config,
+                tool_name=tool_name,
+                schema_name=schema.schema_name_arg,
+            )
 
 
 def test_describe_function(
@@ -428,7 +445,7 @@ def test_describe_function(
                 schema_name=schema.schema_name_arg,
                 func_name=func.name,
             )
-            result_json = json.loads(result.content[0].text)
+            result_json = _get_result_json(result)
             expected_json = _get_expected_param_json(func, config.parameters)
             assert result_json == expected_json
 
@@ -459,7 +476,7 @@ def test_describe_script(
                 schema_name=schema.schema_name_arg,
                 script_name=script.name,
             )
-            result_json = json.loads(result.content[0].text)
+            result_json = _get_result_json(result)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
 
@@ -483,7 +500,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
                 for row in table.rows
             ]
             expected_json.sort(key=_result_sort_func)
-            assert result_json == expected_json
+            assert result_json == ExaDbResult(expected_json)
 
 
 def test_execute_query_error(
@@ -500,8 +517,7 @@ def test_execute_query_error(
                 f'SELECT * INTO TABLE "{schema.name}"."ANOTHER_TABLE" '
                 f'FROM "{schema.name}"."{table.name}"'
             )
-            result = _run_tool(
-                pyexasol_connection, config, tool_name="execute_query", query=query
-            )
-            result_json = _get_list_result_json(result)
-            assert all(key == "error" for di in result_json for key in di.keys())
+            with pytest.raises(ToolError):
+                _run_tool(
+                    pyexasol_connection, config, tool_name="execute_query", query=query
+                )
