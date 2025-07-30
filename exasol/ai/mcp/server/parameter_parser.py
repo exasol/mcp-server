@@ -11,7 +11,6 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
-    parameter_pattern,
     quoted_identifier_pattern,
     quoted_parameter_pattern,
     regex_flags,
@@ -32,7 +31,7 @@ class ParameterParser(ABC):
     def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
         self.connection = connection
         self.conf = conf
-        self._parameter_list_pattern: re.Pattern | None = None
+        self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
         return self.connection.meta.execute_snapshot(query=query).fetchall()
@@ -72,15 +71,15 @@ class ParameterParser(ABC):
         from the beginning or from comma: (?:^|,). The parameter should be followed
         by either the end of the input or comma: (?=\Z|,).
         """
-        if self._parameter_list_pattern is not None:
-            return self._parameter_list_pattern
+        if self._parameter_extract_pattern is not None:
+            return self._parameter_extract_pattern
 
         pattern = (
             rf"(?:^|,)\s*(?P<{self.conf.name_field}>{quoted_identifier_pattern})"
             rf"\s+(?P<{self.conf.type_field}>{exa_type_pattern})\s*(?=\Z|,)"
         )
-        self._parameter_list_pattern = re.compile(pattern, flags=regex_flags)
-        return self._parameter_list_pattern
+        self._parameter_extract_pattern = re.compile(pattern, flags=regex_flags)
+        return self._parameter_extract_pattern
 
     def parse_parameter_list(self, params: str) -> str | list[dict[str, str]]:
         """
@@ -125,6 +124,8 @@ class ParameterParser(ABC):
         Parses the text of a function or a UDF script, extracting its input and output
         parameters and/or return type. Returns the result in a json form.
 
+        Should raise a ValueError if the parsing fails.
+
         Note: This function does not validate the entire function or script text. It is
         only looking at its header.
 
@@ -137,10 +138,8 @@ class ParameterParser(ABC):
 
 class FuncParameterParser(ParameterParser):
 
-    def __init__(
-        self, connection: ExaConnection, conf: MetaParameterSettings, tool_name: str
-    ) -> None:
-        super().__init__(connection, conf, tool_name)
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+        super().__init__(connection, conf)
         self._func_pattern: re.Pattern | None = None
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
@@ -171,7 +170,7 @@ class FuncParameterParser(ParameterParser):
         self._func_pattern = re.compile(pattern, flags=regex_flags)
         return self._func_pattern
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any] | None:
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         m = self.func_pattern.match(info["FUNCTION_TEXT"])
         if m is None:
             raise ValueError(
@@ -190,10 +189,8 @@ class FuncParameterParser(ParameterParser):
 
 class ScriptParameterParser(ParameterParser):
 
-    def __init__(
-        self, connection: ExaConnection, conf: MetaParameterSettings, tool_name: str
-    ) -> None:
-        super().__init__(connection, conf, tool_name)
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+        super().__init__(connection, conf)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
 
@@ -248,7 +245,7 @@ class ScriptParameterParser(ParameterParser):
             self._return_pattern = self._udf_pattern(emits=False)
         return self._return_pattern
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any] | None:
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         pattern = (
             self.emit_udf_pattern
             if info["SCRIPT_RESULT_TYPE"] == "EMITS"
