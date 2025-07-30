@@ -3,6 +3,7 @@ from test.utils.db_objects import (
     ExaColumn,
     ExaConstraint,
     ExaFunction,
+    ExaParameter,
     ExaSchema,
     ExaTable,
     ExaView,
@@ -98,10 +99,16 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="cut_middle",
             comment="cuts a middle of the provided text",
+            inputs=[
+                ExaParameter(name="inp_text", type="VARCHAR(1000)"),
+                ExaParameter(name="cut_from", type="DECIMAL(18,0)"),
+                ExaParameter(name="cut_to", type="DECIMAL(18,0)"),
+            ],
+            returns="VARCHAR(1000)",
             body=dedent(
                 """
                 CREATE OR REPLACE FUNCTION "{schema}"."cut_middle"(
-                    inp_text VARCHAR(1000), cut_from INTEGER, cut_to INTEGER)
+                    inp_text VARCHAR(1000), cut_from DECIMAL(18,0), cut_to DECIMAL(18,0))
                 RETURN VARCHAR(1000)
                 IS
                     len INTEGER;
@@ -122,10 +129,12 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="factorial",
             comment="computes the factorial of a number",
+            inputs=[ExaParameter(name="num", type="DECIMAL(18,0)")],
+            returns="DECIMAL(18,0)",
             body=dedent(
                 """
-                CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num INTEGER)
-                RETURN VARCHAR(1000)
+                CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num DECIMAL(18,0))
+                RETURN DECIMAL(18,0)
                 IS
                     res INTEGER;
                 BEGIN
@@ -149,11 +158,16 @@ def db_scripts() -> list[ExaFunction]:
         ExaFunction(
             name="fibonacci",
             comment="emits Fibonacci sequence of the given length",
+            inputs=[ExaParameter(name="seq_length", type="DECIMAL(18,0)")],
+            emits=[
+                ExaParameter(name="NUM", type="DECIMAL(18,0)"),
+                ExaParameter(name="VAL", type="DECIMAL(18,0)"),
+            ],
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{schema}"."fibonacci"(
-                    seq_length INTEGER)
-                EMITS (num INTEGER, val INTEGER)
+                    seq_length DECIMAL(18,0))
+                EMITS (num DECIMAL(18,0), val DECIMAL(18,0))
                 AS
                 def run(ctx):
                         last_two = [0, 1]
@@ -170,10 +184,15 @@ def db_scripts() -> list[ExaFunction]:
         ExaFunction(
             name="weighted_length",
             comment="computes weighted sum of the input text lengths",
+            inputs=[
+                ExaParameter(name="text", type="VARCHAR(100000) UTF8"),
+                ExaParameter(name="weight", type="DOUBLE"),
+            ],
+            returns="DOUBLE",
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SET SCRIPT "{schema}"."weighted_length"(
-                    text VARCHAR(100000), weight DOUBLE)
+                    text VARCHAR(100000) UTF8, weight DOUBLE)
                 RETURNS DOUBLE
                 AS
                 def run(ctx):

@@ -12,6 +12,10 @@ from pyexasol import (
     connect,
 )
 
+from exasol.ai.mcp.server.parameter_parser import (
+    FuncParameterParser,
+    ScriptParameterParser,
+)
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaSettings,
@@ -90,6 +94,33 @@ class ExasolMCPServer(FastMCP):
                     "Exasol Database. Returns the list of table columns. For each "
                     "column provides the name, the data type, an optional comment, "
                     "the primary key flag and the foreign key flag."
+                ),
+            )
+        if self.config.parameters.enable:
+            self.tool(
+                self.describe_function,
+                description=(
+                    "Describes the specified function in the specified schema of the "
+                    "Exasol Database. Returns the list of input parameters and the "
+                    "return type. For each parameter provides the name and the type."
+                ),
+            )
+            self.tool(
+                self.describe_script,
+                description=(
+                    "Describes the specified user defined function in the specified "
+                    "schema of the Exasol Database. Returns the list of input "
+                    "parameters, the list of emitted parameters or the SQL type of a "
+                    "single returned value. For each parameter provides the name and "
+                    "the SQL type. Both the input and the emitted parameters can be "
+                    "dynamic, or, in other words, flexible. The dynamic parameters are "
+                    "indicated with ... (triple dot) string instead of the parameter "
+                    "list. A user defined function with dynamic input parameters can "
+                    "be called using the same syntax as a normal function. If the "
+                    "function output is emitted dynamically, the list of output "
+                    "parameters must be provided in the call. This can be achieved by "
+                    'appending the select statement with the special term "emits" '
+                    "followed by the parameter list in parentheses."
                 ),
             )
 
@@ -256,6 +287,38 @@ class ExasolMCPServer(FastMCP):
         """
         )
         return self._execute_query(tool_name, query)
+
+    def describe_function(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        func_name: Annotated[
+            str, Field(description="name of the function", default="")
+        ],
+    ) -> TextContent:
+        parser = FuncParameterParser(
+            connection=self.connection,
+            conf=self.config.parameters,
+            tool_name=self.describe_function.__name__,
+        )
+        return parser.describe(schema_name, func_name)
+
+    def describe_script(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        script_name: Annotated[
+            str, Field(description="name of the script", default="")
+        ],
+    ) -> TextContent:
+        parser = ScriptParameterParser(
+            connection=self.connection,
+            conf=self.config.parameters,
+            tool_name=self.describe_script.__name__,
+        )
+        return parser.describe(schema_name, script_name)
 
 
 if __name__ == "__main__":
