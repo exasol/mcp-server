@@ -128,9 +128,9 @@ class ExasolMCPServer(FastMCP):
                 description=(
                     "Describes the specified user defined function in the specified "
                     "schema of the Exasol Database. Returns the list of input "
-                    "parameters, the list or emitted parameters or the SQL type of a "
+                    "parameters, the list of emitted parameters or the SQL type of a "
                     "single returned value. For each parameter provides the name and "
-                    "the SQL type. Both the input and the emitted parameters can by "
+                    "the SQL type. Both the input and the emitted parameters can be "
                     "dynamic, or, in other words, flexible. The dynamic parameters are "
                     "indicated with ... (triple dot) string instead of the parameter "
                     "list. A user defined function with dynamic input parameters can "
@@ -140,7 +140,7 @@ class ExasolMCPServer(FastMCP):
                     "appending the select statement with the special term "
                     "emits"
                     " "
-                    "followed by the parameter list in the brackets."
+                    "followed by the parameter list in parentheses."
                 ),
             )
         if self.config.enable_query:
