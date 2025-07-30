@@ -61,6 +61,17 @@ The double quotes may enclose any text. The double quote characters in it
 are escaped with double double quotes.
 """
 
+parameter_pattern = rf"{identifier_pattern}\s+{exa_type_pattern}"
+"""
+The RE pattern of a function parameter, consisting of the parameter name and SQL type.
+"""
+
+quoted_parameter_pattern = rf"{quoted_identifier_pattern}\s+{exa_type_pattern}"
+"""
+The RE pattern of a script parameter, consisting of the parameter name, optionally
+enclosed in double quotes, and SQL type.
+"""
+
 regex_flags = re.IGNORECASE | re.MULTILINE | re.UNICODE
 """
 The RE flags required to match the parameter names and SQL types.
