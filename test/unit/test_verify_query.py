@@ -2,7 +2,7 @@ from textwrap import dedent
 
 import pytest
 
-from exasol.ai.mcp.server.mcp_server import vet_query
+from exasol.ai.mcp.server.mcp_server import verify_query
 
 
 def sample_select_query() -> str:
@@ -141,7 +141,7 @@ def sample_invalid_query() -> str:
         "invalid",
     ],
 )
-def test_vet_query(query, expected_result):
+def test_verify_query(query, expected_result):
     """
     The test checks that the query validation recognises as a SELECT statement
     only a query that selects data. There are various forms of valid SQL statements
@@ -151,4 +151,4 @@ def test_vet_query(query, expected_result):
     Exasol dialect, for instance MERGE and EXPORT. Frustrating as it is, what matters
     in this case is that such queries are not recognised as valid SQL statements.
     """
-    assert vet_query(query) == expected_result
+    assert verify_query(query) == expected_result
