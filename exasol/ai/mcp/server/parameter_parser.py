@@ -159,6 +159,7 @@ class FuncParameterParser(ParameterParser):
         if self._func_pattern is not None:
             return self._func_pattern
 
+        # The schema is optional
         func_schema_pattern = rf"(?:{quoted_identifier_pattern}\s*\.\s*)?"
         func_name_pattern = quoted_identifier_pattern
         pattern = (
@@ -216,6 +217,7 @@ class ScriptParameterParser(ParameterParser):
             else rf"RETURNS\s+(?P<{self.conf.return_field}>{exa_type_pattern})\s+"
         )
         language_pattern = identifier_pattern
+        # The schema is optional.
         udf_schema_pattern = rf"(?:{quoted_identifier_pattern}\s*\.\s*)?"
         udf_name_pattern = quoted_identifier_pattern
 

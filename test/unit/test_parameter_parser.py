@@ -1,4 +1,5 @@
 import json
+import re
 from textwrap import dedent
 from unittest import mock
 
@@ -8,7 +9,9 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
     ScriptParameterParser,
+    parameter_list_pattern,
 )
+from exasol.ai.mcp.server.parameter_pattern import regex_flags
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
 
 
@@ -35,6 +38,30 @@ def func_parameter_parser(param_config) -> FuncParameterParser:
 def script_parameter_parser(param_config) -> ScriptParameterParser:
     return ScriptParameterParser(
         connection=mock.create_autospec(ExaConnection), conf=param_config
+    )
+
+
+@pytest.mark.parametrize(
+    "params_list",
+    ["( abc DOUBLE, xZZ varchar(200) )", '("my_real" REAL, "my_int" INTEGER)'],
+    ids=["non-quoted-names", "quoted-names"],
+)
+def test_parameter_list_pattern(params_list):
+    assert (
+        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
+        is not None
+    )
+
+
+@pytest.mark.parametrize(
+    "params_list",
+    ["(abc, xZZ varchar(200))", '("my_real" REAL, "my_complex" COMPLEX)'],
+    ids=["no-type", "bad-type"],
+)
+def test_parameter_list_pattern_error(params_list):
+    assert (
+        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
+        is None
     )
 
 
@@ -67,13 +94,15 @@ def script_parameter_parser(param_config) -> ScriptParameterParser:
             ],
         ),
         ('"P_1" INT', [{"name": "P_1", "type": "INT"}]),
+        ('"1_P" INT', [{"name": "1_P", "type": "INT"}]),
         ("...", "..."),
     ],
     ids=[
-        "non-quoted names",
-        "quoted names",
-        "complex types",
-        "single parameter",
+        "non-quoted-names",
+        "quoted-names",
+        "complex-types",
+        "single-parameter",
+        "strange-name",
         "variadic",
     ],
 )

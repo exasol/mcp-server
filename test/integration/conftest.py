@@ -221,8 +221,8 @@ def db_scripts() -> list[ExaFunction]:
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{schema}"."fibonacci"(
-                    seq_length INTEGER)
-                EMITS (num INTEGER, val INTEGER)
+                    seq_length DECIMAL(18,0))
+                EMITS (num DECIMAL(18,0), val DECIMAL(18,0))
                 AS
                 def run(ctx):
                         last_two = [0, 1]
@@ -247,7 +247,7 @@ def db_scripts() -> list[ExaFunction]:
             body=dedent(
                 """
                 CREATE OR REPLACE PYTHON3 SET SCRIPT "{schema}"."weighted_length"(
-                    text VARCHAR(100000), weight DOUBLE)
+                    text VARCHAR(100000) UTF8, weight DOUBLE)
                 RETURNS DOUBLE
                 AS
                 def run(ctx):
