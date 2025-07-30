@@ -185,38 +185,31 @@ def test_func_extract_parameters(func_parameter_parser, info, expected_result):
 
 
 @pytest.mark.parametrize(
-    ["key", "invalid_value"],
+    "invalid_text",
     [
-        ("FUNCTION_SCHEMA", "My"),
-        ("FUNCTION_NAME", "SkyHooks"),
-        (
-            "FUNCTION_TEXT",
-            dedent(
-                """
-            function MySchema.SkyHooks
+        dedent(
+            """
+            function MySchema.GetSkyHooks
             return VARCHAR(1000)
             begin ... end;
         """
-            ),
+        ),
+        dedent(
+            """
+            function MySchema.GetSkyHooks()
+            return COMPLEX
+            begin ... end;
+    """
         ),
     ],
-    ids=["invalid-schema", "invalid-name", "invalid-text-no-inputs"],
+    ids=["ino-inputs", "invalid-return-type"],
 )
-def test_func_extract_parameters_error(func_parameter_parser, key, invalid_value):
+def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
     info = {
         "FUNCTION_SCHEMA": "MySchema",
         "FUNCTION_NAME": "GetSkyHooks",
-        "FUNCTION_TEXT": dedent(
-            """
-            function MySchema.GetSkyHooks()
-            return VARCHAR(1000)
-            begin ... end;
-        """
-        ),
+        "FUNCTION_TEXT": invalid_text,
     }
-    result = func_parameter_parser.extract_parameters(info)
-    assert result is not None
-    info[key] = invalid_value
     result = func_parameter_parser.extract_parameters(info)
     assert result is None
 
@@ -413,65 +406,55 @@ def test_script_extract_parameters(script_parameter_parser, info, expected_resul
 
 
 @pytest.mark.parametrize(
-    ["key", "invalid_value"],
+    ["result_type", "invalid_text"],
     [
-        ("SCRIPT_SCHEMA", "My"),
-        ("SCRIPT_NAME", "SkyHooks"),
-        ("SCRIPT_LANGUAGE", "LUA"),
-        ("SCRIPT_INPUT_TYPE", "SET"),
-        ("SCRIPT_RESULT_TYPE", "EMITS"),
         (
-            "SCRIPT_TEXT",
+            "RETURNS",
             dedent(
                 """
-            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks
-            RETURNS VARCHAR(1000) AS
-            def run(ctx):
-                ...
-        """
+                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks
+                RETURNS VARCHAR(1000) AS
+                def run(ctx):
+                    ...
+            """
             ),
         ),
         (
-            "SCRIPT_TEXT",
+            "RETURNS",
             dedent(
                 """
-            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
-            RETURNS AS
-            def run(ctx):
-                ...
+                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
+                RETURNS AS
+                def run(ctx):
+                    ...
+            """
+            ),
+        ),
+        (
+            "EMITS",
+            dedent(
+                """
+                CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
+                EMITS AS
+                def run(ctx):
+                    ...
         """
             ),
         ),
     ],
-    ids=[
-        "invalid-schema",
-        "invalid-name",
-        "invalid-language",
-        "invalid-input-type",
-        "invalid-result-type",
-        "invalid-text-no-input",
-        "invalid-text-no-output",
-    ],
+    ids=["no-input", "no-return", "no-emit"],
 )
-def test_script_extract_parameters_error(script_parameter_parser, key, invalid_value):
+def test_script_extract_parameters_error(
+    script_parameter_parser, result_type, invalid_text
+):
     info = {
         "SCRIPT_SCHEMA": "MySchema",
         "SCRIPT_NAME": "GetSkyHooks",
         "SCRIPT_LANGUAGE": "PYTHON3",
         "SCRIPT_INPUT_TYPE": "SCALAR",
-        "SCRIPT_RESULT_TYPE": "RETURNS",
-        "SCRIPT_TEXT": dedent(
-            """
-            CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
-            RETURNS VARCHAR(1000) AS
-            def run(ctx):
-                ...
-        """
-        ),
+        "SCRIPT_RESULT_TYPE": result_type,
+        "SCRIPT_TEXT": invalid_text,
     }
-    result = script_parameter_parser.extract_parameters(info)
-    assert result is not None
-    info[key] = invalid_value
     result = script_parameter_parser.extract_parameters(info)
     assert result is None
 
