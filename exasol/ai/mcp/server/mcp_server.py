@@ -138,9 +138,7 @@ class ExasolMCPServer(FastMCP):
                     "be called using the same syntax as a normal function. If the "
                     "function output is emitted dynamically, the list of output "
                     "parameters must be provided in the call. This can be achieved by "
-                    "appending the select statement with the special term "
-                    "emits"
-                    " "
+                    'appending the select statement with the special term "emits" '
                     "followed by the parameter list in parentheses."
                 ),
             )

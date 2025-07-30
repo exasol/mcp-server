@@ -14,7 +14,6 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
-    parameter_pattern,
     quoted_identifier_pattern,
     quoted_parameter_pattern,
     regex_flags,
@@ -41,9 +40,9 @@ class ParameterParser(ABC):
         self.connection = connection
         self.conf = conf
         self.tool_name = tool_name
-        self._parameter_list_pattern: re.Pattern | None = None
+        self._parameter_extract_pattern: re.Pattern | None = None
 
-    def _execute_query(self, query: TextContent) -> list[dict[str, Any]]:
+    def _execute_query(self, query: str) -> list[dict[str, Any]]:
         return self.connection.meta.execute_snapshot(query=query).fetchall()
 
     def describe(
@@ -87,15 +86,15 @@ class ParameterParser(ABC):
         from the beginning or from comma: (?:^|,). The parameter should be followed
         by either the end of the input or comma: (?=\Z|,).
         """
-        if self._parameter_list_pattern is not None:
-            return self._parameter_list_pattern
+        if self._parameter_extract_pattern is not None:
+            return self._parameter_extract_pattern
 
         pattern = (
             rf"(?:^|,)\s*(?P<{self.conf.name_field}>{quoted_identifier_pattern})"
             rf"\s+(?P<{self.conf.type_field}>{exa_type_pattern})\s*(?=\Z|,)"
         )
-        self._parameter_list_pattern = re.compile(pattern, flags=regex_flags)
-        return self._parameter_list_pattern
+        self._parameter_extract_pattern = re.compile(pattern, flags=regex_flags)
+        return self._parameter_extract_pattern
 
     def parse_parameter_list(self, params: str) -> str | list[dict[str, str]]:
         """
@@ -176,6 +175,7 @@ class FuncParameterParser(ParameterParser):
         if self._func_pattern is not None:
             return self._func_pattern
 
+        # The schema is optional
         func_schema_pattern = rf"(?:{quoted_identifier_pattern}\s*\.\s*)?"
         func_name_pattern = quoted_identifier_pattern
         pattern = (
@@ -232,6 +232,7 @@ class ScriptParameterParser(ParameterParser):
             else rf"RETURNS\s+(?P<{self.conf.return_field}>{exa_type_pattern})\s+"
         )
         language_pattern = identifier_pattern
+        # The schema is optional.
         udf_schema_pattern = rf"(?:{quoted_identifier_pattern}\s*\.\s*)?"
         udf_name_pattern = quoted_identifier_pattern
 
