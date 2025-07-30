@@ -37,7 +37,7 @@ def _where_clause(*predicates) -> str:
     return ""
 
 
-def vet_query(query: str) -> bool:
+def verify_query(query: str) -> bool:
     """
     Verifies that the query is a valid SELECT query.
     Declines any other types of statements including the SELECT INTO.
@@ -320,7 +320,7 @@ class ExasolMCPServer(FastMCP):
     def execute_query(
         self, query: Annotated[str, Field(description="select query")]
     ) -> ExaDbResult:
-        if vet_query(query):
+        if verify_query(query):
             result = self.connection.execute(query=query).fetchall()
             return ExaDbResult(result)
         raise ValueError("The query is invalid or not a SELECT statement.")
