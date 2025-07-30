@@ -462,3 +462,46 @@ def test_describe_script(
             result_json = json.loads(result.content[0].text)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
+
+
+def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+    """
+    Test the `execute_query` tool. Runs the simplest SELECT query that grabs the entire
+    content of a table and validates this content. The tool is tested on each table
+    of every schema.
+    """
+    config = McpServerSettings(enable_query=True)
+    for schema in db_schemas:
+        for table in db_tables:
+            query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+            result = _run_tool(
+                pyexasol_connection, config, tool_name="execute_query", query=query
+            )
+            result_json = _get_list_result_json(result)
+            expected_json = [
+                {col.name: col_value for col, col_value in zip(table.columns, row)}
+                for row in table.rows
+            ]
+            expected_json.sort(key=_result_sort_func)
+            assert result_json == expected_json
+
+
+def test_execute_query_error(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    The test validates that the `execute_query` tool fails if asked to execute a
+    disallowed query.
+    """
+    config = McpServerSettings(enable_query=True)
+    for schema in db_schemas:
+        for table in db_tables:
+            query = (
+                f'SELECT * INTO TABLE "{schema.name}"."ANOTHER_TABLE" '
+                f'FROM "{schema.name}"."{table.name}"'
+            )
+            result = _run_tool(
+                pyexasol_connection, config, tool_name="execute_query", query=query
+            )
+            result_json = _get_list_result_json(result)
+            assert all(key == "error" for di in result_json for key in di.keys())
