@@ -356,6 +356,14 @@ def test_describe_table(
             )
             result_json = _get_list_result_json(result)
             expected_json = _get_expected_list_json(table.columns, "id", config.columns)
+            # The foreign key in the expected json is missing the schema.
+            # Need to add it there.
+            foreign_key_field = config.columns.foreign_key_field
+            for column in expected_json.result:
+                if column[foreign_key_field]:
+                    column[foreign_key_field] = (
+                        f'"{schema.name}".{column[foreign_key_field]}'
+                    )
             assert result_json == expected_json
 
 

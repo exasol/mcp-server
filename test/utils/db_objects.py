@@ -32,8 +32,10 @@ class ExaColumn(ExaDbObject):
         return (self.constraint is not None) and (self.constraint.type == "PRIMARY KEY")
 
     @property
-    def foreign_key(self) -> bool:
-        return (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY")
+    def foreign_key(self) -> str | None:
+        if (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY"):
+            return self.constraint.reference
+        return None
 
     def decl(self) -> str:
         column_decl = f'"{self.name}" {self.type}{self.comment_decl}'

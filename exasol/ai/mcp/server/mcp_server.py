@@ -111,7 +111,9 @@ class ExasolMCPServer(FastMCP):
                     "Describes the specified table in the specified schema of the "
                     "Exasol Database. Returns the list of table columns. For each "
                     "column provides the name, the data type, an optional comment, "
-                    "the primary key flag and the foreign key flag."
+                    "and the primary key flag. If the column is a foreign key the "
+                    "information about the referenced column is provided. It includes "
+                    "the schema, the table and the column name in parentheses."
                 ),
             )
         if self.config.parameters.enable:
@@ -272,15 +274,18 @@ class ExasolMCPServer(FastMCP):
                     C.COLUMN_TYPE AS "{conf.type_field}",
                     C.COLUMN_COMMENT AS "{conf.comment_field}",
                     NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_field}",
-                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_field}"
+                    NVL2(F.COLUMN_NAME, CONCAT(
+                        '"', F.REFERENCED_SCHEMA, '"."', F.REFERENCED_TABLE,
+                        '"("', F.REFERENCED_COLUMN, '")'
+                    ), NULL) AS "{conf.foreign_key_field}"
             FROM SYS.EXA_ALL_COLUMNS C
             LEFT JOIN (
-                    SELECT COLUMN_NAME
+                    SELECT *
                     FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
                     {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'PRIMARY KEY'")}
             ) P ON P.COLUMN_NAME=C.COLUMN_NAME
             LEFT JOIN (
-                    SELECT COLUMN_NAME
+                    SELECT *
                     FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
                     {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'FOREIGN KEY'")}
             ) F ON F.COLUMN_NAME=C.COLUMN_NAME
