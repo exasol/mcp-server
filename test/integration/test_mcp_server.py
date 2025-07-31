@@ -345,19 +345,7 @@ def test_describe_table(
             regexp_pattern=".*id.*" if use_regexp else "",
         )
     )
-
-    query = "SELECT * FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS"
-    print("\n\n\n ******************** \n\n\n")
-    print(pyexasol_connection.execute(query=query).fetchall())
-    print("\n\n\n ******************** \n\n\n")
-
     for schema in db_schemas:
-        # There is a strange problem with the foreign key not getting the
-        # right schema if the table is created in a schema other than the
-        # opened one. The problem is under investigation, and the test for
-        # a newly created schema is temporarily disabled.
-        if schema.is_new:
-            continue
         for table in db_tables:
             result = _run_tool(
                 pyexasol_connection,
@@ -376,10 +364,6 @@ def test_describe_table(
                     column[foreign_key_field] = (
                         f'"{schema.name}".{column[foreign_key_field]}'
                     )
-            print("\n\n\n -^^^^^^^^^^^^^^^^^^^ \n\n\n")
-            print("schema name = ", schema.name)
-            print("expected_json:", expected_json)
-            print("\n\n\n %%%%%%%%%%%%%%%%%%%%%%%%%% \n\n\n")
             assert result_json == expected_json
 
 

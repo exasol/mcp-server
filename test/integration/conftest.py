@@ -256,7 +256,15 @@ def setup_database(
                 query = f'DROP SCHEMA IF EXISTS "{schema.name}" CASCADE'
                 pyexasol_connection.execute(query=query)
                 query = f'CREATE SCHEMA "{schema.name}"'
-                pyexasol_connection.execute(query=query)
+                # Will restore the currently opened schema after creating a new one.
+                current_schema = pyexasol_connection.current_schema()
+                try:
+                    pyexasol_connection.execute(query=query)
+                finally:
+                    if current_schema:
+                        pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
+                    else:
+                        pyexasol_connection.execute("CLOSE SCHEMA")
                 if schema.comment:
                     query = (
                         f'COMMENT ON SCHEMA "{schema.name}" ' f"IS '{schema.comment}'"
@@ -264,10 +272,6 @@ def setup_database(
                     pyexasol_connection.execute(query=query)
             for table in db_tables:
                 query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
-                print("\n\n\n 777777777777777777777777777777777 \n\n\n")
-                print("schema:", schema)
-                print("query:", query)
-                print("\n\n\n 777777777777777777777777777777777 \n\n\n")
                 pyexasol_connection.execute(query=query)
                 query = (
                     f'INSERT INTO "{schema.name}"."{table.name}" '
