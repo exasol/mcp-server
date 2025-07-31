@@ -264,6 +264,10 @@ def setup_database(
                     pyexasol_connection.execute(query=query)
             for table in db_tables:
                 query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
+                print("\n\n\n 777777777777777777777777777777777 \n\n\n")
+                print("schema:", schema)
+                print("query:", query)
+                print("\n\n\n 777777777777777777777777777777777 \n\n\n")
                 pyexasol_connection.execute(query=query)
                 query = (
                     f'INSERT INTO "{schema.name}"."{table.name}" '
