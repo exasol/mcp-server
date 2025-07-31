@@ -112,8 +112,9 @@ class ExasolMCPServer(FastMCP):
                     "Exasol Database. Returns the list of table columns. For each "
                     "column provides the name, the data type, an optional comment, "
                     "and the primary key flag. If the column is a foreign key the "
-                    "information about the referenced column is provided. It includes "
-                    "the schema, the table and the column name in parentheses."
+                    "reference information is provided. It includes the names of "
+                    "the referenced schema, table and columns, as well as the name "
+                    "of the reference."
                 ),
             )
         if self.config.parameters.enable:
@@ -274,20 +275,28 @@ class ExasolMCPServer(FastMCP):
                     C.COLUMN_TYPE AS "{conf.type_field}",
                     C.COLUMN_COMMENT AS "{conf.comment_field}",
                     NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_field}",
-                    NVL2(F.COLUMN_NAME, CONCAT(
-                        '"', F.REFERENCED_SCHEMA, '"."', F.REFERENCED_TABLE,
-                        '"("', F.REFERENCED_COLUMN, '")'
-                    ), NULL) AS "{conf.foreign_key_field}"
+                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_field}",
+                    F.REFERENCE_NAME AS "{conf.ref_name_field}",
+                    F.REFERENCED_SCHEMA AS "{conf.ref_schema_field}",
+                    F.REFERENCED_TABLE AS "{conf.ref_name_field}",
+                    F.REFERENCED_COLUMNS AS "{conf.ref_columns_field}"
             FROM SYS.EXA_ALL_COLUMNS C
             LEFT JOIN (
-                    SELECT *
+                    SELECT COLUMN_NAME
                     FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
                     {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'PRIMARY KEY'")}
             ) P ON P.COLUMN_NAME=C.COLUMN_NAME
             LEFT JOIN (
-                    SELECT *
+                    SELECT
+                        COLUMN_NAME,
+                        FIRST_VALUE(CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
+                            ELSE CONSTRAINT_NAME END) AS REFERENCE_NAME,
+                        FIRST_VALUE(REFERENCED_SCHEMA) AS REFERENCED_SCHEMA,
+                        FIRST_VALUE(REFERENCED_TABLE) AS REFERENCED_TABLE,
+                        GROUP_CONCAT(REFERENCED_COLUMN) AS REFERENCED_COLUMNS
                     FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
                     {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'FOREIGN KEY'")}
+                    GROUP BY COLUMN_NAME
             ) F ON F.COLUMN_NAME=C.COLUMN_NAME
             {_where_clause(*c_predicates, conf.select_predicate)}
         """

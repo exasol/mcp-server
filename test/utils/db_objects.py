@@ -15,13 +15,16 @@ class ExaDbObject:
 @dataclass
 class ExaConstraint:
     type: str
-    reference: str | None = None
+    name: str | None = None
+    ref_table: str | None = None
+    ref_columns: list[str] | None = None
 
     def decl(self, schema_name: str, column_name: str) -> str:
-        col_ref = (
-            f' REFERENCES "{schema_name}".{self.reference}' if self.reference else ""
-        )
-        return f'{self.type} ("{column_name}"){col_ref}'
+        col_ref = ""
+        if self.type == "FOREIGN KEY" and self.ref_columns:
+            col_list = ",".join('"{col}"' for col in self.ref_columns)
+            col_ref = f' REFERENCES "{schema_name}"."{self.ref_table}"({col_list})'
+        return f'CONSTRAINT {self.name or ""} {self.type} ("{column_name}"){col_ref}'
 
 
 @dataclass
@@ -34,9 +37,25 @@ class ExaColumn(ExaDbObject):
         return (self.constraint is not None) and (self.constraint.type == "PRIMARY KEY")
 
     @property
-    def foreign_key(self) -> str | None:
-        if (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY"):
-            return self.constraint.reference
+    def foreign_key(self) -> bool:
+        return (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY")
+
+    @property
+    def reference_name(self) -> str:
+        if self.constraint is not None:
+            return self.constraint.name
+        return None
+
+    @property
+    def referenced_table(self) -> str:
+        if self.constraint is not None:
+            return self.constraint.ref_table
+        return None
+
+    @property
+    def referenced_columns(self) -> str:
+        if (self.constraint is not None) and (self.constraint.ref_columns is not None):
+            return ",".join(self.constraint.ref_columns)
         return None
 
     def decl(self, schema_name: str) -> str:

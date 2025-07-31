@@ -64,22 +64,26 @@ def _get_list_result_json(result) -> ExaDbResult:
 
 
 def _get_expected_db_obj_json(
-    db_obj: ExaDbObject, conf: MetaSettings
+    db_obj: ExaDbObject, conf: MetaSettings, schema_name: str
 ) -> dict[str, Any]:
     obj_json = {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
     if isinstance(db_obj, ExaColumn) and isinstance(conf, MetaColumnSettings):
         obj_json[conf.type_field] = db_obj.type
         obj_json[conf.primary_key_field] = db_obj.primary_key
         obj_json[conf.foreign_key_field] = db_obj.foreign_key
+        obj_json[conf.ref_name_field] = db_obj.reference_name
+        obj_json[conf.ref_schema_field] = schema_name
+        obj_json[conf.ref_table_field] = db_obj.referenced_table
+        obj_json[conf.ref_columns_field] = db_obj.referenced_columns
     return obj_json
 
 
 def _get_expected_list_json(
-    db_objects: list[ExaDbObject], name_part: str, conf: MetaSettings
+    db_objects: list[ExaDbObject], name_part: str, conf: MetaSettings, schema_name: str
 ) -> ExaDbResult:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
-        _get_expected_db_obj_json(db_obj, conf)
+        _get_expected_db_obj_json(db_obj, conf, schema_name)
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
@@ -158,7 +162,9 @@ def test_list_schemas(
         )
         result = _run_tool(pyexasol_connection, config, "list_schemas")
         result_json = _get_list_result_json(result)
-        expected_json = _get_expected_list_json([schema], schema.name, config.schemas)
+        expected_json = _get_expected_list_json(
+            [schema], schema.name, config.schemas, schema.name
+        )
         if use_like or use_regexp:
             assert result_json == expected_json
         else:
@@ -242,10 +248,14 @@ def test_list_tables(
         result_json = _get_list_result_json(result)
         expected_result: list[dict[str, Any]] = []
         if enable_tables:
-            expected_json = _get_expected_list_json(db_tables, "resort", config.tables)
+            expected_json = _get_expected_list_json(
+                db_tables, "resort", config.tables, schema.name
+            )
             expected_result.extend(expected_json.result)
         if enable_views:
-            expected_json = _get_expected_list_json(db_views, "run", config.views)
+            expected_json = _get_expected_list_json(
+                db_views, "run", config.views, schema.name
+            )
             expected_result.extend(expected_json.result)
         expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
         assert result_json == expected_json
@@ -282,7 +292,9 @@ def test_list_functions(
             schema_name=schema.schema_name_arg,
         )
         result_json = _get_list_result_json(result)
-        expected_json = _get_expected_list_json(db_functions, "cut", config.functions)
+        expected_json = _get_expected_list_json(
+            db_functions, "cut", config.functions, schema.name
+        )
         assert result_json == expected_json
 
 
@@ -317,7 +329,9 @@ def test_list_scripts(
             schema_name=schema.schema_name_arg,
         )
         result_json = _get_list_result_json(result)
-        expected_json = _get_expected_list_json(db_scripts, "fibo", config.scripts)
+        expected_json = _get_expected_list_json(
+            db_scripts, "fibo", config.scripts, schema.name
+        )
         assert result_json == expected_json
 
 
@@ -355,15 +369,9 @@ def test_describe_table(
                 table_name=table.name,
             )
             result_json = _get_list_result_json(result)
-            expected_json = _get_expected_list_json(table.columns, "id", config.columns)
-            # The foreign key in the expected json is missing the schema.
-            # Need to add it there.
-            foreign_key_field = config.columns.foreign_key_field
-            for column in expected_json.result:
-                if column[foreign_key_field]:
-                    column[foreign_key_field] = (
-                        f'"{schema.name}".{column[foreign_key_field]}'
-                    )
+            expected_json = _get_expected_list_json(
+                table.columns, "id", config.columns, schema.name
+            )
             assert result_json == expected_json
 
 

@@ -89,6 +89,10 @@ class MetaColumnSettings(MetaSettings):
     type_field: NoDoubleQuotesStr = "column_type"
     primary_key_field: NoDoubleQuotesStr = "primary_key"
     foreign_key_field: NoDoubleQuotesStr = "foreign_key"
+    ref_schema_field: NoDoubleQuotesStr = "referenced_schema"
+    ref_table_field: NoDoubleQuotesStr = "referenced_table"
+    ref_columns_field: NoDoubleQuotesStr = "referenced_columns"
+    ref_name_field: NoDoubleQuotesStr = "reference_name"
 
 
 class MetaParameterSettings(MetaSettings):
