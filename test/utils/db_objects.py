@@ -17,8 +17,10 @@ class ExaConstraint:
     type: str
     reference: str | None = None
 
-    def decl(self, column_name: str) -> str:
-        col_ref = f" REFERENCES {self.reference}" if self.reference else ""
+    def decl(self, schema_name: str, column_name: str) -> str:
+        col_ref = (
+            f' REFERENCES "{schema_name}".{self.reference}' if self.reference else ""
+        )
         return f'{self.type} ("{column_name}"){col_ref}'
 
 
@@ -37,10 +39,12 @@ class ExaColumn(ExaDbObject):
             return self.constraint.reference
         return None
 
-    def decl(self) -> str:
+    def decl(self, schema_name: str) -> str:
         column_decl = f'"{self.name}" {self.type}{self.comment_decl}'
         if self.constraint is not None:
-            return ", ".join([column_decl, self.constraint.decl(self.name)])
+            return ", ".join(
+                [column_decl, self.constraint.decl(schema_name, self.name)]
+            )
         return column_decl
 
 
@@ -50,7 +54,7 @@ class ExaTable(ExaDbObject):
     rows: list[tuple[Any, ...]]
 
     def decl(self, schema_name: str) -> str:
-        column_def = ", ".join(col.decl() for col in self.columns)
+        column_def = ", ".join(col.decl(schema_name) for col in self.columns)
         return f'"{schema_name}"."{self.name}"({column_def}){self.comment_decl}'
 
 
