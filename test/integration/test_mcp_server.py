@@ -352,7 +352,9 @@ def test_describe_table(
         # a newly created schema is temporarily disabled.
         if schema.is_new:
             continue
+        print("\n\n\n ------------------- \n\n\n")
         print(schema)
+        print("\n\n\n ------------------- \n\n\n")
         for table in db_tables:
             result = _run_tool(
                 pyexasol_connection,
