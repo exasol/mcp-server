@@ -292,6 +292,11 @@ class ExasolMCPServer(FastMCP):
             {_where_clause(*c_predicates, conf.select_predicate)}
         """
         )
+
+        print("\n\n\n ++++--------------- \n\n\n")
+        print("query:", query)
+        print("\n\n\n +++++++++++--------  \n\n\n")
+
         return self._execute_meta_query(query)
 
     def describe_function(

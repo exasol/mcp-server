@@ -345,6 +345,12 @@ def test_describe_table(
             regexp_pattern=".*id.*" if use_regexp else "",
         )
     )
+
+    query = "SELECT * FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS"
+    print("\n\n\n ******************** \n\n\n")
+    print(pyexasol_connection.execute(query=query).fetchall())
+    print("\n\n\n ******************** \n\n\n")
+
     for schema in db_schemas:
         # There is a strange problem with the foreign key not getting the
         # right schema if the table is created in a schema other than the
@@ -352,9 +358,6 @@ def test_describe_table(
         # a newly created schema is temporarily disabled.
         if schema.is_new:
             continue
-        print("\n\n\n ------------------- \n\n\n")
-        print(schema)
-        print("\n\n\n ------------------- \n\n\n")
         for table in db_tables:
             result = _run_tool(
                 pyexasol_connection,
