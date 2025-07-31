@@ -33,11 +33,11 @@ def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
 def db_schemas(db_schema_name) -> list[ExaSchema]:
     return [
         ExaSchema(name=db_schema_name, comment=None, is_new=False),
-        # ExaSchema(
-        #     name="new_schema",
-        #     comment="new schema for the integration tests",
-        #     is_new=True,
-        # ),
+        ExaSchema(
+            name="new_schema",
+            comment="new schema for the integration tests",
+            is_new=True,
+        ),
     ]
 
 
