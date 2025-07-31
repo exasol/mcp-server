@@ -373,6 +373,10 @@ def test_describe_table(
                     column[foreign_key_field] = (
                         f'"{schema.name}".{column[foreign_key_field]}'
                     )
+            print("\n\n\n -^^^^^^^^^^^^^^^^^^^ \n\n\n")
+            print("schema name = ", schema.name)
+            print("expected_json:", expected_json)
+            print("\n\n\n %%%%%%%%%%%%%%%%%%%%%%%%%% \n\n\n")
             assert result_json == expected_json
 
 
