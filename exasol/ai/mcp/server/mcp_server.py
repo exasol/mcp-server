@@ -25,7 +25,7 @@ from exasol.ai.mcp.server.parameter_parser import (
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
-    MetaSettings,
+    MetaListSettings,
 )
 from exasol.ai.mcp.server.utils import sql_text_value
 
@@ -35,6 +35,13 @@ def _where_clause(*predicates) -> str:
     if condition:
         return f"WHERE {condition}"
     return ""
+
+
+def _validate_describe_table_args(schema_name: str, table_name: str) -> None:
+    if not schema_name:
+        raise ValueError("Schema name is not provided.")
+    if not table_name:
+        raise ValueError("Table name is not provided.")
 
 
 def verify_query(query: str) -> bool:
@@ -75,7 +82,7 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.list_schemas,
                 description=(
-                    "Lists schemas in the Exasol Database. "
+                    "The tool lists schemas in the Exasol Database. "
                     "For each schema provides the name and an optional comment."
                 ),
             )
@@ -83,76 +90,83 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.list_tables,
                 description=(
-                    "Lists tables in the specified schema of the Exasol Database. "
-                    "For each table provides the name and an optional comment."
+                    "The tool lists tables in the specified schema of the Exasol "
+                    "Database. For each table it provides the name and an optional "
+                    "comment."
                 ),
             )
         if self.config.functions.enable:
             self.tool(
                 self.list_functions,
                 description=(
-                    "Lists functions in the specified schema of the Exasol Database. "
-                    "For each function provides the name and an optional comment."
+                    "The tool lists functions in the specified schema of the Exasol "
+                    "Database. For each function it provides the name and an optional "
+                    "comment."
                 ),
             )
         if self.config.scripts.enable:
             self.tool(
                 self.list_scripts,
                 description=(
-                    "Lists the user defined functions (UDF) in the specified schema of "
-                    "the Exasol Database. For each function provides the name and an "
-                    "optional comment."
+                    "The tool lists the user defined functions (UDF) in the specified "
+                    "schema of the Exasol Database. For each function it provides the "
+                    "name and an optional comment."
                 ),
             )
         if self.config.columns.enable:
             self.tool(
                 self.describe_table,
                 description=(
-                    "Describes the specified table in the specified schema of the "
-                    "Exasol Database. Returns the list of table columns. For each "
-                    "column provides the name, the data type, an optional comment, "
-                    "the primary key flag and the foreign key flag."
+                    "The tool describes the specified table in the specified schema of "
+                    "the Exasol Database. The description includes the list of columns "
+                    "and the list of constraints. For each column the tool provides "
+                    "the name, the SQL data type and an optional comment. For each "
+                    "constraint it provides its type, e.g. PRIMARY KEY, the list of "
+                    "columns the constraint is applied to and an optional name. For a "
+                    "FOREIGN KEY it also provides the referenced schema, table and a "
+                    "list of columns in the referenced table."
                 ),
             )
         if self.config.parameters.enable:
             self.tool(
                 self.describe_function,
                 description=(
-                    "Describes the specified function in the specified schema of the "
-                    "Exasol Database. Returns the list of input parameters and the "
-                    "return type. For each parameter provides the name and the type."
+                    "The tool describes the specified function in the specified schema "
+                    "of the Exasol Database. It provides the list of input parameters "
+                    "and the return SQL type. For each parameter it specifies the name "
+                    "and the SQL type."
                 ),
             )
             self.tool(
                 self.describe_script,
                 description=(
-                    "Describes the specified user defined function in the specified "
-                    "schema of the Exasol Database. Returns the list of input "
-                    "parameters, the list of emitted parameters or the SQL type of a "
-                    "single returned value. For each parameter provides the name and "
-                    "the SQL type. Both the input and the emitted parameters can be "
-                    "dynamic, or, in other words, flexible. The dynamic parameters are "
-                    "indicated with ... (triple dot) string instead of the parameter "
+                    "The tool describes the specified user defined function in the "
+                    "specified schema of the Exasol Database. It provides the list of "
+                    "input parameters, the list of emitted parameters or the SQL type "
+                    "of a single returned value. For each parameter it provides the "
+                    "name and the SQL type. Both the input and the emitted parameters "
+                    "can be dynamic, or, in other words, flexible. The dynamic parameters "
+                    "are indicated with ... (triple dot) string instead of the parameter "
                     "list. A user defined function with dynamic input parameters can "
                     "be called using the same syntax as a normal function. If the "
                     "function output is emitted dynamically, the list of output "
-                    "parameters must be provided in the call. This can be achieved by "
+                    "parameters must be supplied in the call. This can be achieved by "
                     'appending the select statement with the special term "emits" '
                     "followed by the parameter list in parentheses."
                 ),
             )
-        if self.config.enable_query:
+        if self.config.enable_read_query:
             self.tool(
                 self.execute_query,
                 description=(
-                    "Executes the specified query in the specified schema of the "
-                    "Exasol Database. The query must be a SELECT statement. Returns "
-                    "the results selected by the query."
+                    "The tool executes the specified query in the specified schema of "
+                    "the Exasol Database. The query must be a SELECT statement. The "
+                    "tool returns data selected by the query."
                 ),
             )
 
     def _build_meta_query(
-        self, meta_name: str, conf: MetaSettings, schema_name: str, *predicates
+        self, meta_name: str, conf: MetaListSettings, schema_name: str, *predicates
     ) -> str:
         """
         Builds a metadata query.
@@ -241,53 +255,90 @@ class ExasolMCPServer(FastMCP):
         )
         return self._execute_meta_query(query)
 
-    def describe_table(
+    def describe_columns(
         self,
         schema_name: Annotated[
             str, Field(description="name of the database schema", default="")
         ],
         table_name: Annotated[str, Field(description="name of the table", default="")],
     ) -> ExaDbResult:
+        """
+        Returns the list of columns in the given table. Currently, this is a part of
+        the `describe_table` tool, but it can be used independently in the future.
+        """
         conf = self.config.columns
         if not conf.enable:
             raise RuntimeError("Column listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
-        if not schema_name:
-            raise ValueError("Schema name is not provided.")
-        if not table_name:
-            raise ValueError("Table name is not provided.")
+        _validate_describe_table_args(schema_name, table_name)
 
-        c_predicates = [
-            f"COLUMN_SCHEMA = {sql_text_value(schema_name)}",
-            f"COLUMN_TABLE = {sql_text_value(table_name)}",
-        ]
-        s_predicates = [
-            f"CONSTRAINT_SCHEMA = {sql_text_value(schema_name)}",
-            f"CONSTRAINT_TABLE = {sql_text_value(table_name)}",
-        ]
         query = dedent(
             f"""
             SELECT
-                    C.COLUMN_NAME AS "{conf.name_field}",
-                    C.COLUMN_TYPE AS "{conf.type_field}",
-                    C.COLUMN_COMMENT AS "{conf.comment_field}",
-                    NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_field}",
-                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_field}"
-            FROM SYS.EXA_ALL_COLUMNS C
-            LEFT JOIN (
-                    SELECT COLUMN_NAME
-                    FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-                    {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'PRIMARY KEY'")}
-            ) P ON P.COLUMN_NAME=C.COLUMN_NAME
-            LEFT JOIN (
-                    SELECT COLUMN_NAME
-                    FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-                    {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'FOREIGN KEY'")}
-            ) F ON F.COLUMN_NAME=C.COLUMN_NAME
-            {_where_clause(*c_predicates, conf.select_predicate)}
+                COLUMN_NAME AS "{conf.name_field}",
+                COLUMN_TYPE AS "{conf.type_field}",
+                COLUMN_COMMENT AS "{conf.comment_field}"
+            FROM SYS.EXA_ALL_COLUMNS
+            WHERE
+                COLUMN_SCHEMA = {sql_text_value(schema_name)} AND
+                COLUMN_TABLE = {sql_text_value(table_name)}
         """
         )
         return self._execute_meta_query(query)
+
+    def describe_constraints(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        table_name: Annotated[str, Field(description="name of the table", default="")],
+    ) -> ExaDbResult:
+        """
+        Returns the list of constraints in the given table. Currently, this is a part
+        of the `describe_table` tool, but it can be used independently in the future.
+        """
+        conf = self.config.columns
+        if not conf.enable:
+            raise RuntimeError("Constraint listing is disabled.")
+        schema_name = schema_name or self.connection.current_schema()
+        _validate_describe_table_args(schema_name, table_name)
+
+        query = dedent(
+            f"""
+            SELECT
+                FIRST_VALUE(CONSTRAINT_TYPE) AS "{conf.constraint_type_field}",
+                CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
+                    ELSE CONSTRAINT_NAME END AS "{conf.constraint_name_field}",
+                GROUP_CONCAT(DISTINCT COLUMN_NAME ORDER BY ORDINAL_POSITION)
+                    AS "{conf.constraint_columns_field}",
+                FIRST_VALUE(REFERENCED_SCHEMA) AS "{conf.referenced_schema_field}",
+                FIRST_VALUE(REFERENCED_TABLE) AS "{conf.referenced_table_field}",
+                GROUP_CONCAT(DISTINCT REFERENCED_COLUMN ORDER BY ORDINAL_POSITION)
+                    AS "{conf.referenced_columns_field}"
+            FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
+            WHERE
+                CONSTRAINT_SCHEMA = {sql_text_value(schema_name)} AND
+                CONSTRAINT_TABLE = {sql_text_value(table_name)}
+            GROUP BY CONSTRAINT_NAME
+        """
+        )
+        return self._execute_meta_query(query)
+
+    def describe_table(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        table_name: Annotated[str, Field(description="name of the table", default="")],
+    ) -> dict[str, Any]:
+
+        conf = self.config.columns
+        columns = self.describe_columns(schema_name, table_name)
+        constraints = self.describe_constraints(schema_name, table_name)
+        return {
+            conf.columns_field: columns.result,
+            conf.constraints_field: constraints.result,
+        }
 
     def describe_function(
         self,

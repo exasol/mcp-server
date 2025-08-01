@@ -2,11 +2,16 @@ import asyncio
 import json
 from test.utils.db_objects import (
     ExaColumn,
+    ExaConstraint,
     ExaDbObject,
     ExaFunction,
     ExaParameter,
+    ExaTable,
 )
-from typing import Any
+from typing import (
+    Any,
+    cast,
+)
 
 import pytest
 from fastmcp import Client
@@ -18,8 +23,8 @@ from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
     MetaColumnSettings,
+    MetaListSettings,
     MetaParameterSettings,
-    MetaSettings,
 )
 
 
@@ -47,12 +52,22 @@ def _list_tools(connection: ExaConnection, config: McpServerSettings):
     return asyncio.run(_list_tools_async(connection, config))
 
 
-def _result_sort_func(d: dict[str, Any]) -> str:
-    return ",".join(str(v) for v in d.values())
+def _result_sort_func(d: Any) -> str:
+    if isinstance(d, dict):
+        return ",".join(str(d[key]) for key in sorted(d.keys()))
+    return str(d)
 
 
-def _get_result_json(result):
-    return json.loads(result.content[0].text)
+def _get_result_json(result) -> dict[str, Any]:
+    return cast(dict[str, Any], json.loads(result.content[0].text))
+
+
+def _get_sort_result_json(result) -> dict[str, Any]:
+    result_json = _get_result_json(result)
+    return {
+        key: sorted(val, key=_result_sort_func) if isinstance(val, list) else val
+        for key, val in result_json.items()
+    }
 
 
 def _get_list_result_json(result) -> ExaDbResult:
@@ -63,32 +78,67 @@ def _get_list_result_json(result) -> ExaDbResult:
     return unsorted
 
 
-def _get_expected_db_obj_json(
-    db_obj: ExaDbObject, conf: MetaSettings
-) -> dict[str, Any]:
-    obj_json = {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
-    if isinstance(db_obj, ExaColumn) and isinstance(conf, MetaColumnSettings):
-        obj_json[conf.type_field] = db_obj.type
-        obj_json[conf.primary_key_field] = db_obj.primary_key
-        obj_json[conf.foreign_key_field] = db_obj.foreign_key
-    return obj_json
-
-
 def _get_expected_list_json(
-    db_objects: list[ExaDbObject], name_part: str, conf: MetaSettings
+    db_objects: list[ExaDbObject], name_part: str, conf: MetaListSettings
 ) -> ExaDbResult:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
-        _get_expected_db_obj_json(db_obj, conf)
+        {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
     return ExaDbResult(sorted(expected_json, key=_result_sort_func))
 
 
+def _get_expected_column_list_json(
+    column_list: list[ExaColumn], conf: MetaColumnSettings
+) -> list[dict[str, Any]]:
+    expected_json = [
+        {
+            conf.name_field: col.name,
+            conf.type_field: col.type,
+            conf.comment_field: col.comment,
+        }
+        for col in column_list
+    ]
+    return sorted(expected_json, key=_result_sort_func)
+
+
+def _get_expected_constraint_list_json(
+    constraint_list: list[ExaConstraint], conf: MetaColumnSettings, schema_name: str
+) -> list[dict[str, Any]]:
+    expected_json = [
+        {
+            conf.constraint_name_field: cons.name,
+            conf.constraint_type_field: cons.type,
+            conf.constraint_columns_field: ",".join(cons.columns),
+            conf.referenced_schema_field: (
+                schema_name if cons.type == "FOREIGN KEY" else None
+            ),
+            conf.referenced_table_field: cons.ref_table,
+            conf.referenced_columns_field: (
+                None if cons.ref_columns is None else ",".join(cons.ref_columns)
+            ),
+        }
+        for cons in constraint_list
+    ]
+    return sorted(expected_json, key=_result_sort_func)
+
+
+def _get_expected_table_json(
+    table: ExaTable, conf: MetaColumnSettings, schema_name: str
+) -> dict[str, Any]:
+    return {
+        conf.columns_field: _get_expected_column_list_json(table.columns, conf),
+        conf.constraints_field: _get_expected_constraint_list_json(
+            table.constraints, conf, schema_name
+        ),
+    }
+
+
 def _get_expected_param_list_json(
     param_list: list[ExaParameter], conf: MetaParameterSettings
-) -> dict[str, str]:
+) -> list[dict[str, str]]:
     return [
         {conf.name_field: param.name, conf.type_field: param.type}
         for param in param_list
@@ -148,10 +198,8 @@ def test_list_schemas(
     """
     for schema in db_schemas:
         config = McpServerSettings(
-            schemas=MetaSettings(
+            schemas=MetaListSettings(
                 enable=True,
-                name_field="the_name",
-                comment_field="the_comment",
                 like_pattern=schema.name if use_like else "",
                 regexp_pattern=schema.name if use_regexp else "",
             )
@@ -215,17 +263,13 @@ def test_list_tables(
     selection pattern: like/regexp/none.
     """
     config = McpServerSettings(
-        tables=MetaSettings(
+        tables=MetaListSettings(
             enable=enable_tables,
-            name_field="the_name",
-            comment_field="the_comment",
             like_pattern="%resort%" if use_like else "",
             regexp_pattern=".*resort.*" if use_regexp else "",
         ),
-        views=MetaSettings(
+        views=MetaListSettings(
             enable=enable_views,
-            name_field="the_name",
-            comment_field="the_comment",
             like_pattern="%run%" if use_like else "",
             regexp_pattern=".*run.*" if use_regexp else "",
         ),
@@ -264,10 +308,8 @@ def test_list_functions(
     There are same considerations as in the test for `list_tables`.
     """
     config = McpServerSettings(
-        functions=MetaSettings(
+        functions=MetaListSettings(
             enable=True,
-            name_field="the_name",
-            comment_field="the_comment",
             like_pattern="cut%" if use_like else "",
             regexp_pattern="cut.*" if use_regexp else "",
         )
@@ -299,10 +341,8 @@ def test_list_scripts(
     There are same considerations as in the test for `list_tables`.
     """
     config = McpServerSettings(
-        scripts=MetaSettings(
+        scripts=MetaListSettings(
             enable=True,
-            name_field="the_name",
-            comment_field="the_comment",
             like_pattern="fibo%" if use_like else "",
             regexp_pattern="fibo.*" if use_regexp else "",
         )
@@ -321,28 +361,15 @@ def test_list_scripts(
         assert result_json == expected_json
 
 
-@pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
-)
 def test_describe_table(
-    pyexasol_connection, setup_database, db_schemas, db_tables, use_like, use_regexp
+    pyexasol_connection, setup_database, db_schemas, db_tables
 ) -> None:
     """
-    Test the `describe_table` tool with various combinations of configuration
-    parameters. The tool is tested on each table of every schema.
+    Test the `describe_table` tool. The tool is tested on each table of every schema.
     """
     config = McpServerSettings(
         columns=MetaColumnSettings(
             enable=True,
-            name_field="the_name",
-            comment_field="the_comment",
-            type_field="the_type",
-            primary_key_field="the_primary_key",
-            foreign_key_field="the_foreign_key",
-            like_pattern="%id%" if use_like else "",
-            regexp_pattern=".*id.*" if use_regexp else "",
         )
     )
     for schema in db_schemas:
@@ -354,8 +381,8 @@ def test_describe_table(
                 schema_name=schema.schema_name_arg,
                 table_name=table.name,
             )
-            result_json = _get_list_result_json(result)
-            expected_json = _get_expected_list_json(table.columns, "id", config.columns)
+            result_json = _get_sort_result_json(result)
+            expected_json = _get_expected_table_json(table, config.columns, schema.name)
             assert result_json == expected_json
 
 
@@ -430,10 +457,6 @@ def test_describe_function(
     config = McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
-            name_field="the_name",
-            type_field="the_type",
-            input_field="input_params",
-            return_field="return_type",
         )
     )
     for schema in db_schemas:
@@ -460,11 +483,6 @@ def test_describe_script(
     config = McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
-            name_field="the_name",
-            type_field="the_type",
-            input_field="input_params",
-            emit_field="emit_params",
-            return_field="return_type",
         )
     )
     for schema in db_schemas:
@@ -487,7 +505,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
     content of a table and validates this content. The tool is tested on each table
     of every schema.
     """
-    config = McpServerSettings(enable_query=True)
+    config = McpServerSettings(enable_read_query=True)
     for schema in db_schemas:
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -510,7 +528,7 @@ def test_execute_query_error(
     The test validates that the `execute_query` tool fails if asked to execute a
     disallowed query.
     """
-    config = McpServerSettings(enable_query=True)
+    config = McpServerSettings(enable_read_query=True)
     for schema in db_schemas:
         for table in db_tables:
             query = (

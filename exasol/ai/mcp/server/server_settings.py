@@ -26,7 +26,7 @@ class ExaDbResult:
 
 class MetaSettings(BaseModel):
     """
-    The settings for a single type of metadata, e.g. tables.
+    The general settings for a single type of metadata, e.g. tables.
     """
 
     enable: bool = True
@@ -42,6 +42,12 @@ class MetaSettings(BaseModel):
     comment_field: NoDoubleQuotesStr = "comment"
     """
     The name of the output field that contains the comment, e.g. "table_comment".
+    """
+
+
+class MetaListSettings(MetaSettings):
+    """
+    The settings for a type of metadata that can be listed and filtered.
     """
 
     like_pattern: str | None = None
@@ -82,25 +88,81 @@ class MetaSettings(BaseModel):
 
 class MetaColumnSettings(MetaSettings):
     """
-    The settings for listing columns when describing a table. Adds few more fields to
-    the metadata output.
+    The settings for listing columns and constraints when describing a table.
     """
 
-    type_field: NoDoubleQuotesStr = "column_type"
-    primary_key_field: NoDoubleQuotesStr = "primary_key"
-    foreign_key_field: NoDoubleQuotesStr = "foreign_key"
+    type_field: NoDoubleQuotesStr = "type"
+    """
+    The name of the output field for the column SQL type.
+    """
+
+    constraint_name_field: NoDoubleQuotesStr = "name"
+    """
+    The name of the output field for the constraint name if it was specified.
+    """
+
+    constraint_type_field: NoDoubleQuotesStr = "type"
+    """
+    The name of the output field for the constraint type, e.g. PRIMARY KEY.
+    """
+
+    constraint_columns_field: NoDoubleQuotesStr = "columns"
+    """
+    The name of the output field for the list of columns the constraint is applied to.
+    """
+
+    referenced_schema_field: NoDoubleQuotesStr = "referenced_schema"
+    """
+    The name of the output field for the referenced schema in the FOREIGN KEY constraint.
+    """
+
+    referenced_table_field: NoDoubleQuotesStr = "referenced_table"
+    """
+    The name of the output field for the referenced table in the FOREIGN KEY constraint.
+    """
+
+    referenced_columns_field: NoDoubleQuotesStr = "referenced_columns"
+    """
+    The name of the output field for the list of columns in a referenced table in the
+    FOREIGN KEY constraint.
+    """
+
+    columns_field: NoDoubleQuotesStr = "columns"
+    """
+    The name of the output field for the list of columns in a table being described.
+    """
+
+    constraints_field: NoDoubleQuotesStr = "constraints"
+    """
+    The name of the output field for the list of constraints in a table being described.
+    """
 
 
 class MetaParameterSettings(MetaSettings):
     """
-    The settings for listing input/output parameters when describing a function of a
-    script.
+    The settings for listing input/output parameters when describing a function or a
+    UDF script.
     """
 
     type_field: NoDoubleQuotesStr = "parameter_type"
+    """
+    The name of the output field for the SQL type of a parameter or return value.
+    """
+
     input_field: NoDoubleQuotesStr = "inputs"
+    """
+    The name of the output field for the list of input parameters.
+    """
+
     return_field: NoDoubleQuotesStr = "returns"
+    """
+    The name of the output field for the return value.
+    """
+
     emit_field: NoDoubleQuotesStr = "emits"
+    """
+    The name of the output field for the list of parameters emitted by a UDF.
+    """
 
 
 class McpServerSettings(BaseModel):
@@ -108,19 +170,19 @@ class McpServerSettings(BaseModel):
     MCP server configuration.
     """
 
-    schemas: MetaSettings = MetaSettings(
+    schemas: MetaListSettings = MetaListSettings(
         name_field="schema_name", comment_field="schema_comment"
     )
-    tables: MetaSettings = MetaSettings(
+    tables: MetaListSettings = MetaListSettings(
         name_field="table_name", comment_field="table_comment"
     )
-    views: MetaSettings = MetaSettings(
+    views: MetaListSettings = MetaListSettings(
         enable=False, name_field="table_name", comment_field="table_comment"
     )
-    functions: MetaSettings = MetaSettings(
+    functions: MetaListSettings = MetaListSettings(
         name_field="function_name", comment_field="function_comment"
     )
-    scripts: MetaSettings = MetaSettings(
+    scripts: MetaListSettings = MetaListSettings(
         name_field="script_name", comment_field="script_comment"
     )
     columns: MetaColumnSettings = MetaColumnSettings(
@@ -129,4 +191,4 @@ class McpServerSettings(BaseModel):
     parameters: MetaParameterSettings = MetaParameterSettings(
         name_field="parameter_name"
     )
-    enable_query: bool = True
+    enable_read_query: bool = False
