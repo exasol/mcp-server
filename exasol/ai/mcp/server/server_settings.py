@@ -191,4 +191,4 @@ class McpServerSettings(BaseModel):
     parameters: MetaParameterSettings = MetaParameterSettings(
         name_field="parameter_name"
     )
-    enable_query: bool = True
+    enable_read_query: bool = False

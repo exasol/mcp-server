@@ -82,7 +82,7 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.list_schemas,
                 description=(
-                    "Lists schemas in the Exasol Database. "
+                    "The tool lists schemas in the Exasol Database. "
                     "For each schema provides the name and an optional comment."
                 ),
             )
@@ -90,75 +90,78 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.list_tables,
                 description=(
-                    "Lists tables in the specified schema of the Exasol Database. "
-                    "For each table provides the name and an optional comment."
+                    "The tool lists tables in the specified schema of the Exasol "
+                    "Database. For each table it provides the name and an optional "
+                    "comment."
                 ),
             )
         if self.config.functions.enable:
             self.tool(
                 self.list_functions,
                 description=(
-                    "Lists functions in the specified schema of the Exasol Database. "
-                    "For each function provides the name and an optional comment."
+                    "The tool lists functions in the specified schema of the Exasol "
+                    "Database. For each function it provides the name and an optional "
+                    "comment."
                 ),
             )
         if self.config.scripts.enable:
             self.tool(
                 self.list_scripts,
                 description=(
-                    "Lists the user defined functions (UDF) in the specified schema of "
-                    "the Exasol Database. For each function provides the name and an "
-                    "optional comment."
+                    "The tool lists the user defined functions (UDF) in the specified "
+                    "schema of the Exasol Database. For each function it provides the "
+                    "name and an optional comment."
                 ),
             )
         if self.config.columns.enable:
             self.tool(
                 self.describe_table,
                 description=(
-                    "Describes the specified table in the specified schema of the "
-                    "Exasol Database. The description includes the list of columns "
-                    "and the list of constraints. For each column provides the name, "
-                    "the data type and an optional comment. For each constraint "
-                    "provides its type, e.g. PRIMARY KEY, the list of columns the "
-                    "constraint is applied to an an optional name. For a FOREIGN KEY "
-                    "also provides the referenced schema, table and a list of columns "
-                    "in the referenced table."
+                    "The tool describes the specified table in the specified schema of "
+                    "the Exasol Database. The description includes the list of columns "
+                    "and the list of constraints. For each column the tool provides "
+                    "the name, the SQL data type and an optional comment. For each "
+                    "constraint it provides its type, e.g. PRIMARY KEY, the list of "
+                    "columns the constraint is applied to and an optional name. For a "
+                    "FOREIGN KEY it also provides the referenced schema, table and a "
+                    "list of columns in the referenced table."
                 ),
             )
         if self.config.parameters.enable:
             self.tool(
                 self.describe_function,
                 description=(
-                    "Describes the specified function in the specified schema of the "
-                    "Exasol Database. Returns the list of input parameters and the "
-                    "return type. For each parameter provides the name and the type."
+                    "The tool describes the specified function in the specified schema "
+                    "of the Exasol Database. It provides the list of input parameters "
+                    "and the return SQL type. For each parameter it specifies the name "
+                    "and the SQL type."
                 ),
             )
             self.tool(
                 self.describe_script,
                 description=(
-                    "Describes the specified user defined function in the specified "
-                    "schema of the Exasol Database. Returns the list of input "
-                    "parameters, the list of emitted parameters or the SQL type of a "
-                    "single returned value. For each parameter provides the name and "
-                    "the SQL type. Both the input and the emitted parameters can be "
-                    "dynamic, or, in other words, flexible. The dynamic parameters are "
-                    "indicated with ... (triple dot) string instead of the parameter "
+                    "The tool describes the specified user defined function in the "
+                    "specified schema of the Exasol Database. It provides the list of "
+                    "input parameters, the list of emitted parameters or the SQL type "
+                    "of a single returned value. For each parameter it provides the "
+                    "name and the SQL type. Both the input and the emitted parameters "
+                    "can be dynamic, or, in other words, flexible. The dynamic parameters "
+                    "are indicated with ... (triple dot) string instead of the parameter "
                     "list. A user defined function with dynamic input parameters can "
                     "be called using the same syntax as a normal function. If the "
                     "function output is emitted dynamically, the list of output "
-                    "parameters must be provided in the call. This can be achieved by "
+                    "parameters must be supplied in the call. This can be achieved by "
                     'appending the select statement with the special term "emits" '
                     "followed by the parameter list in parentheses."
                 ),
             )
-        if self.config.enable_query:
+        if self.config.enable_read_query:
             self.tool(
                 self.execute_query,
                 description=(
-                    "Executes the specified query in the specified schema of the "
-                    "Exasol Database. The query must be a SELECT statement. Returns "
-                    "the results selected by the query."
+                    "The tool executes the specified query in the specified schema of "
+                    "the Exasol Database. The query must be a SELECT statement. The "
+                    "tool returns data selected by the query."
                 ),
             )
 

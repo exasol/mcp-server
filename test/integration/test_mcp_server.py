@@ -505,7 +505,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
     content of a table and validates this content. The tool is tested on each table
     of every schema.
     """
-    config = McpServerSettings(enable_query=True)
+    config = McpServerSettings(enable_read_query=True)
     for schema in db_schemas:
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -528,7 +528,7 @@ def test_execute_query_error(
     The test validates that the `execute_query` tool fails if asked to execute a
     disallowed query.
     """
-    config = McpServerSettings(enable_query=True)
+    config = McpServerSettings(enable_read_query=True)
     for schema in db_schemas:
         for table in db_tables:
             query = (
