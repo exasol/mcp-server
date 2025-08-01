@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from itertools import chain
 from typing import Any
 
 
@@ -15,51 +16,28 @@ class ExaDbObject:
 @dataclass
 class ExaConstraint:
     type: str
-    name: str | None = None
+    columns: list[str]
     ref_table: str | None = None
     ref_columns: list[str] | None = None
+    name: str | None = None
 
-    def decl(self, schema_name: str, column_name: str) -> str:
-        col_ref = ""
+    def decl(self, schema_name: str) -> str:
+        reference = ""
+        col_list = ",".join(f'"{col}"' for col in self.columns)
         if self.type == "FOREIGN KEY" and self.ref_columns:
-            col_list = ",".join('"{col}"' for col in self.ref_columns)
-            col_ref = f' REFERENCES "{schema_name}"."{self.ref_table}"({col_list})'
-        return f'CONSTRAINT {self.name or ""} {self.type} ("{column_name}"){col_ref}'
+            ref_col_list = ",".join(f'"{col}"' for col in self.ref_columns)
+            reference = (
+                f' REFERENCES "{schema_name}"."{self.ref_table}"({ref_col_list})'
+            )
+        return f'CONSTRAINT {self.name or ""} {self.type} ({col_list}){reference}'
 
 
 @dataclass
 class ExaColumn(ExaDbObject):
     type: str
-    constraint: ExaConstraint | None = None
 
-    @property
-    def primary_key(self) -> bool:
-        return (self.constraint is not None) and (self.constraint.type == "PRIMARY KEY")
-
-    @property
-    def foreign_key(self) -> bool:
-        return (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY")
-
-    @property
-    def reference_name(self) -> str:
-        if self.constraint is not None:
-            return self.constraint.name
-        return None
-
-    @property
-    def referenced_table(self) -> str:
-        if self.constraint is not None:
-            return self.constraint.ref_table
-        return None
-
-    @property
-    def referenced_columns(self) -> str:
-        if (self.constraint is not None) and (self.constraint.ref_columns is not None):
-            return ",".join(self.constraint.ref_columns)
-        return None
-
-    def decl(self, schema_name: str) -> str:
-        column_decl = f'"{self.name}" {self.type}{self.comment_decl}'
+    def decl(self) -> str:
+        return f'"{self.name}" {self.type}{self.comment_decl}'
         if self.constraint is not None:
             return ", ".join(
                 [column_decl, self.constraint.decl(schema_name, self.name)]
@@ -70,11 +48,17 @@ class ExaColumn(ExaDbObject):
 @dataclass
 class ExaTable(ExaDbObject):
     columns: list[ExaColumn]
+    constraints: list[ExaConstraint]
     rows: list[tuple[Any, ...]]
 
     def decl(self, schema_name: str) -> str:
-        column_def = ", ".join(col.decl(schema_name) for col in self.columns)
-        return f'"{schema_name}"."{self.name}"({column_def}){self.comment_decl}'
+        column_decl = ", ".join(
+            chain(
+                (col.decl() for col in self.columns),
+                (cons.decl(schema_name) for cons in self.constraints),
+            )
+        )
+        return f'"{schema_name}"."{self.name}"({column_decl}){self.comment_decl}'
 
 
 @dataclass

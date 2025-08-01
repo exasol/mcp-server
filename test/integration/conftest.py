@@ -52,7 +52,6 @@ def db_tables() -> list[ExaTable]:
                     name="resort_id",
                     comment="the ski resort id",
                     type="DECIMAL(18,0)",
-                    constraint=ExaConstraint(type="PRIMARY KEY"),
                 ),
                 ExaColumn(name="resort_name", comment=None, type="VARCHAR(1000) UTF8"),
                 ExaColumn(name="country", comment=None, type="VARCHAR(100) UTF8"),
@@ -67,6 +66,9 @@ def db_tables() -> list[ExaTable]:
                 (1001, "Courchevel", "France", 1850),
                 (1002, "Kitzbuhel", "Austria", 762),
             ],
+            constraints=[
+                ExaConstraint(type="PRIMARY KEY", columns=["resort_id"]),
+            ],
         ),
         ExaTable(
             name="ski_run",
@@ -76,9 +78,6 @@ def db_tables() -> list[ExaTable]:
                     name="resort_id",
                     comment="the ski resort id",
                     type="DECIMAL(18,0)",
-                    constraint=ExaConstraint(
-                        type="FOREIGN KEY", reference='"ski_resort"("resort_id")'
-                    ),
                 ),
                 ExaColumn(name="run_name", comment=None, type="VARCHAR(200) UTF8"),
                 ExaColumn(
@@ -92,6 +91,16 @@ def db_tables() -> list[ExaTable]:
                     type="DECIMAL(18,0)",
                 ),
             ],
+            constraints=[
+                ExaConstraint(type="PRIMARY KEY", columns=["resort_id", "run_name"]),
+                ExaConstraint(
+                    name="RESORT_FK",
+                    type="FOREIGN KEY",
+                    columns=["resort_id"],
+                    ref_table="ski_resort",
+                    ref_columns=["resort_id"],
+                ),
+            ],
             rows=[
                 (1000, "Christine", "Blue", 1200),
                 (1000, "Allamande", "Red", 950),
@@ -101,6 +110,28 @@ def db_tables() -> list[ExaTable]:
                 (1002, "Steilhang", "Black", 1200),
                 (1002, "Sonnenrast", "Green", 200),
             ],
+        ),
+        ExaTable(
+            name="competitions",
+            comment="information about competitions in different resorts",
+            columns=[
+                ExaColumn(name="series", type="VARCHAR(500) UTF8", comment=None),
+                ExaColumn(name="year", type="DECIMAL(18,0)", comment=None),
+                ExaColumn(name="resort_id", type="DECIMAL(18,0)", comment=None),
+                ExaColumn(
+                    name="competition_run", type="VARCHAR(200) UTF8", comment=None
+                ),
+            ],
+            constraints=[
+                ExaConstraint(
+                    name="COMPETITION_FK",
+                    type="FOREIGN KEY",
+                    columns=["resort_id", "competition_run"],
+                    ref_table="ski_run",
+                    ref_columns=["resort_id", "run_name"],
+                )
+            ],
+            rows=[],
         ),
     ]
 
@@ -273,11 +304,12 @@ def setup_database(
             for table in db_tables:
                 query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
                 pyexasol_connection.execute(query=query)
-                query = (
-                    f'INSERT INTO "{schema.name}"."{table.name}" '
-                    f"VALUES {format_table_rows(table.rows)}"
-                )
-                pyexasol_connection.execute(query=query)
+                if table.rows:
+                    query = (
+                        f'INSERT INTO "{schema.name}"."{table.name}" '
+                        f"VALUES {format_table_rows(table.rows)}"
+                    )
+                    pyexasol_connection.execute(query=query)
             for view in db_views:
                 query = f"CREATE OR REPLACE VIEW {view.decl(schema.name)}"
                 pyexasol_connection.execute(query=query)

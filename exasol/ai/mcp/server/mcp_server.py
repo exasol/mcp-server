@@ -25,7 +25,7 @@ from exasol.ai.mcp.server.parameter_parser import (
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
-    MetaSettings,
+    MetaListSettings,
 )
 from exasol.ai.mcp.server.utils import sql_text_value
 
@@ -35,6 +35,13 @@ def _where_clause(*predicates) -> str:
     if condition:
         return f"WHERE {condition}"
     return ""
+
+
+def _validate_describe_table_args(schema_name: str, table_name: str) -> None:
+    if not schema_name:
+        raise ValueError("Schema name is not provided.")
+    if not table_name:
+        raise ValueError("Table name is not provided.")
 
 
 def verify_query(query: str) -> bool:
@@ -109,12 +116,13 @@ class ExasolMCPServer(FastMCP):
                 self.describe_table,
                 description=(
                     "Describes the specified table in the specified schema of the "
-                    "Exasol Database. Returns the list of table columns. For each "
-                    "column provides the name, the data type, an optional comment, "
-                    "and the primary key flag. If the column is a foreign key the "
-                    "reference information is provided. It includes the names of "
-                    "the referenced schema, table and columns, as well as the name "
-                    "of the reference."
+                    "Exasol Database. The description includes the list of columns "
+                    "and the list of constraints. For each column provides the name, "
+                    "the data type and an optional comment. For each constraint "
+                    "provides its type, e.g. PRIMARY KEY, the list of columns the "
+                    "constraint is applied to an an optional name. For a FOREIGN KEY "
+                    "also provides the referenced schema, table and a list of columns "
+                    "in the referenced table."
                 ),
             )
         if self.config.parameters.enable:
@@ -155,7 +163,7 @@ class ExasolMCPServer(FastMCP):
             )
 
     def _build_meta_query(
-        self, meta_name: str, conf: MetaSettings, schema_name: str, *predicates
+        self, meta_name: str, conf: MetaListSettings, schema_name: str, *predicates
     ) -> str:
         """
         Builds a metadata query.
@@ -244,64 +252,90 @@ class ExasolMCPServer(FastMCP):
         )
         return self._execute_meta_query(query)
 
-    def describe_table(
+    def describe_columns(
         self,
         schema_name: Annotated[
             str, Field(description="name of the database schema", default="")
         ],
         table_name: Annotated[str, Field(description="name of the table", default="")],
     ) -> ExaDbResult:
+        """
+        Returns the list of columns in the given table. Currently, this is a part of
+        the `describe_table` tool, but it can be used independently in the future.
+        """
         conf = self.config.columns
         if not conf.enable:
             raise RuntimeError("Column listing is disabled.")
         schema_name = schema_name or self.connection.current_schema()
-        if not schema_name:
-            raise ValueError("Schema name is not provided.")
-        if not table_name:
-            raise ValueError("Table name is not provided.")
+        _validate_describe_table_args(schema_name, table_name)
 
-        c_predicates = [
-            f"COLUMN_SCHEMA = {sql_text_value(schema_name)}",
-            f"COLUMN_TABLE = {sql_text_value(table_name)}",
-        ]
-        s_predicates = [
-            f"CONSTRAINT_SCHEMA = {sql_text_value(schema_name)}",
-            f"CONSTRAINT_TABLE = {sql_text_value(table_name)}",
-        ]
         query = dedent(
             f"""
             SELECT
-                    C.COLUMN_NAME AS "{conf.name_field}",
-                    C.COLUMN_TYPE AS "{conf.type_field}",
-                    C.COLUMN_COMMENT AS "{conf.comment_field}",
-                    NVL2(P.COLUMN_NAME, TRUE, FALSE) AS "{conf.primary_key_field}",
-                    NVL2(F.COLUMN_NAME, TRUE, FALSE) AS "{conf.foreign_key_field}",
-                    F.REFERENCE_NAME AS "{conf.ref_name_field}",
-                    F.REFERENCED_SCHEMA AS "{conf.ref_schema_field}",
-                    F.REFERENCED_TABLE AS "{conf.ref_name_field}",
-                    F.REFERENCED_COLUMNS AS "{conf.ref_columns_field}"
-            FROM SYS.EXA_ALL_COLUMNS C
-            LEFT JOIN (
-                    SELECT COLUMN_NAME
-                    FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-                    {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'PRIMARY KEY'")}
-            ) P ON P.COLUMN_NAME=C.COLUMN_NAME
-            LEFT JOIN (
-                    SELECT
-                        COLUMN_NAME,
-                        FIRST_VALUE(CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
-                            ELSE CONSTRAINT_NAME END) AS REFERENCE_NAME,
-                        FIRST_VALUE(REFERENCED_SCHEMA) AS REFERENCED_SCHEMA,
-                        FIRST_VALUE(REFERENCED_TABLE) AS REFERENCED_TABLE,
-                        GROUP_CONCAT(REFERENCED_COLUMN) AS REFERENCED_COLUMNS
-                    FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-                    {_where_clause(*s_predicates, "CONSTRAINT_TYPE = 'FOREIGN KEY'")}
-                    GROUP BY COLUMN_NAME
-            ) F ON F.COLUMN_NAME=C.COLUMN_NAME
-            {_where_clause(*c_predicates, conf.select_predicate)}
+                COLUMN_NAME AS "{conf.name_field}",
+                COLUMN_TYPE AS "{conf.type_field}",
+                COLUMN_COMMENT AS "{conf.comment_field}"
+            FROM SYS.EXA_ALL_COLUMNS
+            WHERE
+                COLUMN_SCHEMA = {sql_text_value(schema_name)} AND
+                COLUMN_TABLE = {sql_text_value(table_name)}
         """
         )
         return self._execute_meta_query(query)
+
+    def describe_constraints(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        table_name: Annotated[str, Field(description="name of the table", default="")],
+    ) -> ExaDbResult:
+        """
+        Returns the list of constraints in the given table. Currently, this is a part
+        of the `describe_table` tool, but it can be used independently in the future.
+        """
+        conf = self.config.columns
+        if not conf.enable:
+            raise RuntimeError("Constraint listing is disabled.")
+        schema_name = schema_name or self.connection.current_schema()
+        _validate_describe_table_args(schema_name, table_name)
+
+        query = dedent(
+            f"""
+            SELECT
+                FIRST_VALUE(CONSTRAINT_TYPE) AS "{conf.constraint_type_field}",
+                CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
+                    ELSE CONSTRAINT_NAME END AS "{conf.constraint_name_field}",
+                GROUP_CONCAT(DISTINCT COLUMN_NAME ORDER BY ORDINAL_POSITION)
+                    AS "{conf.constraint_columns_field}",
+                FIRST_VALUE(REFERENCED_SCHEMA) AS "{conf.referenced_schema_field}",
+                FIRST_VALUE(REFERENCED_TABLE) AS "{conf.referenced_table_field}",
+                GROUP_CONCAT(DISTINCT REFERENCED_COLUMN ORDER BY ORDINAL_POSITION)
+                    AS "{conf.referenced_columns_field}"
+            FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
+            WHERE
+                CONSTRAINT_SCHEMA = {sql_text_value(schema_name)} AND
+                CONSTRAINT_TABLE = {sql_text_value(table_name)}
+            GROUP BY CONSTRAINT_NAME
+        """
+        )
+        return self._execute_meta_query(query)
+
+    def describe_table(
+        self,
+        schema_name: Annotated[
+            str, Field(description="name of the database schema", default="")
+        ],
+        table_name: Annotated[str, Field(description="name of the table", default="")],
+    ) -> dict[str, Any]:
+
+        conf = self.config.columns
+        columns = self.describe_columns(schema_name, table_name)
+        constraints = self.describe_constraints(schema_name, table_name)
+        return {
+            conf.columns_field: columns.result,
+            conf.constraints_field: constraints.result,
+        }
 
     def describe_function(
         self,
