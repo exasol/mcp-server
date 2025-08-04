@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from itertools import chain
 from typing import Any
 
 
@@ -15,41 +16,49 @@ class ExaDbObject:
 @dataclass
 class ExaConstraint:
     type: str
-    reference: str | None = None
+    columns: list[str]
+    ref_table: str | None = None
+    ref_columns: list[str] | None = None
+    name: str | None = None
 
-    def decl(self, column_name: str) -> str:
-        col_ref = f" REFERENCES {self.reference}" if self.reference else ""
-        return f'{self.type} ("{column_name}"){col_ref}'
+    def decl(self, schema_name: str) -> str:
+        reference = ""
+        col_list = ",".join(f'"{col}"' for col in self.columns)
+        if self.type == "FOREIGN KEY" and self.ref_columns:
+            ref_col_list = ",".join(f'"{col}"' for col in self.ref_columns)
+            reference = (
+                f' REFERENCES "{schema_name}"."{self.ref_table}"({ref_col_list})'
+            )
+        return f'CONSTRAINT {self.name or ""} {self.type} ({col_list}){reference}'
 
 
 @dataclass
 class ExaColumn(ExaDbObject):
     type: str
-    constraint: ExaConstraint | None = None
-
-    @property
-    def primary_key(self) -> bool:
-        return (self.constraint is not None) and (self.constraint.type == "PRIMARY KEY")
-
-    @property
-    def foreign_key(self) -> bool:
-        return (self.constraint is not None) and (self.constraint.type == "FOREIGN KEY")
 
     def decl(self) -> str:
-        column_decl = f'"{self.name}" {self.type}{self.comment_decl}'
+        return f'"{self.name}" {self.type}{self.comment_decl}'
         if self.constraint is not None:
-            return ", ".join([column_decl, self.constraint.decl(self.name)])
+            return ", ".join(
+                [column_decl, self.constraint.decl(schema_name, self.name)]
+            )
         return column_decl
 
 
 @dataclass
 class ExaTable(ExaDbObject):
     columns: list[ExaColumn]
+    constraints: list[ExaConstraint]
     rows: list[tuple[Any, ...]]
 
     def decl(self, schema_name: str) -> str:
-        column_def = ", ".join(col.decl() for col in self.columns)
-        return f'"{schema_name}"."{self.name}"({column_def}){self.comment_decl}'
+        column_decl = ", ".join(
+            chain(
+                (col.decl() for col in self.columns),
+                (cons.decl(schema_name) for cons in self.constraints),
+            )
+        )
+        return f'"{schema_name}"."{self.name}"({column_decl}){self.comment_decl}'
 
 
 @dataclass
