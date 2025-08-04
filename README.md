@@ -121,7 +121,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ### Safe Harbor Statement: Exasol MCP Server & AI Solutions
 
-<sub><sup>
 Exasol’s AI solutions (including MCP Server) are designed to enable intelligent,
 autonomous, and highly performant access to data through AI and LLM-powered agents.
 While these technologies unlock powerful new capabilities, they also introduce
@@ -139,4 +138,3 @@ and system owner, assume full responsibility for managing these solutions within
 environment. This includes establishing appropriate governance, authorization controls,
 sandboxing mechanisms, and operational guardrails to mitigate risks to your organization,
 your customers, and their data.
-</sup></sub>
