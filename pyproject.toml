@@ -11,6 +11,9 @@ license = "MIT"
 keywords = ['exasol', 'MCP server']
 dynamic = ["dependencies"]
 
+[project.scripts]
+exasol-mcp-server = "exasol.ai.mcp.server.mcp_server:main"
+
 [tool.poetry]
 requires-poetry = ">=2.1.0"
 packages = [
