@@ -16,7 +16,7 @@
 </a>
 </p>
 
-Provides an LLM access to the Exasol database via MCP tools. The includes the
+Provides an LLM access to the Exasol database via MCP tools. Includes the
 tools for reading the database metadata and executing data reading queries.
 
 ## Features
