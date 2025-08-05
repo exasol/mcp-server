@@ -12,3 +12,8 @@
 * #9: Changed the tool return values to the structured output - the dataclasses and dictionaries.
 * #10: Raising or not catching the exceptions, and letting the FastMCP to handle them.
 * #15: Split `MetaSettings` into listable and non-listable classes.
+
+## Documentation
+
+* #16: Added the README.md
+* #17: Allowed providing the settings in a json file.

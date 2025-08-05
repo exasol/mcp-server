@@ -1,16 +1,17 @@
 import json
 import os
+import re
 from textwrap import dedent
 from typing import (
     Annotated,
     Any,
 )
 
+import pyexasol
 from fastmcp import FastMCP
-from pydantic import Field
-from pyexasol import (
-    ExaConnection,
-    connect,
+from pydantic import (
+    Field,
+    ValidationError,
 )
 from sqlglot import (
     exp,
@@ -28,6 +29,11 @@ from exasol.ai.mcp.server.server_settings import (
     MetaListSettings,
 )
 from exasol.ai.mcp.server.utils import sql_text_value
+
+ENV_SETTINGS = "EXA_MCP_SETTINGS"
+ENV_DSN = "EXA_DSN"
+ENV_USER = "EXA_USER"
+ENV_PASSWORD = "EXA_PASSWORD"
 
 
 def _where_clause(*predicates) -> str:
@@ -70,7 +76,9 @@ class ExasolMCPServer(FastMCP):
             The server configuration.
     """
 
-    def __init__(self, connection: ExaConnection, config: McpServerSettings) -> None:
+    def __init__(
+        self, connection: pyexasol.ExaConnection, config: McpServerSettings
+    ) -> None:
         super().__init__(name="exasol-mcp")
         self.connection = connection
         self.connection.options["fetch_dict"] = True
@@ -377,17 +385,46 @@ class ExasolMCPServer(FastMCP):
         raise ValueError("The query is invalid or not a SELECT statement.")
 
 
-if __name__ == "__main__":
+def get_mcp_settings() -> McpServerSettings:
+    """
+    Reads optional settings. They can be provided either in a json string stored in the
+    EXA_MCP_SETTINGS environment variable or in a json file. In the latter case
+    EXA_MCP_SETTINGS must contain the file path.
+    """
+    try:
+        settings_text = os.environ.get(ENV_SETTINGS)
+        if not settings_text:
+            return McpServerSettings()
+        elif re.match(r"^\s*\{.*\}\s*$", settings_text):
+            return McpServerSettings.model_validate_json(settings_text)
+        elif os.path.isfile(settings_text):
+            with open(settings_text) as f:
+                return McpServerSettings.model_validate(json.load(f))
+        raise ValueError(
+            "Invalid MCP Server configuration settings. The configuration "
+            "environment variable should either contain a json string or "
+            "point to an existing json file."
+        )
+    except (ValidationError, json.decoder.JSONDecodeError) as config_error:
+        raise ValueError("Invalid MCP Server configuration settings.") from config_error
 
-    # For now, expect the DB connection parameters to be stored in the environment.
-    dsn = os.environ["EXA_DSN"]
-    user = os.environ["EXA_USER"]
-    password = os.environ["EXA_PASSWORD"]
-    mcp_settings = json.loads(os.environ.get("EXA_MCP_SETTINGS", "{}"))
 
-    conn = connect(
+def main():
+    """
+    Main entry point that creates and runs the MCP server.
+    """
+    dsn = os.environ[ENV_DSN]
+    user = os.environ[ENV_USER]
+    password = os.environ[ENV_PASSWORD]
+    mcp_settings = get_mcp_settings()
+
+    conn = pyexasol.connect(
         dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
     )
 
-    mcp_server = ExasolMCPServer(conn, **mcp_settings)
+    mcp_server = ExasolMCPServer(connection=conn, config=mcp_settings)
     mcp_server.run()
+
+
+if __name__ == "__main__":
+    main()
