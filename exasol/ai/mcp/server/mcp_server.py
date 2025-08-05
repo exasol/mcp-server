@@ -30,10 +30,10 @@ from exasol.ai.mcp.server.server_settings import (
 )
 from exasol.ai.mcp.server.utils import sql_text_value
 
-ENVAR_SETTINGS = "EXA_MCP_SETTINGS"
-ENVAR_DSN = "EXA_DSN"
-ENVAR_USER = "EXA_USER"
-ENVAR_PASSWORD = "EXA_PASSWORD"
+ENV_SETTINGS = "EXA_MCP_SETTINGS"
+ENV_DSN = "EXA_DSN"
+ENV_USER = "EXA_USER"
+ENV_PASSWORD = "EXA_PASSWORD"
 
 
 def _where_clause(*predicates) -> str:
@@ -388,11 +388,11 @@ class ExasolMCPServer(FastMCP):
 def get_mcp_settings() -> McpServerSettings:
     """
     Reads optional settings. They can be provided either in a json string stored in the
-    EXA_MCP_SETTINGS envar or in a json file. In the latter case EXA_MCP_SETTINGS must
-    contain the file path.
+    EXA_MCP_SETTINGS environment variable or in a json file. In the latter case
+    EXA_MCP_SETTINGS must contain the file path.
     """
     try:
-        settings_text = os.environ.get(ENVAR_SETTINGS)
+        settings_text = os.environ.get(ENV_SETTINGS)
         if not settings_text:
             return McpServerSettings()
         elif re.match(r"^\s*\{.*\}\s*$", settings_text):
@@ -413,9 +413,9 @@ def main():
     """
     Main entry point that creates and runs the MCP server.
     """
-    dsn = os.environ[ENVAR_DSN]
-    user = os.environ[ENVAR_USER]
-    password = os.environ[ENVAR_PASSWORD]
+    dsn = os.environ[ENV_DSN]
+    user = os.environ[ENV_USER]
+    password = os.environ[ENV_PASSWORD]
     mcp_settings = get_mcp_settings()
 
     conn = pyexasol.connect(

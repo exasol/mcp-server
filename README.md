@@ -1,7 +1,36 @@
 # Exasol MCP Server
 
-Provides an LLM with access to the Exasol database via MCP tools. The includes the
+<p align="center">
+
+<a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/pypi/l/exasol_mcp_server" alt="License">
+</a>
+<a href="https://pypi.org/project/exasol_mcp_server/">
+    <img src="https://img.shields.io/pypi/dm/exasol_mcp_server" alt="Downloads">
+</a>
+<a href="https://pypi.org/project/exasol_mcp_server/">
+    <img src="https://img.shields.io/pypi/pyversions/exasol_mcp_server" alt="Supported Python Versions">
+</a>
+<a href="https://pypi.org/project/exasol_mcp_server/">
+    <img src="https://img.shields.io/pypi/v/exasol_mcp_server" alt="PyPi Package">
+</a>
+</p>
+
+Provides an LLM access to the Exasol database via MCP tools. The includes the
 tools for reading the database metadata and executing data reading queries.
+
+## Features
+
+- Collects the metadata.
+  * Enumerates the existing database objects, including schemas, tables, views, functions and UDF scripts.
+  * Provides a filtering mechanisms to use with object enumeration.
+  * Describes the database objects: for tables returns the list of columns and constraints; for functions and scripts - the list of input and output parameters.
+- Executes provided data reading SQL query. Disallows any other type of query.
+
+## Prerequisites
+
+- [Python](https://www.python.org/) >= 3.10.
+- MCP Client application, e.g. [Claude Desktop](https://claude.ai/download).
 
 ## Installation
 
@@ -41,7 +70,7 @@ example.
 }
 ```
 
-With these settings, the uv will install and run the "exasol-mcp-package" in an
+With these settings, uv will install and run the "exasol-mcp-package" in an
 ephemeral environment, using the default `uv` parameters and default server settings.
 
 ## Configuration settings:
