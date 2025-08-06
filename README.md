@@ -38,7 +38,11 @@ Ensure the `uv` package is installed. If uncertain call
 ```bash
 uv --version
 ```
-To install `uv`, please follow [the instructions](https://docs.astral.sh/uv/getting-started/installation/)
+To install `uv` on macOS please use `brew`, i.e.
+```bash
+brew install uv
+```
+For other operating systems, please follow [the instructions](https://docs.astral.sh/uv/getting-started/installation/)
 in the `uv` official documentation.
 
 ## Using the server with the Claude Desktop.
