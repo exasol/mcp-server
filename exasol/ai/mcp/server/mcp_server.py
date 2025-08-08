@@ -357,7 +357,7 @@ class ExasolMCPServer(FastMCP):
             str, Field(description="name of the function", default="")
         ],
     ) -> dict[str, Any]:
-        parser = FuncParameterParser(connection=self.connection, conf=self.config)
+        parser = FuncParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, func_name)
 
     def describe_script(
@@ -369,7 +369,7 @@ class ExasolMCPServer(FastMCP):
             str, Field(description="name of the script", default="")
         ],
     ) -> dict[str, Any]:
-        parser = ScriptParameterParser(connection=self.connection, conf=self.config)
+        parser = ScriptParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, script_name)
 
     def execute_query(
