@@ -15,7 +15,7 @@ from exasol.ai.mcp.server.parameter_pattern import (
     quoted_parameter_pattern,
     regex_flags,
 )
-from exasol.ai.mcp.server.server_settings import MetaParameterSettings
+from exasol.ai.mcp.server.server_settings import McpServerSettings
 from exasol.ai.mcp.server.utils import sql_text_value
 
 parameter_list_pattern = rf"(?:,?\s*{quoted_parameter_pattern}\s*(?=\)|,))*"
@@ -26,11 +26,14 @@ the first one: The lookahead symbol after the parameter should be either a comma
 closing parenthesis: (?=\)|,).
 """
 
+variadic_marker = "..."
+
 
 class ParameterParser(ABC):
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
         self.connection = connection
-        self.conf = conf
+        self.server_settings = settings
+        self.conf = settings.parameters
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
@@ -101,7 +104,7 @@ class ParameterParser(ABC):
             return {key: val.strip('"') for key, val in di.items()}
 
         params = params.lstrip()
-        if params == "...":
+        if params == variadic_marker:
             return params
 
         return [
@@ -138,8 +141,8 @@ class ParameterParser(ABC):
 
 class FuncParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
-        super().__init__(connection, conf)
+    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
+        super().__init__(connection, settings)
         self._func_pattern: re.Pattern | None = None
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
@@ -190,8 +193,8 @@ class FuncParameterParser(ParameterParser):
 
 class ScriptParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
-        super().__init__(connection, conf)
+    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
+        super().__init__(connection, settings)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
 
@@ -247,7 +250,7 @@ class ScriptParameterParser(ParameterParser):
             self._return_pattern = self._udf_pattern(emits=False)
         return self._return_pattern
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
+    def extract_udf_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         pattern = (
             self.emit_udf_pattern
             if info["SCRIPT_RESULT_TYPE"] == "EMITS"
@@ -269,3 +272,104 @@ class ScriptParameterParser(ParameterParser):
             for param_field, params in m.groupdict().items()
             if params or (param_field == self.conf.input_field)
         }
+
+    def _get_variadic_note(self, variadic_input: bool, variadic_emit: bool) -> str:
+        if (not variadic_input) and (not variadic_emit):
+            return ""
+        if not variadic_emit:
+            variadic_param = "input"
+            variadic_action = "provided"
+        elif not variadic_input:
+            variadic_param = "output"
+            variadic_action = "emitted"
+        else:
+            variadic_param = "input and output"
+            variadic_action = "provided and emitted"
+        variadic_emit_note = (
+            (
+                " When calling a UDF with dynamic output parameters, the EMITS clause "
+                "should be provided in the call, as demonstrated in the example below."
+            )
+            if variadic_emit
+            else ""
+        )
+        return (
+            f" However, this particular UDF has dynamic {variadic_param} parameters. "
+            f"The {self.server_settings.scripts.comment_field} may give a hint on "
+            f"what parameters are expected to be {variadic_action} in a specific "
+            f"use case.{variadic_emit_note} Note that in the following example the "
+            f"{variadic_param} parameters are given only for illustration. They "
+            f"shall not be used as a guide on how to call this UDF."
+        )
+
+    def get_udf_call_example(
+        self, result: dict[str, Any], input_type: str, func_name: str
+    ) -> str:
+        """
+        Generates call example for a given UDF. For the examples of the
+        generated texts see `test_get_udf_call_example` unit test.
+        """
+        emit = self.conf.emit_field in result
+        variadic_emit = emit and result[self.conf.emit_field] == variadic_marker
+        variadic_input = result[self.conf.input_field] == variadic_marker
+        func_type = "scalar" if input_type.upper() == "SCALAR" else "aggregate"
+        if variadic_input:
+            input_params = '"INPUT_1", "INPUT_2"'
+        else:
+            input_params = ", ".join(
+                f'"{param[self.conf.name_field]}"'
+                for param in result[self.conf.input_field]
+            )
+        if variadic_emit:
+            output_params = '"OUTPUT_1", "OUTPUT_2"'
+        elif emit:
+            output_params = ", ".join(
+                f'"{param[self.conf.name_field]}"'
+                for param in result[self.conf.emit_field]
+            )
+        else:
+            output_params = ""
+
+        introduction = (
+            f"In most cases, an Exasol {input_type} User Defined Function (UDF) can "
+            f"be called just like a normal {func_type} function."
+            f"{self._get_variadic_note(variadic_input, variadic_emit)}"
+        )
+
+        example_header = "Here is a usage example for this particular UDF:"
+
+        return_alias = "" if emit else ' AS "RETURN_VALUE"'
+        emit_clause = (
+            ' EMITS ("OUTPUT_1" VARCHAR(100), "OUTPUT_2" DOUBLE)'
+            if variadic_emit
+            else ""
+        )
+        from_clause = ' FROM "MY_SOURCE_TABLE"' if input_params else ""
+        example = (
+            f'```\nSELECT "{func_name}"({input_params}){return_alias}{emit_clause}'
+            f"{from_clause}\n```"
+        )
+
+        example_footer = (
+            (
+                "This example assumes that the currently opened schema has the table "
+                f'"MY_SOURCE_TABLE" with the following columns: {input_params}.'
+            )
+            if input_params
+            else ""
+        )
+        if emit:
+            emit_note = (
+                f"The query produces a result set with the columns ({output_params}), "
+                "similar to what is returned by a SELECT query."
+            )
+            example_footer = f"{example_footer}\n{emit_note}"
+
+        return "\n".join([introduction, example_header, example, example_footer])
+
+    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
+        result = self.extract_udf_parameters(info)
+        result[self.conf.example_field] = self.get_udf_call_example(
+            result, input_type=info["SCRIPT_INPUT_TYPE"], func_name=info["SCRIPT_NAME"]
+        )
+        return result

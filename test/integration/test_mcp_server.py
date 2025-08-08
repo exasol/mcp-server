@@ -495,6 +495,10 @@ def test_describe_script(
                 script_name=script.name,
             )
             result_json = _get_result_json(result)
+            # The call example message is properly tested in the unit tests.
+            # Here we just verify that it exists.
+            assert config.parameters.example_field in result_json
+            result_json.pop(config.parameters.example_field)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
 

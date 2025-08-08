@@ -164,6 +164,11 @@ class MetaParameterSettings(MetaSettings):
     The name of the output field for the list of parameters emitted by a UDF.
     """
 
+    example_field: NoDoubleQuotesStr = "call_example"
+    """
+    The name of the output field for a call example of a UDF.
+    """
+
 
 class McpServerSettings(BaseModel):
     """
