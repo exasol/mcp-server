@@ -137,6 +137,11 @@ class MetaColumnSettings(MetaSettings):
     The name of the output field for the list of constraints in a table being described.
     """
 
+    table_comment_field: NoDoubleQuotesStr = "table_comment"
+    """
+    The name of the output field for the table/view comment.
+    """
+
 
 class MetaParameterSettings(MetaSettings):
     """

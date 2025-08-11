@@ -2,7 +2,8 @@
 
 ## Features
 
-* #22: Added call examples to the information returned by the `describe_script` tool
+* #22: Added call examples to the information returned by the `describe_script` tool.
+* #24: Provided table/view comment in the describe_table tool.
 
 ## Documentation
 

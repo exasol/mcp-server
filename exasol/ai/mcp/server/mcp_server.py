@@ -332,6 +332,33 @@ class ExasolMCPServer(FastMCP):
         )
         return self._execute_meta_query(query)
 
+    def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
+        schema_name = schema_name or self.connection.current_schema()
+        # `table_name` can be the name of a table or a view.
+        # This query tries both possibilities. The UNION clause collapses
+        # the result into a single non-NULL distinct value.
+        query = dedent(
+            f"""
+            SELECT TABLE_COMMENT AS COMMENT FROM SYS.EXA_ALL_TABLES
+            WHERE
+                TABLE_SCHEMA = {sql_text_value(schema_name)} AND
+                TABLE_NAME = {sql_text_value(table_name)}
+            UNION
+            SELECT VIEW_COMMENT AS COMMENT FROM SYS.EXA_ALL_VIEWS
+            WHERE
+                VIEW_SCHEMA = {sql_text_value(schema_name)} AND
+                VIEW_NAME = {sql_text_value(table_name)}
+            LIMIT 1;
+        """
+        )
+        comment_row = self.connection.meta.execute_snapshot(query=query).fetchone()
+        if comment_row is None:
+            return None
+        table_comment = next(iter(comment_row.values()))
+        if table_comment is None:
+            return None
+        return str(table_comment)
+
     def describe_table(
         self,
         schema_name: Annotated[
@@ -343,9 +370,12 @@ class ExasolMCPServer(FastMCP):
         conf = self.config.columns
         columns = self.describe_columns(schema_name, table_name)
         constraints = self.describe_constraints(schema_name, table_name)
+        table_comment = self.get_table_comment(schema_name, table_name)
+
         return {
             conf.columns_field: columns.result,
             conf.constraints_field: constraints.result,
+            conf.table_comment_field: table_comment,
         }
 
     def describe_function(
@@ -379,6 +409,8 @@ class ExasolMCPServer(FastMCP):
     def execute_query(
         self, query: Annotated[str, Field(description="select query")]
     ) -> ExaDbResult:
+        if not self.config.enable_read_query:
+            raise RuntimeError("Query execution is disabled.")
         if verify_query(query):
             result = self.connection.execute(query=query).fetchall()
             return ExaDbResult(result)
