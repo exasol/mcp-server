@@ -453,14 +453,17 @@ def test_script_extract_udf_parameters_error(
 
 def test_script_extract_parameters(script_parameter_parser):
     """
-    This test simply varifies that a call example has been generated.
+    This test simply varifies that a call example has been generated,
+    and the comment added to the result.
     """
+    comment = "My Random day of week UDF"
     info = {
         "SCRIPT_SCHEMA": "MySchema",
         "SCRIPT_NAME": "RANDOM_DAY_OF_WEEK",
         "SCRIPT_LANGUAGE": "PYTHON3",
         "SCRIPT_INPUT_TYPE": "SCALAR",
         "SCRIPT_RESULT_TYPE": "RETURNS",
+        "SCRIPT_COMMENT": comment,
         "SCRIPT_TEXT": dedent(
             """
             CREATE PYTHON3 SCALAR SCRIPT RANDOM_DAY_OF_WEEK ()
@@ -472,6 +475,7 @@ def test_script_extract_parameters(script_parameter_parser):
     }
     result = script_parameter_parser.extract_parameters(info)
     assert script_parameter_parser.conf.example_field in result
+    assert result[script_parameter_parser.conf.comment_field] == comment
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")

@@ -194,6 +194,6 @@ class McpServerSettings(BaseModel):
         name_field="column_name", comment_field="column_comment"
     )
     parameters: MetaParameterSettings = MetaParameterSettings(
-        name_field="parameter_name"
+        name_field="parameter_name", comment_field="function_comment"
     )
     enable_read_query: bool = False

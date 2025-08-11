@@ -357,7 +357,9 @@ class ExasolMCPServer(FastMCP):
             str, Field(description="name of the function", default="")
         ],
     ) -> dict[str, Any]:
-        parser = FuncParameterParser(connection=self.connection, settings=self.config)
+        parser = FuncParameterParser(
+            connection=self.connection, conf=self.config.parameters
+        )
         return parser.describe(schema_name, func_name)
 
     def describe_script(
@@ -369,14 +371,14 @@ class ExasolMCPServer(FastMCP):
             str, Field(description="name of the script", default="")
         ],
     ) -> dict[str, Any]:
-        parser = ScriptParameterParser(connection=self.connection, settings=self.config)
+        parser = ScriptParameterParser(
+            connection=self.connection, conf=self.config.parameters
+        )
         return parser.describe(schema_name, script_name)
 
     def execute_query(
         self, query: Annotated[str, Field(description="select query")]
     ) -> ExaDbResult:
-        if not self.config.enable_read_query:
-            raise RuntimeError("Query execution is disabled.")
         if verify_query(query):
             result = self.connection.execute(query=query).fetchall()
             return ExaDbResult(result)

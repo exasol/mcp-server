@@ -64,7 +64,7 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
             (
                 "In most cases, an Exasol SET User Defined Function (UDF) can be called "
                 "just like a normal aggregate function. However, this particular UDF "
-                "has dynamic input parameters. The udf_comment may give a hint on "
+                "has dynamic input parameters. The function_comment may give a hint on "
                 "what parameters are expected to be provided in a specific use case. "
                 "Note that in the following example the input parameters are given "
                 "only for illustration. They shall not be used as a guide on how to "
@@ -88,8 +88,8 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
             (
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can "
                 "be called just like a normal scalar function. However, this "
-                "particular UDF has dynamic output parameters. The udf_comment may "
-                "give a hint on what parameters are expected to be emitted in a "
+                "particular UDF has dynamic output parameters. The function_comment "
+                "may give a hint on what parameters are expected to be emitted in a "
                 "specific use case. When calling a UDF with dynamic output "
                 "parameters, the EMITS clause should be provided in the call, as "
                 "demonstrated in the example below. Note that in the following "
@@ -111,7 +111,7 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
                 "In most cases, an Exasol SET User Defined Function (UDF) can be "
                 "called just like a normal aggregate function. However, this "
                 "particular UDF has dynamic input and output parameters. The "
-                "udf_comment may give a hint on what parameters are expected to be "
+                "function_comment may give a hint on what parameters are expected to be "
                 "provided and emitted in a specific use case. When calling a UDF with "
                 "dynamic output parameters, the EMITS clause should be provided in the "
                 "call, as demonstrated in the example below. Note that in the following "

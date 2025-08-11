@@ -15,7 +15,7 @@ from exasol.ai.mcp.server.parameter_pattern import (
     quoted_parameter_pattern,
     regex_flags,
 )
-from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.server_settings import MetaParameterSettings
 from exasol.ai.mcp.server.utils import sql_text_value
 
 parameter_list_pattern = rf"(?:,?\s*{quoted_parameter_pattern}\s*(?=\)|,))*"
@@ -30,10 +30,9 @@ variadic_marker = "..."
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
         self.connection = connection
-        self.server_settings = settings
-        self.conf = settings.parameters
+        self.conf = conf
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
@@ -141,8 +140,8 @@ class ParameterParser(ABC):
 
 class FuncParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings)
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+        super().__init__(connection, conf)
         self._func_pattern: re.Pattern | None = None
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
@@ -193,8 +192,8 @@ class FuncParameterParser(ParameterParser):
 
 class ScriptParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings)
+    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+        super().__init__(connection, conf)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
 
@@ -274,6 +273,10 @@ class ScriptParameterParser(ParameterParser):
         }
 
     def _get_variadic_note(self, variadic_input: bool, variadic_emit: bool) -> str:
+        """
+        A helper function for generating code example. Writes an explanation of the
+        variadic syntax.
+        """
         if (not variadic_input) and (not variadic_emit):
             return ""
         if not variadic_emit:
@@ -295,9 +298,9 @@ class ScriptParameterParser(ParameterParser):
         )
         return (
             f" However, this particular UDF has dynamic {variadic_param} parameters. "
-            f"The {self.server_settings.scripts.comment_field} may give a hint on "
-            f"what parameters are expected to be {variadic_action} in a specific "
-            f"use case.{variadic_emit_note} Note that in the following example the "
+            f"The {self.conf.comment_field} may give a hint on what parameters are "
+            f"expected to be {variadic_action} in a specific use case."
+            f"{variadic_emit_note} Note that in the following example the "
             f"{variadic_param} parameters are given only for illustration. They "
             f"shall not be used as a guide on how to call this UDF."
         )
@@ -369,6 +372,7 @@ class ScriptParameterParser(ParameterParser):
 
     def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         result = self.extract_udf_parameters(info)
+        result[self.conf.comment_field] = info["SCRIPT_COMMENT"]
         result[self.conf.example_field] = self.get_udf_call_example(
             result, input_type=info["SCRIPT_INPUT_TYPE"], func_name=info["SCRIPT_NAME"]
         )
