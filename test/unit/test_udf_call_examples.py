@@ -1,6 +1,6 @@
 import pytest
 
-from exasol.ai.mcp.server.parameter_parser import variadic_marker
+from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
 
 
 @pytest.mark.parametrize(
@@ -60,7 +60,7 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
         ),
         (
             "SET",
-            {"inputs": variadic_marker, "returns": {"type": "DOUBLE"}},
+            {"inputs": VARIADIC_MARKER, "returns": {"type": "DOUBLE"}},
             (
                 "In most cases, an Exasol SET User Defined Function (UDF) can be called "
                 "just like a normal aggregate function. However, this particular UDF "
@@ -83,7 +83,7 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
                     {"name": "xx", "type": "CHAR(10)"},
                     {"name": "yy", "type": "INT"},
                 ],
-                "emits": variadic_marker,
+                "emits": VARIADIC_MARKER,
             },
             (
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can "
@@ -106,7 +106,7 @@ from exasol.ai.mcp.server.parameter_parser import variadic_marker
         ),
         (
             "SET",
-            {"inputs": variadic_marker, "emits": variadic_marker},
+            {"inputs": VARIADIC_MARKER, "emits": VARIADIC_MARKER},
             (
                 "In most cases, an Exasol SET User Defined Function (UDF) can be "
                 "called just like a normal aggregate function. However, this "

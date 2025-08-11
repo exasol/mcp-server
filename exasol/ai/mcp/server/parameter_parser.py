@@ -26,7 +26,7 @@ the first one: The lookahead symbol after the parameter should be either a comma
 closing parenthesis: (?=\)|,).
 """
 
-variadic_marker = "..."
+VARIADIC_MARKER = "..."
 
 
 class ParameterParser(ABC):
@@ -103,7 +103,7 @@ class ParameterParser(ABC):
             return {key: val.strip('"') for key, val in di.items()}
 
         params = params.lstrip()
-        if params == variadic_marker:
+        if params == VARIADIC_MARKER:
             return params
 
         return [
@@ -187,6 +187,7 @@ class FuncParameterParser(ParameterParser):
             self.conf.return_field: self.format_return_type(
                 m.group(self.conf.return_field)
             ),
+            self.conf.comment_field: info["FUNCTION_COMMENT"],
         }
 
 
@@ -313,8 +314,8 @@ class ScriptParameterParser(ParameterParser):
         generated texts see `test_get_udf_call_example` unit test.
         """
         emit = self.conf.emit_field in result
-        variadic_emit = emit and result[self.conf.emit_field] == variadic_marker
-        variadic_input = result[self.conf.input_field] == variadic_marker
+        variadic_emit = emit and result[self.conf.emit_field] == VARIADIC_MARKER
+        variadic_input = result[self.conf.input_field] == VARIADIC_MARKER
         func_type = "scalar" if input_type.upper() == "SCALAR" else "aggregate"
         if variadic_input:
             input_params = '"INPUT_1", "INPUT_2"'
