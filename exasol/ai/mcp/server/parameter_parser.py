@@ -298,12 +298,33 @@ class ScriptParameterParser(ParameterParser):
             else ""
         )
         return (
-            f" However, this particular UDF has dynamic {variadic_param} parameters. "
+            f" This particular UDF has dynamic {variadic_param} parameters. "
             f"The {self.conf.comment_field} may give a hint on what parameters are "
             f"expected to be {variadic_action} in a specific use case."
             f"{variadic_emit_note} Note that in the following example the "
             f"{variadic_param} parameters are given only for illustration. They "
             f"shall not be used as a guide on how to call this UDF."
+        )
+
+    @staticmethod
+    def _get_emit_note(emit: bool, emit_size: int, func_type: str) -> str:
+        """
+        A helper function for generating code example. Writes an explanation of the
+        difference between a normal function and an EMIT UDF.
+        """
+        if not emit:
+            return ""
+        input_unit = "row" if func_type == "scalar" else "group"
+        if emit_size == 0:
+            output_desc = ""
+        elif emit_size == 1:
+            output_desc = ", one column each"
+        else:
+            output_desc = f", each with {emit_size} columns"
+        return (
+            f" Unlike normal {func_type} functions that return a single value for "
+            f"every input {input_unit}, this UDF can emit multiple output rows per "
+            f"input {input_unit}{output_desc}."
         )
 
     def get_udf_call_example(
@@ -316,6 +337,9 @@ class ScriptParameterParser(ParameterParser):
         emit = self.conf.emit_field in result
         variadic_emit = emit and result[self.conf.emit_field] == VARIADIC_MARKER
         variadic_input = result[self.conf.input_field] == VARIADIC_MARKER
+        emit_size = (
+            len(result[self.conf.emit_field]) if emit and (not variadic_emit) else 0
+        )
         func_type = "scalar" if input_type.upper() == "SCALAR" else "aggregate"
         if variadic_input:
             input_params = '"INPUT_1", "INPUT_2"'
@@ -337,6 +361,7 @@ class ScriptParameterParser(ParameterParser):
         introduction = (
             f"In most cases, an Exasol {input_type} User Defined Function (UDF) can "
             f"be called just like a normal {func_type} function."
+            f"{self._get_emit_note(emit, emit_size, func_type)}"
             f"{self._get_variadic_note(variadic_input, variadic_emit)}"
         )
 

@@ -39,7 +39,9 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
             },
             (
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can be "
-                "called just like a normal scalar function. "
+                "called just like a normal scalar function. Unlike normal scalar "
+                "functions that return a single value for every input row, this UDF "
+                "can emit multiple output rows per input row, each with 2 columns. "
                 "Here is a usage example for this particular UDF: "
                 '``` SELECT "my_udf"("xx", "yy") FROM "MY_SOURCE_TABLE" ``` '
                 "This example assumes that the currently opened schema has the table "
@@ -63,8 +65,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
             {"inputs": VARIADIC_MARKER, "returns": {"type": "DOUBLE"}},
             (
                 "In most cases, an Exasol SET User Defined Function (UDF) can be called "
-                "just like a normal aggregate function. However, this particular UDF "
-                "has dynamic input parameters. The function_comment may give a hint on "
+                "just like a normal aggregate function. This particular UDF has "
+                "dynamic input parameters. The function_comment may give a hint on "
                 "what parameters are expected to be provided in a specific use case. "
                 "Note that in the following example the input parameters are given "
                 "only for illustration. They shall not be used as a guide on how to "
@@ -87,14 +89,16 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
             },
             (
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can "
-                "be called just like a normal scalar function. However, this "
-                "particular UDF has dynamic output parameters. The function_comment "
-                "may give a hint on what parameters are expected to be emitted in a "
-                "specific use case. When calling a UDF with dynamic output "
-                "parameters, the EMITS clause should be provided in the call, as "
-                "demonstrated in the example below. Note that in the following "
-                "example the output parameters are given only for illustration. "
-                "They shall not be used as a guide on how to call this UDF. "
+                "be called just like a normal scalar function. Unlike normal scalar "
+                "functions that return a single value for every input row, this UDF "
+                "can emit multiple output rows per input row. This particular UDF has "
+                "dynamic output parameters. The function_comment may give a hint on "
+                "what parameters are expected to be emitted in a specific use case. "
+                "When calling a UDF with dynamic output parameters, the EMITS clause "
+                "should be provided in the call, as demonstrated in the example below. "
+                "Note that in the following example the output parameters are given "
+                "only for illustration. They shall not be used as a guide on how to "
+                "call this UDF. "
                 "Here is a usage example for this particular UDF: "
                 '``` SELECT "my_udf"("xx", "yy") EMITS ("OUTPUT_1" VARCHAR(100), '
                 '"OUTPUT_2" DOUBLE) FROM "MY_SOURCE_TABLE" ``` '
@@ -109,14 +113,16 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
             {"inputs": VARIADIC_MARKER, "emits": VARIADIC_MARKER},
             (
                 "In most cases, an Exasol SET User Defined Function (UDF) can be "
-                "called just like a normal aggregate function. However, this "
-                "particular UDF has dynamic input and output parameters. The "
-                "function_comment may give a hint on what parameters are expected to be "
-                "provided and emitted in a specific use case. When calling a UDF with "
-                "dynamic output parameters, the EMITS clause should be provided in the "
-                "call, as demonstrated in the example below. Note that in the following "
-                "example the input and output parameters are given only for illustration. "
-                "They shall not be used as a guide on how to call this UDF. "
+                "called just like a normal aggregate function. Unlike normal aggregate "
+                "functions that return a single value for every input group, this UDF "
+                "can emit multiple output rows per input group. This particular UDF "
+                "has dynamic input and output parameters. The function_comment may give "
+                "a hint on what parameters are expected to be provided and emitted in a "
+                "specific use case. When calling a UDF with dynamic output parameters, "
+                "the EMITS clause should be provided in the call, as demonstrated in "
+                "the example below. Note that in the following example the input and "
+                "output parameters are given only for illustration. They shall not be "
+                "used as a guide on how to call this UDF. "
                 "Here is a usage example for this particular UDF: "
                 '``` SELECT "my_udf"("INPUT_1", "INPUT_2") EMITS ("OUTPUT_1" VARCHAR(100), '
                 '"OUTPUT_2" DOUBLE) FROM "MY_SOURCE_TABLE" ``` '
