@@ -1,44 +1,11 @@
-import json
 import re
 from textwrap import dedent
 from unittest import mock
 
 import pytest
-from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.parameter_parser import (
-    FuncParameterParser,
-    ScriptParameterParser,
-    parameter_list_pattern,
-)
+from exasol.ai.mcp.server.parameter_parser import parameter_list_pattern
 from exasol.ai.mcp.server.parameter_pattern import regex_flags
-from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-
-
-@pytest.fixture
-def param_config() -> MetaParameterSettings:
-    return MetaParameterSettings(
-        enable=True,
-        name_field="name",
-        type_field="type",
-        input_field="inputs",
-        emit_field="emits",
-        return_field="returns",
-    )
-
-
-@pytest.fixture
-def func_parameter_parser(param_config) -> FuncParameterParser:
-    return FuncParameterParser(
-        connection=mock.create_autospec(ExaConnection), conf=param_config
-    )
-
-
-@pytest.fixture
-def script_parameter_parser(param_config) -> ScriptParameterParser:
-    return ScriptParameterParser(
-        connection=mock.create_autospec(ExaConnection), conf=param_config
-    )
 
 
 @pytest.mark.parametrize(
@@ -205,6 +172,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
     ],
 )
 def test_func_extract_parameters(func_parameter_parser, info, expected_result):
+    expected_result["function_comment"] = info["FUNCTION_COMMENT"] = "Function comment"
     result = func_parameter_parser.extract_parameters(info)
     assert result == expected_result
 
@@ -425,8 +393,8 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
         "variadic-emit",
     ],
 )
-def test_script_extract_parameters(script_parameter_parser, info, expected_result):
-    result = script_parameter_parser.extract_parameters(info)
+def test_script_extract_udf_parameters(script_parameter_parser, info, expected_result):
+    result = script_parameter_parser.extract_udf_parameters(info)
     assert result == expected_result
 
 
@@ -469,7 +437,7 @@ def test_script_extract_parameters(script_parameter_parser, info, expected_resul
     ],
     ids=["no-input", "no-return", "no-emit"],
 )
-def test_script_extract_parameters_error(
+def test_script_extract_udf_parameters_error(
     script_parameter_parser, result_type, invalid_text
 ):
     info = {
@@ -481,7 +449,34 @@ def test_script_extract_parameters_error(
         "SCRIPT_TEXT": invalid_text,
     }
     with pytest.raises(ValueError, match="Failed to parse"):
-        script_parameter_parser.extract_parameters(info)
+        script_parameter_parser.extract_udf_parameters(info)
+
+
+def test_script_extract_parameters(script_parameter_parser):
+    """
+    This test simply varifies that a call example has been generated,
+    and the comment added to the result.
+    """
+    comment = "My Random day of week UDF"
+    info = {
+        "SCRIPT_SCHEMA": "MySchema",
+        "SCRIPT_NAME": "RANDOM_DAY_OF_WEEK",
+        "SCRIPT_LANGUAGE": "PYTHON3",
+        "SCRIPT_INPUT_TYPE": "SCALAR",
+        "SCRIPT_RESULT_TYPE": "RETURNS",
+        "SCRIPT_COMMENT": comment,
+        "SCRIPT_TEXT": dedent(
+            """
+            CREATE PYTHON3 SCALAR SCRIPT RANDOM_DAY_OF_WEEK ()
+            RETURNS VARCHAR(10) AS
+            def run(ctx):
+                ...
+        """
+        ),
+    }
+    result = script_parameter_parser.extract_parameters(info)
+    assert script_parameter_parser.conf.example_field in result
+    assert result[script_parameter_parser.conf.comment_field] == comment
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
@@ -490,6 +485,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
         {
             "FUNCTION_SCHEMA": "MySchema",
             "FUNCTION_NAME": "Validate",
+            "FUNCTION_COMMENT": "Credentials validation function",
             "FUNCTION_TEXT": dedent(
                 """
                 FUNCTION "Validate"(user_name VARCHAR(100), password VARCHAR(100))
@@ -508,6 +504,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
             {"name": "password", "type": "VARCHAR(100)"},
         ],
         "returns": {"type": "BOOL"},
+        "function_comment": "Credentials validation function",
     }
     assert result == expected_result
 

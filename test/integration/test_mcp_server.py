@@ -148,7 +148,10 @@ def _get_expected_param_list_json(
 def _get_expected_param_json(
     func: ExaFunction, conf: MetaParameterSettings
 ) -> dict[str, Any]:
-    expected_json = {conf.input_field: _get_expected_param_list_json(func.inputs, conf)}
+    expected_json = {
+        conf.input_field: _get_expected_param_list_json(func.inputs, conf),
+        conf.comment_field: func.comment,
+    }
     if func.emits:
         expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
     if func.returns:
@@ -495,6 +498,10 @@ def test_describe_script(
                 script_name=script.name,
             )
             result_json = _get_result_json(result)
+            # The call example message is properly tested in the unit tests.
+            # Here we just verify that it exists.
+            assert config.parameters.example_field in result_json
+            result_json.pop(config.parameters.example_field)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
 

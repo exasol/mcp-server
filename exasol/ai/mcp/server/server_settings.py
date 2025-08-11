@@ -164,6 +164,11 @@ class MetaParameterSettings(MetaSettings):
     The name of the output field for the list of parameters emitted by a UDF.
     """
 
+    example_field: NoDoubleQuotesStr = "call_example"
+    """
+    The name of the output field for a call example of a UDF.
+    """
+
 
 class McpServerSettings(BaseModel):
     """
@@ -189,6 +194,6 @@ class McpServerSettings(BaseModel):
         name_field="column_name", comment_field="column_comment"
     )
     parameters: MetaParameterSettings = MetaParameterSettings(
-        name_field="parameter_name"
+        name_field="parameter_name", comment_field="function_comment"
     )
     enable_read_query: bool = False
