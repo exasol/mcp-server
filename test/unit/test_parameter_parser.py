@@ -172,6 +172,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
     ],
 )
 def test_func_extract_parameters(func_parameter_parser, info, expected_result):
+    expected_result["function_comment"] = info["FUNCTION_COMMENT"] = "Function comment"
     result = func_parameter_parser.extract_parameters(info)
     assert result == expected_result
 
@@ -484,6 +485,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
         {
             "FUNCTION_SCHEMA": "MySchema",
             "FUNCTION_NAME": "Validate",
+            "FUNCTION_COMMENT": "Credentials validation function",
             "FUNCTION_TEXT": dedent(
                 """
                 FUNCTION "Validate"(user_name VARCHAR(100), password VARCHAR(100))
@@ -502,6 +504,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
             {"name": "password", "type": "VARCHAR(100)"},
         ],
         "returns": {"type": "BOOL"},
+        "function_comment": "Credentials validation function",
     }
     assert result == expected_result
 
