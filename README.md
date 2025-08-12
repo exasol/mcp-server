@@ -77,6 +77,9 @@ example.
 With these settings, uv will install and run the "exasol-mcp-package" in an
 ephemeral environment, using the default `uv` parameters and default server settings.
 
+Please note that any changes to this file will only take effect after restarting
+Claude Desktop.
+
 ## Configuration settings:
 
 Most importantly, the server configuration specifies if reading the data using SQL
