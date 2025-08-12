@@ -133,6 +133,7 @@ def _get_expected_table_json(
         conf.constraints_field: _get_expected_constraint_list_json(
             table.constraints, conf, schema_name
         ),
+        conf.table_comment_field: table.comment,
     }
 
 
@@ -387,6 +388,27 @@ def test_describe_table(
             result_json = _get_sort_result_json(result)
             expected_json = _get_expected_table_json(table, config.columns, schema.name)
             assert result_json == expected_json
+
+
+def test_describe_view_comment(
+    pyexasol_connection, setup_database, db_schemas, db_views
+) -> None:
+    config = McpServerSettings(
+        columns=MetaColumnSettings(
+            enable=True,
+        )
+    )
+    for schema in db_schemas:
+        for view in db_views:
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "describe_table",
+                schema_name=schema.schema_name_arg,
+                table_name=view.name,
+            )
+            result_json = _get_sort_result_json(result)
+            assert result_json[config.columns.table_comment_field] == view.comment
 
 
 @pytest.mark.parametrize(
