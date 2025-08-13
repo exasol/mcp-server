@@ -38,11 +38,6 @@ class ExaColumn(ExaDbObject):
 
     def decl(self) -> str:
         return f'"{self.name}" {self.type}{self.comment_decl}'
-        if self.constraint is not None:
-            return ", ".join(
-                [column_decl, self.constraint.decl(schema_name, self.name)]
-            )
-        return column_decl
 
 
 @dataclass

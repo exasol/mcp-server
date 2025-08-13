@@ -23,6 +23,10 @@ from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
     ScriptParameterParser,
 )
+from exasol.ai.mcp.server.parameter_pattern import (
+    parameter_list_pattern,
+    regex_flags,
+)
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
@@ -50,11 +54,24 @@ def _validate_describe_table_args(schema_name: str, table_name: str) -> None:
         raise ValueError("Table name is not provided.")
 
 
+_emits_pattern: re.Pattern | None = None
+
+
 def verify_query(query: str) -> bool:
     """
     Verifies that the query is a valid SELECT query.
     Declines any other types of statements including the SELECT INTO.
     """
+
+    # Here is a fix for the SQLGlot deficiency in understanding the syntax of variadic
+    # emit UDF. The EMITS clause in the SELECT statement is currently not recognised.
+    # To let SQLGlot validate the query, this clause must be pinched away.
+    global _emits_pattern
+    if _emits_pattern is None:
+        pattern = rf"EMITS\s*\({parameter_list_pattern}\)"
+        _emits_pattern = re.compile(pattern, flags=regex_flags)
+    query = _emits_pattern.sub("", query)
+
     try:
         ast = parse_one(query, read="exasol")
         if isinstance(ast, exp.Select):
