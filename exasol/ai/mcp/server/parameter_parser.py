@@ -11,20 +11,12 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
+    parameter_list_pattern,
     quoted_identifier_pattern,
-    quoted_parameter_pattern,
     regex_flags,
 )
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
 from exasol.ai.mcp.server.utils import sql_text_value
-
-parameter_list_pattern = rf"(?:,?\s*{quoted_parameter_pattern}\s*(?=\)|,))*"
-r"""
-A parameter list matching pattern, matching zero, one or more parameters. In the text,
-the list should be enclosed in parentheses. A parameter may follow a comma, if it's not
-the first one: The lookahead symbol after the parameter should be either a comma or a
-closing parenthesis: (?=\)|,).
-"""
 
 VARIADIC_MARKER = "..."
 

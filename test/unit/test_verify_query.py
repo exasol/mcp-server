@@ -100,7 +100,7 @@ def sample_export_query() -> str:
 def sample_select_into_query() -> str:
 
     return dedent(
-        f"""
+        """
         SELECT
             T1."DOC_ID",
             T2."TOPIC_NAME",
@@ -112,6 +112,17 @@ def sample_select_into_query() -> str:
         ON T1."TOPIC_NAME" = T2."ID"
         LEFT OUTER JOIN "NLP"."SETUP_LOOKUP" T3
         ON T1."SETUP" = T3."ID"
+    """
+    )
+
+
+def sample_select_udf_emits_query() -> str:
+    return dedent(
+        """
+        SELECT "MyUDF"("input1", "input2", 1000, 'xyz')
+        EMITS (dbl_value DOUBLE, "text_value" VARCHAR(200))
+        FROM "MyTable"
+        WHERE "SomeKey"='Y'
     """
     )
 
@@ -129,6 +140,7 @@ def sample_invalid_query() -> str:
         (sample_merge_query(), False),
         (sample_create_table_query(), False),
         (sample_export_query(), False),
+        (sample_select_udf_emits_query(), True),
         (sample_invalid_query(), False),
     ],
     ids=[
@@ -138,6 +150,7 @@ def sample_invalid_query() -> str:
         "merge",
         "create-table",
         "export",
+        "select-udf-emits",
         "invalid",
     ],
 )

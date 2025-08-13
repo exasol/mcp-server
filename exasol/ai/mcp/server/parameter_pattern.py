@@ -76,3 +76,11 @@ regex_flags = re.IGNORECASE | re.MULTILINE | re.UNICODE
 """
 The RE flags required to match the parameter names and SQL types.
 """
+
+parameter_list_pattern = rf"(?:,?\s*{quoted_parameter_pattern}\s*(?=\)|,))*"
+r"""
+A parameter list matching pattern, matching zero, one or more parameters. In the text,
+the list should be enclosed in parentheses. A parameter may follow a comma, if it's not
+the first one: The lookahead symbol after the parameter should be either a comma or a
+closing parenthesis: (?=\)|,).
+"""
