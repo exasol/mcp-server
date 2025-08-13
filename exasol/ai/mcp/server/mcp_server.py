@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from functools import cache
 from textwrap import dedent
 from typing import (
     Annotated,
@@ -54,7 +55,10 @@ def _validate_describe_table_args(schema_name: str, table_name: str) -> None:
         raise ValueError("Table name is not provided.")
 
 
-_emits_pattern: re.Pattern | None = None
+@cache
+def _get_emits_pattern() -> re.Pattern:
+    pattern = rf"EMITS\s*\({parameter_list_pattern}\)"
+    return re.compile(pattern, flags=regex_flags)
 
 
 def verify_query(query: str) -> bool:
@@ -66,11 +70,7 @@ def verify_query(query: str) -> bool:
     # Here is a fix for the SQLGlot deficiency in understanding the syntax of variadic
     # emit UDF. The EMITS clause in the SELECT statement is currently not recognised.
     # To let SQLGlot validate the query, this clause must be pinched away.
-    global _emits_pattern
-    if _emits_pattern is None:
-        pattern = rf"EMITS\s*\({parameter_list_pattern}\)"
-        _emits_pattern = re.compile(pattern, flags=regex_flags)
-    query = _emits_pattern.sub("", query)
+    query = _get_emits_pattern().sub("", query)
 
     try:
         ast = parse_one(query, read="exasol")
