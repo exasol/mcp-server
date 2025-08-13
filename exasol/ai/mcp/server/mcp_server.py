@@ -33,7 +33,10 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
-from exasol.ai.mcp.server.utils import sql_text_value
+from exasol.ai.mcp.server.utils import (
+    join_lines,
+    sql_text_value,
+)
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 ENV_DSN = "EXA_DSN"
@@ -79,6 +82,16 @@ def verify_query(query: str) -> bool:
         return False
     except ParseError:
         return False
+
+
+def format_table_comment(table_comment: str | None) -> str:
+    return join_lines(
+        table_comment,
+        (
+            "In an SQL query, the names of database objects, such as schemas, "
+            "tables and columns should be enclosed in double quotes."
+        ),
+    )
 
 
 class ExasolMCPServer(FastMCP):
@@ -349,7 +362,7 @@ class ExasolMCPServer(FastMCP):
         )
         return self._execute_meta_query(query)
 
-    def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
+    def get_table_comment(self, schema_name: str, table_name: str) -> str:
         schema_name = schema_name or self.connection.current_schema()
         # `table_name` can be the name of a table or a view.
         # This query tries both possibilities. The UNION clause collapses
@@ -369,12 +382,10 @@ class ExasolMCPServer(FastMCP):
         """
         )
         comment_row = self.connection.meta.execute_snapshot(query=query).fetchone()
-        if comment_row is None:
-            return None
-        table_comment = next(iter(comment_row.values()))
-        if table_comment is None:
-            return None
-        return str(table_comment)
+        table_comment = (
+            None if comment_row is None else next(iter(comment_row.values()))
+        )
+        return format_table_comment(table_comment)
 
     def describe_table(
         self,

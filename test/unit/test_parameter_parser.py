@@ -1,35 +1,43 @@
-import re
 from textwrap import dedent
 from unittest import mock
 
 import pytest
 
-from exasol.ai.mcp.server.parameter_parser import parameter_list_pattern
-from exasol.ai.mcp.server.parameter_pattern import regex_flags
+from exasol.ai.mcp.server.parameter_parser import (
+    format_func_comment,
+    format_udf_comment,
+)
 
 
 @pytest.mark.parametrize(
-    "params_list",
-    ["( abc DOUBLE, xZZ varchar(200) )", '("my_real" REAL, "my_int" INTEGER)'],
-    ids=["non-quoted-names", "quoted-names"],
+    ["func_comment", "expected_formatted_comment"],
+    [
+        ("My function is awesome!", "My function is awesome!\nIn an SQL query"),
+        (None, "In an SQL query"),
+    ],
+    ids=["comment", "no-comment"],
 )
-def test_parameter_list_pattern(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is not None
-    )
+def test_format_func_comment(func_comment, expected_formatted_comment):
+    formatted_comment = format_func_comment({"FUNCTION_COMMENT": func_comment})
+    assert formatted_comment.startswith(expected_formatted_comment)
 
 
 @pytest.mark.parametrize(
-    "params_list",
-    ["(abc, xZZ varchar(200))", '("my_real" REAL, "my_complex" COMPLEX)'],
-    ids=["no-type", "bad-type"],
+    ["result_type", "udf_comment", "expected_formatted_comment"],
+    [
+        ("RETURNS", "My UDF is awesome!", "My UDF is awesome!\nIn an SQL query"),
+        ("RETURNS", None, "In an SQL query"),
+        ("EMITS", "My UDF is awesome!", "My UDF is awesome!\nIn an SQL query"),
+        ("EMITS", None, "In an SQL query"),
+    ],
+    ids=["returns-comment", "returns-no-comment", "emits-comment", "emits-no-comment"],
 )
-def test_parameter_list_pattern_error(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is None
+def test_format_udf_comment(result_type, udf_comment, expected_formatted_comment):
+    formatted_comment = format_udf_comment(
+        {"SCRIPT_RESULT_TYPE": result_type, "SCRIPT_COMMENT": udf_comment}
     )
+    assert formatted_comment.startswith(expected_formatted_comment)
+    assert ("including columns" in formatted_comment) == (result_type == "EMITS")
 
 
 @pytest.mark.parametrize(
@@ -172,7 +180,8 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
     ],
 )
 def test_func_extract_parameters(func_parameter_parser, info, expected_result):
-    expected_result["function_comment"] = info["FUNCTION_COMMENT"] = "Function comment"
+    info["FUNCTION_COMMENT"] = "Function comment"
+    expected_result["function_comment"] = format_func_comment(info)
     result = func_parameter_parser.extract_parameters(info)
     assert result == expected_result
 
@@ -457,14 +466,13 @@ def test_script_extract_parameters(script_parameter_parser):
     This test simply varifies that a call example has been generated,
     and the comment added to the result.
     """
-    comment = "My Random day of week UDF"
     info = {
         "SCRIPT_SCHEMA": "MySchema",
         "SCRIPT_NAME": "RANDOM_DAY_OF_WEEK",
         "SCRIPT_LANGUAGE": "PYTHON3",
         "SCRIPT_INPUT_TYPE": "SCALAR",
         "SCRIPT_RESULT_TYPE": "RETURNS",
-        "SCRIPT_COMMENT": comment,
+        "SCRIPT_COMMENT": "My Random day of week UDF",
         "SCRIPT_TEXT": dedent(
             """
             CREATE PYTHON3 SCALAR SCRIPT RANDOM_DAY_OF_WEEK ()
@@ -476,25 +484,26 @@ def test_script_extract_parameters(script_parameter_parser):
     }
     result = script_parameter_parser.extract_parameters(info)
     assert script_parameter_parser.conf.example_field in result
-    assert result[script_parameter_parser.conf.comment_field] == comment
+    assert result[script_parameter_parser.conf.comment_field] == format_udf_comment(
+        info
+    )
 
 
 @mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
 def test_describe(mock_execute_query, func_parameter_parser):
-    mock_execute_query.return_value = [
-        {
-            "FUNCTION_SCHEMA": "MySchema",
-            "FUNCTION_NAME": "Validate",
-            "FUNCTION_COMMENT": "Credentials validation function",
-            "FUNCTION_TEXT": dedent(
-                """
-                FUNCTION "Validate"(user_name VARCHAR(100), password VARCHAR(100))
-                RETURN BOOL
-                BEGIN ... END;
+    info = {
+        "FUNCTION_SCHEMA": "MySchema",
+        "FUNCTION_NAME": "Validate",
+        "FUNCTION_COMMENT": "Credentials validation function",
+        "FUNCTION_TEXT": dedent(
             """
-            ),
-        },
-    ]
+            FUNCTION "Validate"(user_name VARCHAR(100), password VARCHAR(100))
+            RETURN BOOL
+            BEGIN ... END;
+        """
+        ),
+    }
+    mock_execute_query.return_value = [info]
     result = func_parameter_parser.describe(
         schema_name="MySchema", func_name="Validate"
     )
@@ -504,7 +513,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
             {"name": "password", "type": "VARCHAR(100)"},
         ],
         "returns": {"type": "BOOL"},
-        "function_comment": "Credentials validation function",
+        "function_comment": format_func_comment(info),
     }
     assert result == expected_result
 

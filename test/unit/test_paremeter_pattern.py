@@ -5,6 +5,7 @@ import pytest
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
+    parameter_list_pattern,
     quoted_identifier_pattern,
     regex_flags,
 )
@@ -226,3 +227,27 @@ def test_quoted_identifier_pattern_invalid(
     compiled_quoted_identifier_pattern, name_example
 ):
     assert compiled_quoted_identifier_pattern.match(name_example) is None
+
+
+@pytest.mark.parametrize(
+    "params_list",
+    ["( abc DOUBLE, xZZ varchar(200) )", '("my_real" REAL, "my_int" INTEGER)'],
+    ids=["non-quoted-names", "quoted-names"],
+)
+def test_parameter_list_pattern(params_list):
+    assert (
+        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
+        is not None
+    )
+
+
+@pytest.mark.parametrize(
+    "params_list",
+    ["(abc, xZZ varchar(200))", '("my_real" REAL, "my_complex" COMPLEX)'],
+    ids=["no-type", "bad-type"],
+)
+def test_parameter_list_pattern_error(params_list):
+    assert (
+        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
+        is None
+    )

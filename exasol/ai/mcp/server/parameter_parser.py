@@ -16,9 +16,37 @@ from exasol.ai.mcp.server.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-from exasol.ai.mcp.server.utils import sql_text_value
+from exasol.ai.mcp.server.utils import (
+    join_lines,
+    sql_text_value,
+)
 
 VARIADIC_MARKER = "..."
+
+
+def format_func_comment(info: dict[str, Any]) -> str:
+    return join_lines(
+        info["FUNCTION_COMMENT"],
+        (
+            "In an SQL query, the names of database objects, such as schemas, "
+            "tables, functions, and columns should be enclosed in double quotes."
+        ),
+    )
+
+
+def format_udf_comment(info: dict[str, Any]) -> str:
+    emit_note = (
+        ", including columns returned by the UDF,"
+        if info["SCRIPT_RESULT_TYPE"] == "EMITS"
+        else ""
+    )
+    return join_lines(
+        info["SCRIPT_COMMENT"],
+        (
+            "In an SQL query, the names of database objects, such as schemas, tables, "
+            f"UDFs, and columns{emit_note} should be enclosed in double quotes."
+        ),
+    )
 
 
 class ParameterParser(ABC):
@@ -179,7 +207,7 @@ class FuncParameterParser(ParameterParser):
             self.conf.return_field: self.format_return_type(
                 m.group(self.conf.return_field)
             ),
-            self.conf.comment_field: info["FUNCTION_COMMENT"],
+            self.conf.comment_field: format_func_comment(info),
         }
 
 
@@ -390,7 +418,7 @@ class ScriptParameterParser(ParameterParser):
 
     def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
         result = self.extract_udf_parameters(info)
-        result[self.conf.comment_field] = info["SCRIPT_COMMENT"]
+        result[self.conf.comment_field] = format_udf_comment(info)
         result[self.conf.example_field] = self.get_udf_call_example(
             result, input_type=info["SCRIPT_INPUT_TYPE"], func_name=info["SCRIPT_NAME"]
         )
