@@ -19,9 +19,10 @@ from fastmcp.exceptions import ToolError
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.mcp_server import (
+    TABLE_USAGE,
     ExasolMCPServer,
-    format_table_comment,
 )
+from exasol.ai.mcp.server.parameter_parser import FUNCTION_USAGE
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
@@ -136,7 +137,8 @@ def _get_expected_table_json(
         conf.constraints_field: _get_expected_constraint_list_json(
             table.constraints, conf, schema_name
         ),
-        conf.table_comment_field: format_table_comment(table.comment),
+        conf.table_comment_field: table.comment,
+        conf.usage_field: TABLE_USAGE,
     }
 
 
@@ -152,7 +154,10 @@ def _get_expected_param_list_json(
 def _get_expected_param_json(
     func: ExaFunction, conf: MetaParameterSettings
 ) -> dict[str, Any]:
-    expected_json = {conf.input_field: _get_expected_param_list_json(func.inputs, conf)}
+    expected_json = {
+        conf.input_field: _get_expected_param_list_json(func.inputs, conf),
+        conf.comment_field: func.comment,
+    }
     if func.emits:
         expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
     if func.returns:
@@ -408,9 +413,7 @@ def test_describe_view_comment(
                 table_name=view.name,
             )
             result_json = _get_sort_result_json(result)
-            assert result_json[
-                config.columns.table_comment_field
-            ] == format_table_comment(view.comment)
+            assert result_json[config.columns.table_comment_field] == view.comment
 
 
 @pytest.mark.parametrize(
@@ -496,12 +499,8 @@ def test_describe_function(
                 func_name=func.name,
             )
             result_json = _get_result_json(result)
-            # Here we do not do the precise validation of the comment,
-            # it's done in the unit test.
-            if func.comment:
-                assert func.comment in result_json[config.parameters.comment_field]
-            result_json.pop(config.parameters.comment_field)
             expected_json = _get_expected_param_json(func, config.parameters)
+            expected_json[config.parameters.usage_field] = FUNCTION_USAGE
             assert result_json == expected_json
 
 
@@ -529,12 +528,8 @@ def test_describe_script(
             result_json = _get_result_json(result)
             # The call example message is properly tested in the unit tests.
             # Here we just verify that it exists.
-            assert config.parameters.example_field in result_json
-            result_json.pop(config.parameters.example_field)
-            # Also, we do not do the precise validation of the comment.
-            if script.comment:
-                assert script.comment in result_json[config.parameters.comment_field]
-            result_json.pop(config.parameters.comment_field)
+            assert config.parameters.usage_field in result_json
+            result_json.pop(config.parameters.usage_field)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
 

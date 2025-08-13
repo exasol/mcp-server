@@ -14,7 +14,6 @@ from exasol.ai.mcp.server.mcp_server import (
     ENV_PASSWORD,
     ENV_SETTINGS,
     ENV_USER,
-    format_table_comment,
     get_mcp_settings,
     main,
 )
@@ -36,19 +35,6 @@ def settings_json() -> dict[str, Any]:
         "tables": {"enable": True, "like_pattern": "my_tables%"},
         "views": {"enable": False},
     }
-
-
-@pytest.mark.parametrize(
-    ["table_comment", "expected_formatted_comment"],
-    [
-        ("This is my table.", "This is my table.\nIn an SQL query"),
-        (None, "In an SQL query"),
-    ],
-    ids=["comment", "no-comment"],
-)
-def test_format_table_comment(table_comment, expected_formatted_comment):
-    formatted_comment = format_table_comment(table_comment)
-    assert formatted_comment.startswith(expected_formatted_comment)
 
 
 def test_get_mcp_settings_empty(clear_settings) -> None:
