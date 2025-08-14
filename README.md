@@ -85,7 +85,7 @@ uv tool install exasol-mcp-server@latest
 For further details on installing and upgrading the server using `uv` see the
 [uv Tools](https://docs.astral.sh/uv/concepts/tools/) documentation.
 
-If the server installed, the Claude configuration file should look like:
+If the server is installed, the Claude configuration file should look like this:
 ```json
 {
   "mcpServers": {
