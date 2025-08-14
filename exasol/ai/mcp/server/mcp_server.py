@@ -42,7 +42,9 @@ ENV_PASSWORD = "EXA_PASSWORD"
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
-    "tables and columns should be enclosed in double quotes."
+    "tables and columns should be enclosed in double quotes. "
+    "A reference to a table should include a reference to its schema. "
+    "The SELECT column list cannot have both the * and explicit column names. "
 )
 
 

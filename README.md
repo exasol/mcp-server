@@ -48,9 +48,10 @@ in the `uv` official documentation.
 ## Using the server with the Claude Desktop.
 
 To enable the Claude Desktop using the Exasol MCP server, the latter must be listed
-in the configuration file `claude_desktop_config.json`.
+in the configuration file `claude_desktop_config.json`. A similar configuration file
+would exist for most other MCP Client applications.
 
-To find the configuration file, click on the Settings and navigate to the
+To find the Claude Desktop configuration file, click on the Settings and navigate to the
 “Developer” tab. This section contains options for configuring MCP servers and other
 developer features. Click the “Edit Config” button to open the configuration file in
 the editor of your choice.
@@ -62,9 +63,9 @@ example.
   "mcpServers": {
     "exasol_db": {
       "command": "uvx",
-      "args": ["exasol-mcp-server"],
+      "args": ["exasol-mcp-server@latest"],
       "env": {
-        "EXA_DSN": "demodb.exasol.com:8563",
+        "EXA_DSN": "my-dsn, e.g. demodb.exasol.com:8563",
         "EXA_USER": "my-user-name",
         "EXA_PASSWORD": "my-password"
       }
@@ -74,18 +75,45 @@ example.
 }
 ```
 
-With these settings, uv will install and run the "exasol-mcp-package" in an
-ephemeral environment, using the default `uv` parameters and default server settings.
+With these settings, `uv` will execute the latest version of the `exasol-mcp-server`
+in an ephemeral environment, without installing it.
 
-Please note that any changes to this file will only take effect after restarting
-Claude Desktop.
+Alternatively, the `exasol-mcp-server` can be installed using the command:
+```bash
+uv tool install exasol-mcp-server@latest
+```
+For further details on installing and upgrading the server using `uv` see the
+[uv Tools](https://docs.astral.sh/uv/concepts/tools/) documentation.
+
+If the server installed, the Claude configuration file should look like:
+```json
+{
+  "mcpServers": {
+    "exasol_db": {
+      "command": "exasol-mcp-server",
+      "env": "same as above"
+    }
+  }
+}
+```
+
+Please note that any changes to the Claude configuration file will only take effect
+after restarting Claude Desktop.
 
 ## Configuration settings:
 
+In the above example the server is configured to run using default settings.
+The way the server runs can be fine-tuned by providing customised settings in
+json format.
+
 Most importantly, the server configuration specifies if reading the data using SQL
 queries is enabled. Note that reading is disabled by default. To enable the data
-reading, the `enable_read_query` property must be set to true (see the
-configuration settings json below).
+reading, set the `enable_read_query` property to true:
+```json
+{
+  "enable_read_query": true
+}
+```
 
 The server configuration settings can also be used to enable/disable or filter the
 listing of a particular type of database objects. Similar settings are defined for
@@ -104,11 +132,38 @@ the object name.
 - `regexp_pattern`: filters the output by matching the object name with the specified
 regular expression.
 
-The settings can be specified using another environment variable - `EXA_MCP_SETTINGS`.
-They should be written in the json format. The json text can be set directly as a
-value of the environment variable, for example
+In the following example, the listing of schemas is limited to only one schema,
+the listings of functions and scripts are disabled and the visibility of tables is
+limited to tables with certain name pattern.
+
 ```json
-{"EXA_MCP_SETTINGS": "{\"schemas\": {\"like_pattern\": \"my_schemas\"}"}
+{
+  "schemas": {
+    "like_pattern": "MY_SCHEMA"
+  },
+  "tables": {
+    "like_pattern": "MY_TABLE%"
+  },
+  "functions": {
+    "enable": false
+  },
+  "scripts": {
+    "enable": false
+  }
+}
+```
+
+The customised settings can be specified directly in the MCP Client configuration file
+using another environment variable - `EXA_MCP_SETTINGS`:
+```json
+{
+  "env": {
+    "EXA_DSN": "my-dsn",
+    "EXA_USER": "my-user-name",
+    "EXA_PASSWORD": "my-password",
+    "EXA_MCP_SETTINGS": "{\"schemas\": {\"like_pattern\": \"MY_SCHEMA\"}"
+  }
+}
 ```
 Note that double quotes in the json text must be escaped, otherwise the environment
 variable value will be interpreted, not as a text, but as a part of the outer json.
@@ -116,10 +171,17 @@ variable value will be interpreted, not as a text, but as a part of the outer js
 Alternatively, the settings can be written in a json file. In this case, the
 `EXA_MCP_SETTINGS` should contain the path to this file, e.g.
 ```json
-{"EXA_MCP_SETTINGS": "path_to_settings.json"}
+{
+  "env": {
+    "EXA_DSN": "my-dsn",
+    "EXA_USER": "my-user-name",
+    "EXA_PASSWORD": "my-password",
+    "EXA_MCP_SETTINGS": "path_to_settings.json"
+  }
+}
 ```
 
-The following json shows the default configuration settings.
+The following json shows the default settings.
 ```json
 {
   "schemas": {
@@ -150,6 +212,7 @@ The following json shows the default configuration settings.
   "enable_read_query": false
 }
 ```
+The default values do not need to be repeated in the customised settings.
 
 ## License
 

@@ -24,7 +24,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 "This example assumes that the currently opened schema has the table "
                 '"MY_SOURCE_TABLE" with the following columns: "xx", "yy". '
                 "Note that in an SQL query, the names of database objects, such as "
-                "schemas, tables, UDFs, and columns should be enclosed in double quotes."
+                "schemas, tables, UDFs, and columns should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
         (
@@ -54,7 +55,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 "similar to what is returned by a SELECT query. "
                 "Note that in an SQL query, the names of database objects, such as "
                 "schemas, tables, UDFs, and columns, including columns returned by "
-                "the UDF, should be enclosed in double quotes."
+                "the UDF, should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
         (
@@ -66,7 +68,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 "Here is a usage example for this particular UDF: "
                 '``` SELECT "my_udf"() AS "RETURN_VALUE" ```  '
                 "Note that in an SQL query, the names of database objects, such as "
-                "schemas, tables, UDFs, and columns should be enclosed in double quotes."
+                "schemas, tables, UDFs, and columns should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
         (
@@ -86,7 +89,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 "This example assumes that the currently opened schema has the table "
                 '"MY_SOURCE_TABLE" with the following columns: "INPUT_1", "INPUT_2". '
                 "Note that in an SQL query, the names of database objects, such as "
-                "schemas, tables, UDFs, and columns should be enclosed in double quotes."
+                "schemas, tables, UDFs, and columns should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
         (
@@ -121,7 +125,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 '"OUTPUT_2"), similar to what is returned by a SELECT query. '
                 "Note that in an SQL query, the names of database objects, such as "
                 "schemas, tables, UDFs, and columns, including columns returned by "
-                "the UDF, should be enclosed in double quotes."
+                "the UDF, should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
         (
@@ -150,7 +155,8 @@ from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
                 "similar to what is returned by a SELECT query. "
                 "Note that in an SQL query, the names of database objects, such as "
                 "schemas, tables, UDFs, and columns, including columns returned by "
-                "the UDF, should be enclosed in double quotes."
+                "the UDF, should be enclosed in double quotes. "
+                "A reference to a UDF should include a reference to its schema."
             ),
         ),
     ],

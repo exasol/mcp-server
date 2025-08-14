@@ -22,7 +22,8 @@ VARIADIC_MARKER = "..."
 
 FUNCTION_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, tables, "
-    "functions, and columns should be enclosed in double quotes."
+    "functions, and columns should be enclosed in double quotes. "
+    "A reference to a function should include a reference to its schema."
 )
 
 
@@ -333,7 +334,8 @@ class ScriptParameterParser(ParameterParser):
         return (
             "Note that in an SQL query, the names of database objects, such as "
             f"schemas, tables, UDFs, and columns{emit_note} should be "
-            "enclosed in double quotes."
+            "enclosed in double quotes. "
+            "A reference to a UDF should include a reference to its schema."
         )
 
     def get_udf_call_example(
