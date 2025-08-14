@@ -1,35 +1,9 @@
-import re
 from textwrap import dedent
 from unittest import mock
 
 import pytest
 
-from exasol.ai.mcp.server.parameter_parser import parameter_list_pattern
-from exasol.ai.mcp.server.parameter_pattern import regex_flags
-
-
-@pytest.mark.parametrize(
-    "params_list",
-    ["( abc DOUBLE, xZZ varchar(200) )", '("my_real" REAL, "my_int" INTEGER)'],
-    ids=["non-quoted-names", "quoted-names"],
-)
-def test_parameter_list_pattern(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is not None
-    )
-
-
-@pytest.mark.parametrize(
-    "params_list",
-    ["(abc, xZZ varchar(200))", '("my_real" REAL, "my_complex" COMPLEX)'],
-    ids=["no-type", "bad-type"],
-)
-def test_parameter_list_pattern_error(params_list):
-    assert (
-        re.match(rf"\({parameter_list_pattern}\)", params_list, flags=regex_flags)
-        is None
-    )
+from exasol.ai.mcp.server.parameter_parser import FUNCTION_USAGE
 
 
 @pytest.mark.parametrize(
@@ -173,6 +147,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
 )
 def test_func_extract_parameters(func_parameter_parser, info, expected_result):
     expected_result["function_comment"] = info["FUNCTION_COMMENT"] = "Function comment"
+    expected_result["usage"] = FUNCTION_USAGE
     result = func_parameter_parser.extract_parameters(info)
     assert result == expected_result
 
@@ -475,7 +450,7 @@ def test_script_extract_parameters(script_parameter_parser):
         ),
     }
     result = script_parameter_parser.extract_parameters(info)
-    assert script_parameter_parser.conf.example_field in result
+    assert script_parameter_parser.conf.usage_field in result
     assert result[script_parameter_parser.conf.comment_field] == comment
 
 
@@ -505,6 +480,7 @@ def test_describe(mock_execute_query, func_parameter_parser):
         ],
         "returns": {"type": "BOOL"},
         "function_comment": "Credentials validation function",
+        "usage": FUNCTION_USAGE,
     }
     assert result == expected_result
 

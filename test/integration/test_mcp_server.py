@@ -18,7 +18,11 @@ from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
+from exasol.ai.mcp.server.mcp_server import (
+    TABLE_USAGE,
+    ExasolMCPServer,
+)
+from exasol.ai.mcp.server.parameter_parser import FUNCTION_USAGE
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
@@ -134,6 +138,7 @@ def _get_expected_table_json(
             table.constraints, conf, schema_name
         ),
         conf.table_comment_field: table.comment,
+        conf.usage_field: TABLE_USAGE,
     }
 
 
@@ -495,6 +500,7 @@ def test_describe_function(
             )
             result_json = _get_result_json(result)
             expected_json = _get_expected_param_json(func, config.parameters)
+            expected_json[config.parameters.usage_field] = FUNCTION_USAGE
             assert result_json == expected_json
 
 
@@ -522,8 +528,8 @@ def test_describe_script(
             result_json = _get_result_json(result)
             # The call example message is properly tested in the unit tests.
             # Here we just verify that it exists.
-            assert config.parameters.example_field in result_json
-            result_json.pop(config.parameters.example_field)
+            assert config.parameters.usage_field in result_json
+            result_json.pop(config.parameters.usage_field)
             expected_json = _get_expected_param_json(script, config.parameters)
             assert result_json == expected_json
 

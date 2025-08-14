@@ -142,6 +142,11 @@ class MetaColumnSettings(MetaSettings):
     The name of the output field for the table/view comment.
     """
 
+    usage_field: NoDoubleQuotesStr = "usage"
+    """
+    The name of the output field for general instructions on using a table.
+    """
+
 
 class MetaParameterSettings(MetaSettings):
     """
@@ -169,9 +174,9 @@ class MetaParameterSettings(MetaSettings):
     The name of the output field for the list of parameters emitted by a UDF.
     """
 
-    example_field: NoDoubleQuotesStr = "call_example"
+    usage_field: NoDoubleQuotesStr = "usage"
     """
-    The name of the output field for a call example of a UDF.
+    The name of the output field for a function or UDF usage, e.g. a call example.
     """
 
 

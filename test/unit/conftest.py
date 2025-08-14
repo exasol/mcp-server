@@ -20,6 +20,7 @@ def parameter_config() -> MetaParameterSettings:
         input_field="inputs",
         emit_field="emits",
         return_field="returns",
+        usage_field="usage",
     )
 
 

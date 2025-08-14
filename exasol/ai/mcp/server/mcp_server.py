@@ -40,6 +40,11 @@ ENV_DSN = "EXA_DSN"
 ENV_USER = "EXA_USER"
 ENV_PASSWORD = "EXA_PASSWORD"
 
+TABLE_USAGE = (
+    "In an SQL query, the names of database objects, such as schemas, "
+    "tables and columns should be enclosed in double quotes."
+)
+
 
 def _where_clause(*predicates) -> str:
     condition = " AND ".join(filter(bool, predicates))
@@ -393,6 +398,7 @@ class ExasolMCPServer(FastMCP):
             conf.columns_field: columns.result,
             conf.constraints_field: constraints.result,
             conf.table_comment_field: table_comment,
+            conf.usage_field: TABLE_USAGE,
         }
 
     def describe_function(
