@@ -223,6 +223,24 @@ def test_list_schemas(
             assert expected_json.result[0] in result_json.result
 
 
+def test_find_schemas(pyexasol_connection, setup_database, db_schemas) -> None:
+    config = McpServerSettings(
+        schemas=MetaListSettings(
+            enable=True, name_field="name", comment_field="comment"
+        )
+    )
+    for schema in db_schemas:
+        # Will test on new schemas only, where the result is more reliable.
+        if not schema.is_new:
+            continue
+        result = _run_tool(
+            pyexasol_connection, config, "find_schemas", keywords=schema.keywords
+        )
+        result_json = _get_result_json(result)["result"][0]
+        expected_json = {"name": schema.name, "comment": schema.comment}
+        assert result_json == expected_json
+
+
 @pytest.mark.parametrize(
     ["enable_tables", "enable_views", "use_like", "use_regexp"],
     [

@@ -37,9 +37,9 @@ def db_schemas(db_schema_name) -> list[ExaSchema]:
         ),
         ExaSchema(
             name="new_schema",
-            comment="new schema for the integration tests",
+            comment="new schema for the MCP integration tests",
             is_new=True,
-            keywords="new_schema",
+            keywords=["new_schema", "MCP integration tests"],
         ),
     ]
 
