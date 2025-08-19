@@ -44,6 +44,7 @@ class ExaColumn(ExaDbObject):
 class ExaTable(ExaDbObject):
     columns: list[ExaColumn]
     constraints: list[ExaConstraint]
+    keywords: list[str]
     rows: list[tuple[Any, ...]]
 
     def decl(self, schema_name: str) -> str:
@@ -59,6 +60,7 @@ class ExaTable(ExaDbObject):
 @dataclass
 class ExaView(ExaDbObject):
     sql: str
+    keywords: list[str]
 
     def decl(self, schema_name: str) -> str:
         return (
@@ -76,6 +78,7 @@ class ExaParameter:
 @dataclass
 class ExaFunction(ExaDbObject):
     body: str
+    keywords: list[str]
     inputs: list[ExaParameter]
     emits: list[ExaParameter] | None = None
     returns: str | None = None
@@ -84,12 +87,4 @@ class ExaFunction(ExaDbObject):
 @dataclass
 class ExaSchema(ExaDbObject):
     is_new: bool
-
-    @property
-    def schema_name_arg(self) -> str:
-        """
-        Schema name to use in a call to a tool.
-        """
-        if self.is_new:
-            return self.name
-        return ""
+    keywords: list[str]

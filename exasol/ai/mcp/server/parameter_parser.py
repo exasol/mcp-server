@@ -46,11 +46,6 @@ class ParameterParser(ABC):
         """
         if not self.conf.enable:
             raise RuntimeError("Parameter listing is disabled.")
-        schema_name = schema_name or self.connection.current_schema()
-        if not schema_name:
-            raise ValueError("Schema name is not provided.")
-        if not func_name:
-            raise ValueError("Function or script name is not provided.")
 
         query = self.get_func_query(schema_name, func_name)
         result = self._execute_query(query=query)

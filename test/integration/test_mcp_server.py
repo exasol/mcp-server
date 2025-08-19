@@ -1,5 +1,6 @@
 import asyncio
 import json
+from itertools import chain
 from test.utils.db_objects import (
     ExaColumn,
     ExaConstraint,
@@ -261,10 +262,7 @@ def test_list_tables(
     """
     Test the `list_tables` tool with various combinations of configuration parameters.
 
-    The fixture tables and views are created in pre-existing schema and a newly created
-    one. The pre-existing schema must be opened. When listing tables in this schema we
-    will not specify the schema name in the call to test that picking the current schema
-    works. For this schema we will not test the listing of all tables because there
+    For the pre-existing schema we will not test the listing of all tables because there
     could be other left over tables we are not aware of here. For the newly created one
     we will test all cases in regard to the selection patterns.
 
@@ -290,7 +288,7 @@ def test_list_tables(
             pyexasol_connection,
             config,
             "list_tables",
-            schema_name=schema.schema_name_arg,
+            schema_name=schema.name,
         )
         result_json = _get_list_result_json(result)
         expected_result: list[dict[str, Any]] = []
@@ -302,6 +300,33 @@ def test_list_tables(
             expected_result.extend(expected_json.result)
         expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
         assert result_json == expected_json
+
+
+def test_find_tables(
+    pyexasol_connection, setup_database, db_schemas, db_tables, db_views
+) -> None:
+    config = McpServerSettings(
+        tables=MetaListSettings(
+            enable=True, name_field="name", comment_field="comment"
+        ),
+        views=MetaListSettings(enable=True, name_field="name", comment_field="comment"),
+    )
+    for schema in db_schemas:
+        #  Will test on new schemas only, where the result can be guaranteed.
+        if not schema.is_new:
+            continue
+        for table in chain(db_tables, db_views):
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "find_tables",
+                keywords=table.keywords,
+                schema_name=schema.name,
+            )
+
+            result_json = _get_result_json(result)["result"][0]
+            expected_json = {"name": table.name, "comment": table.comment}
+            assert result_json == expected_json
 
 
 @pytest.mark.parametrize(
@@ -330,11 +355,36 @@ def test_list_functions(
             pyexasol_connection,
             config,
             "list_functions",
-            schema_name=schema.schema_name_arg,
+            schema_name=schema.name,
         )
         result_json = _get_list_result_json(result)
         expected_json = _get_expected_list_json(db_functions, "cut", config.functions)
         assert result_json == expected_json
+
+
+def test_find_functions(
+    pyexasol_connection, setup_database, db_schemas, db_functions
+) -> None:
+    config = McpServerSettings(
+        functions=MetaListSettings(
+            enable=True, name_field="name", comment_field="comment"
+        )
+    )
+    for schema in db_schemas:
+        # Will test on new schemas only, where the result can be guaranteed.
+        if not schema.is_new:
+            continue
+        for func in db_functions:
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "find_functions",
+                keywords=func.keywords,
+                schema_name=schema.name,
+            )
+            result_json = _get_result_json(result)["result"][0]
+            expected_json = {"name": func.name, "comment": func.comment}
+            assert result_json == expected_json
 
 
 @pytest.mark.parametrize(
@@ -363,11 +413,36 @@ def test_list_scripts(
             pyexasol_connection,
             config,
             "list_scripts",
-            schema_name=schema.schema_name_arg,
+            schema_name=schema.name,
         )
         result_json = _get_list_result_json(result)
         expected_json = _get_expected_list_json(db_scripts, "fibo", config.scripts)
         assert result_json == expected_json
+
+
+def test_find_scripts(
+    pyexasol_connection, setup_database, db_schemas, db_scripts
+) -> None:
+    config = McpServerSettings(
+        scripts=MetaListSettings(
+            enable=True, name_field="name", comment_field="comment"
+        )
+    )
+    for schema in db_schemas:
+        # Will test on new schemas only, where the result can be guaranteed.
+        if not schema.is_new:
+            continue
+        for script in db_scripts:
+            result = _run_tool(
+                pyexasol_connection,
+                config,
+                "find_scripts",
+                keywords=script.keywords,
+                schema_name=schema.name,
+            )
+            result_json = _get_result_json(result)["result"][0]
+            expected_json = {"name": script.name, "comment": script.comment}
+            assert result_json == expected_json
 
 
 def test_describe_table(
@@ -387,7 +462,7 @@ def test_describe_table(
                 pyexasol_connection,
                 config,
                 "describe_table",
-                schema_name=schema.schema_name_arg,
+                schema_name=schema.name,
                 table_name=table.name,
             )
             result_json = _get_sort_result_json(result)
@@ -409,7 +484,7 @@ def test_describe_view_comment(
                 pyexasol_connection,
                 config,
                 "describe_table",
-                schema_name=schema.schema_name_arg,
+                schema_name=schema.name,
                 table_name=view.name,
             )
             result_json = _get_sort_result_json(result)
@@ -430,34 +505,21 @@ def test_describe_no_schema_name(
 ) -> None:
     """
     The test validates that the `describe_xxx` tool returns an error if the schema
-    is not provided and no current schema opened.
+    is not provided.
     """
     config = McpServerSettings(
         columns=MetaColumnSettings(enable=True),
         parameters=MetaParameterSettings(enable=True),
     )
-    current_schema = pyexasol_connection.current_schema()
-    try:
-        if current_schema:
-            pyexasol_connection.execute("CLOSE SCHEMA")
-        with pytest.raises(ToolError, match="Schema name"):
-            _run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
-    finally:
-        if current_schema:
-            pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
+    with pytest.raises(ToolError):
+        _run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
 
 
 @pytest.mark.parametrize(
-    ["tool_name", "error_match"],
-    [
-        ("describe_table", "Table name"),
-        ("describe_function", "Function or script name"),
-        ("describe_script", "Function or script name"),
-    ],
-    ids=["describe_table", "describe_function", "describe_script"],
+    "tool_name", ["describe_table", "describe_function", "describe_script"]
 )
 def test_describe_no_db_object_name(
-    pyexasol_connection, setup_database, db_schemas, tool_name, error_match
+    pyexasol_connection, setup_database, db_schemas, tool_name
 ) -> None:
     """
     The test validates that the `describe_xxx` returns an error if the name of the
@@ -468,12 +530,12 @@ def test_describe_no_db_object_name(
         parameters=MetaParameterSettings(enable=True),
     )
     for schema in db_schemas:
-        with pytest.raises(ToolError, match=error_match):
+        with pytest.raises(ToolError):
             _run_tool(
                 pyexasol_connection,
                 config,
                 tool_name=tool_name,
-                schema_name=schema.schema_name_arg,
+                schema_name=schema.name,
             )
 
 
@@ -495,7 +557,7 @@ def test_describe_function(
                 pyexasol_connection,
                 config,
                 "describe_function",
-                schema_name=schema.schema_name_arg,
+                schema_name=schema.name,
                 func_name=func.name,
             )
             result_json = _get_result_json(result)
@@ -522,7 +584,7 @@ def test_describe_script(
                 pyexasol_connection,
                 config,
                 "describe_script",
-                schema_name=schema.schema_name_arg,
+                schema_name=schema.name,
                 script_name=script.name,
             )
             result_json = _get_result_json(result)

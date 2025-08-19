@@ -32,11 +32,14 @@ def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
 @pytest.fixture(scope="session")
 def db_schemas(db_schema_name) -> list[ExaSchema]:
     return [
-        ExaSchema(name=db_schema_name, comment=None, is_new=False),
+        ExaSchema(
+            name=db_schema_name, comment=None, is_new=False, keywords=db_schema_name
+        ),
         ExaSchema(
             name="new_schema",
             comment="new schema for the integration tests",
             is_new=True,
+            keywords="new_schema",
         ),
     ]
 
@@ -61,6 +64,7 @@ def db_tables() -> list[ExaTable]:
                     type="DECIMAL(18,0)",
                 ),
             ],
+            keywords=["ski_resort", "basic information"],
             rows=[
                 (1000, "Val Thorens", "France", 2300),
                 (1001, "Courchevel", "France", 1850),
@@ -101,6 +105,7 @@ def db_tables() -> list[ExaTable]:
                     ref_columns=["resort_id"],
                 ),
             ],
+            keywords=["sky run", "detailed information"],
             rows=[
                 (1000, "Christine", "Blue", 1200),
                 (1000, "Allamande", "Red", 950),
@@ -131,6 +136,7 @@ def db_tables() -> list[ExaTable]:
                     ref_columns=["resort_id", "run_name"],
                 )
             ],
+            keywords=["competitions", "different resorts"],
             rows=[],
         ),
     ]
@@ -142,11 +148,13 @@ def db_views() -> list[ExaView]:
         ExaView(
             name="high_altitude_resort",
             comment="ski resorts situated at the altitude higher than 2000 meters",
+            keywords=["high_altitude"],
             sql='SELECT * FROM "{schema}"."ski_resort" WHERE "altitude" > 2000',
         ),
         ExaView(
             name="difficult_run",
             comment="the view lists all known black runs",
+            keywords=["difficult_run", "black"],
             sql=(
                 'SELECT * FROM "{schema}"."ski_run" WHERE UPPER("difficulty")'
                 " = 'BLACK'"
@@ -160,6 +168,7 @@ def db_functions() -> list[ExaFunction]:
     return [
         ExaFunction(
             name="cut_middle",
+            keywords=["cut", "middle"],
             comment="cuts a middle of the provided text",
             inputs=[
                 ExaParameter(name="inp_text", type="VARCHAR(1000)"),
@@ -191,6 +200,7 @@ def db_functions() -> list[ExaFunction]:
         ExaFunction(
             name="factorial",
             comment="computes the factorial of a number",
+            keywords=["factorial"],
             inputs=[ExaParameter(name="num", type="DECIMAL(18,0)")],
             returns="DECIMAL(18,0)",
             body=dedent(
@@ -219,6 +229,7 @@ def db_scripts() -> list[ExaFunction]:
     return [
         ExaFunction(
             name="fibonacci",
+            keywords=["fibonacci"],
             comment="emits Fibonacci sequence of the given length",
             inputs=[ExaParameter(name="seq_length", type="DECIMAL(18,0)")],
             emits=[
@@ -245,6 +256,7 @@ def db_scripts() -> list[ExaFunction]:
         ),
         ExaFunction(
             name="weighted_length",
+            keywords=["weighted_length"],
             comment="computes weighted sum of the input text lengths",
             inputs=[
                 ExaParameter(name="text", type="VARCHAR(100000) UTF8"),
