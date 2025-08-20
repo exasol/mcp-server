@@ -33,7 +33,10 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
-from exasol.ai.mcp.server.utils import sql_text_value
+from exasol.ai.mcp.server.utils import (
+    keyword_filter,
+    sql_text_value,
+)
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 ENV_DSN = "EXA_DSN"
@@ -44,8 +47,22 @@ TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
     "tables and columns should be enclosed in double quotes. "
     "A reference to a table should include a reference to its schema. "
-    "The SELECT column list cannot have both the * and explicit column names. "
+    "The SELECT column list cannot have both the * and explicit column names."
 )
+
+SCHEMA_NAME_TYPE = Annotated[str, Field(description="name of the database schema")]
+
+OPTIONAL_SCHEMA_NAME_TYPE = Annotated[
+    str | None, Field(description="optional name of the database schema", default="")
+]
+
+KEYWORDS_TYPE = Annotated[list[str], "list of keywords to filter and order the result"]
+
+TABLE_NAME_TYPE = Annotated[str, "name of the table"]
+
+FUNCTION_NAME_TYPE = Annotated[str, "name of the function"]
+
+SCRIPT_NAME_TYPE = Annotated[str, "name of the script"]
 
 
 def _where_clause(*predicates) -> str:
@@ -53,13 +70,6 @@ def _where_clause(*predicates) -> str:
     if condition:
         return f"WHERE {condition}"
     return ""
-
-
-def _validate_describe_table_args(schema_name: str, table_name: str) -> None:
-    if not schema_name:
-        raise ValueError("Schema name is not provided.")
-    if not table_name:
-        raise ValueError("Table name is not provided.")
 
 
 @cache
@@ -115,16 +125,35 @@ class ExasolMCPServer(FastMCP):
                 self.list_schemas,
                 description=(
                     "The tool lists schemas in the Exasol Database. "
-                    "For each schema provides the name and an optional comment."
+                    "For each schema, it provides the name and an optional comment."
+                ),
+            )
+            self.tool(
+                self.find_schemas,
+                description=(
+                    "The tool finds schemas in the Exasol Database by looking for the "
+                    "specified keywords in their names and comments. "
+                    "For each schema it finds, it provides the name and an optional "
+                    "comment."
                 ),
             )
         if self.config.tables.enable or self.config.views.enable:
             self.tool(
                 self.list_tables,
                 description=(
-                    "The tool lists tables in the specified schema of the Exasol "
-                    "Database. For each table it provides the name and an optional "
-                    "comment."
+                    "The tool lists tables and views in the specified schema of the "
+                    "the Exasol Database. For each table and view, it provides the "
+                    "name and an optional comment."
+                ),
+            )
+            self.tool(
+                self.find_tables,
+                description=(
+                    "The tool finds tables and views in the Exasol Database by looking "
+                    "for the specified keywords in their names and comments. "
+                    "For each table or view it finds, it provides the name and an "
+                    "optional comment. An optional `schema_name` argument allows "
+                    "restricting the search to tables and views in the specified schema."
                 ),
             )
         if self.config.functions.enable:
@@ -132,8 +161,18 @@ class ExasolMCPServer(FastMCP):
                 self.list_functions,
                 description=(
                     "The tool lists functions in the specified schema of the Exasol "
-                    "Database. For each function it provides the name and an optional "
+                    "Database. For each function, it provides the name and an optional "
                     "comment."
+                ),
+            )
+            self.tool(
+                self.find_functions,
+                description=(
+                    "The tool finds functions in the Exasol Database by looking for "
+                    "the specified keywords in their names and comments. For each "
+                    "function it finds, it provides the name and an optional comment. "
+                    "An optional `schema_name` argument allows restricting the search "
+                    "to functions in the specified schema."
                 ),
             )
         if self.config.scripts.enable:
@@ -141,22 +180,32 @@ class ExasolMCPServer(FastMCP):
                 self.list_scripts,
                 description=(
                     "The tool lists the user defined functions (UDF) in the specified "
-                    "schema of the Exasol Database. For each function it provides the "
-                    "name and an optional comment."
+                    "schema of the Exasol Database. For each UDF, it provides the name "
+                    "and an optional comment."
+                ),
+            )
+            self.tool(
+                self.find_scripts,
+                description=(
+                    "The tool finds the user defined functions (UDF) in the Exasol "
+                    "Database by looking for the specified keywords in their names and "
+                    "comments. For each UDF it finds, it provides the name and an "
+                    "optional comment. An optional `schema_name` argument allows "
+                    "restricting the search to UDFs in the specified schema."
                 ),
             )
         if self.config.columns.enable:
             self.tool(
                 self.describe_table,
                 description=(
-                    "The tool describes the specified table in the specified schema of "
-                    "the Exasol Database. The description includes the list of columns "
-                    "and the list of constraints. For each column the tool provides "
-                    "the name, the SQL data type and an optional comment. For each "
-                    "constraint it provides its type, e.g. PRIMARY KEY, the list of "
-                    "columns the constraint is applied to and an optional name. For a "
-                    "FOREIGN KEY it also provides the referenced schema, table and a "
-                    "list of columns in the referenced table."
+                    "The tool describes the specified table or view in the specified "
+                    "schema of the Exasol Database. The description includes the list "
+                    "of columns and for a table also the list of constraints. For each "
+                    "column the tool provides the name, the SQL data type and an "
+                    "optional comment. For each constraint it provides its type, e.g. "
+                    "PRIMARY KEY, the list of columns the constraint is applied to and "
+                    "an optional name. For a FOREIGN KEY it also provides the referenced "
+                    "schema, table and a list of columns in the referenced table."
                 ),
             )
         if self.config.parameters.enable:
@@ -172,28 +221,24 @@ class ExasolMCPServer(FastMCP):
             self.tool(
                 self.describe_script,
                 description=(
-                    "The tool describes the specified user defined function in the "
-                    "specified schema of the Exasol Database. It provides the list of "
-                    "input parameters, the list of emitted parameters or the SQL type "
-                    "of a single returned value. For each parameter it provides the "
-                    "name and the SQL type. Both the input and the emitted parameters "
-                    "can be dynamic, or, in other words, flexible. The dynamic parameters "
-                    "are indicated with ... (triple dot) string instead of the parameter "
-                    "list. A user defined function with dynamic input parameters can "
-                    "be called using the same syntax as a normal function. If the "
-                    "function output is emitted dynamically, the list of output "
-                    "parameters must be supplied in the call. This can be achieved by "
-                    'appending the select statement with the special term "emits" '
-                    "followed by the parameter list in parentheses."
+                    "The tool describes the specified user defined function (UDF) in "
+                    "the specified schema of the Exasol Database. It provides the "
+                    "list of input parameters, the list of emitted parameters or the "
+                    "SQL type of a single returned value. For each parameter it "
+                    "provides the name and the SQL type. Both the input and the "
+                    "emitted parameters can be dynamic or, in other words, flexible. "
+                    "The dynamic parameters are indicated with ... (triple dot) string "
+                    "instead of the parameter list. The description includes some usage "
+                    "notes and a call example."
                 ),
             )
         if self.config.enable_read_query:
             self.tool(
                 self.execute_query,
                 description=(
-                    "The tool executes the specified query in the specified schema of "
-                    "the Exasol Database. The query must be a SELECT statement. The "
-                    "tool returns data selected by the query."
+                    "The tool executes the specified query in the Exasol Database. The "
+                    "query must be a SELECT statement. The tool returns data selected "
+                    "by the query."
                 ),
             )
 
@@ -209,18 +254,31 @@ class ExasolMCPServer(FastMCP):
             conf:
                 Metadata type settings, which is a part of the server configuration.
             schema_name:
-                The schema name provided in the call to the tool. Ignored if meta_name
-                =='SCHEMA'. Otherwise, if it's empty the current schema of the pyexasol
-                connection may be used. If there is no current schema, the query will
-                return objects from all schemas.
+                An optional schema name provided in the call to the tool. Ignored if
+                meta_name=='SCHEMA'. In all other cases, if the name is specified, it
+                will be included in the WHERE clause. Otherwise, the query will return
+                objects from all visible schemas.
             predicates:
                 Any additional predicates to be used in the WHERE clause.
         """
         predicates = [conf.select_predicate, *predicates]
         if meta_name != "SCHEMA":
-            schema_name = schema_name or self.connection.current_schema()
+            schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
-                predicates.append(f"{meta_name}_SCHEMA = {sql_text_value(schema_name)}")
+                predicates.append(f"{schema_column} = {sql_text_value(schema_name)}")
+            else:
+                # Adds the schema restriction if specified in the settings.
+                schema_conf = self.config.schemas
+                if schema_conf.like_pattern:
+                    predicates.append(
+                        f"{schema_column} LIKE "
+                        f"{sql_text_value(schema_conf.like_pattern)}"
+                    )
+                if schema_conf.regexp_pattern:
+                    predicates.append(
+                        f"{schema_column} REGEXP_LIKE "
+                        f"{sql_text_value(schema_conf.regexp_pattern)}"
+                    )
         return dedent(
             f"""
             SELECT {meta_name}_NAME AS "{conf.name_field}", {meta_name}_COMMENT AS "{conf.comment_field}"
@@ -229,70 +287,95 @@ class ExasolMCPServer(FastMCP):
         """
         )
 
-    def _execute_meta_query(self, query: str) -> ExaDbResult:
+    def _execute_meta_query(
+        self, query: str, keywords: list[str] | None = None
+    ) -> ExaDbResult:
+        """
+        Executes a metadata query and returns the result as a list of dictionaries.
+        Applies the keyword fitter if provided.
+        """
         result = self.connection.meta.execute_snapshot(query=query).fetchall()
+        if keywords:
+            result = keyword_filter(result, keywords)
         return ExaDbResult(result)
 
-    def list_schemas(self) -> ExaDbResult:
+    def _find_schemas(self, keywords: list[str] | None = None) -> ExaDbResult:
         conf = self.config.schemas
         if not conf.enable:
-            raise RuntimeError("Schema listing is disabled.")
+            raise RuntimeError("The schema listing is disabled.")
 
         query = self._build_meta_query("SCHEMA", conf, "")
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, keywords)
 
-    def list_tables(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
+    def find_schemas(self, keywords: KEYWORDS_TYPE) -> ExaDbResult:
+        return self._find_schemas(keywords)
+
+    def list_schemas(self) -> ExaDbResult:
+        return self._find_schemas()
+
+    def _find_tables(
+        self, keywords: list[str] | None = None, schema_name: str | None = None
     ) -> ExaDbResult:
         table_conf = self.config.tables
         view_conf = self.config.views
         if (not table_conf.enable) and (not view_conf.enable):
-            raise RuntimeError("Both table and view listings are disabled.")
+            raise RuntimeError("Both the table and the view listings are disabled.")
 
         query = "\nUNION\n".join(
             self._build_meta_query(meta_name, conf, schema_name)
             for meta_name, conf in zip(["TABLE", "VIEW"], [table_conf, view_conf])
             if conf.enable
         )
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, keywords)
 
-    def list_functions(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
+    def find_tables(
+        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+    ) -> ExaDbResult:
+        return self._find_tables(keywords, schema_name)
+
+    def list_tables(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+        return self._find_tables(schema_name=schema_name)
+
+    def _find_functions(
+        self, keywords: list[str] | None = None, schema_name: str | None = None
     ) -> ExaDbResult:
         conf = self.config.functions
         if not conf.enable:
-            raise RuntimeError("Function listing is disabled.")
+            raise RuntimeError("The function listing is disabled.")
 
         query = self._build_meta_query("FUNCTION", conf, schema_name)
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, keywords)
 
-    def list_scripts(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
+    def find_functions(
+        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+    ) -> ExaDbResult:
+        return self._find_functions(keywords, schema_name)
+
+    def list_functions(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+        return self._find_functions(schema_name=schema_name)
+
+    def _find_scripts(
+        self, keywords: list[str] | None = None, schema_name: str | None = None
     ) -> ExaDbResult:
         conf = self.config.scripts
         if not conf.enable:
-            raise RuntimeError("Script listing is disabled.")
+            raise RuntimeError("The script listing is disabled.")
 
         query = self._build_meta_query(
             "SCRIPT", conf, schema_name, "SCRIPT_TYPE = 'UDF'"
         )
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, keywords)
+
+    def find_scripts(
+        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+    ) -> ExaDbResult:
+        return self._find_scripts(keywords, schema_name)
+
+    def list_scripts(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+        return self._find_scripts(schema_name=schema_name)
 
     def describe_columns(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
-        table_name: Annotated[str, Field(description="name of the table", default="")],
+        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
     ) -> ExaDbResult:
         """
         Returns the list of columns in the given table. Currently, this is a part of
@@ -300,9 +383,7 @@ class ExasolMCPServer(FastMCP):
         """
         conf = self.config.columns
         if not conf.enable:
-            raise RuntimeError("Column listing is disabled.")
-        schema_name = schema_name or self.connection.current_schema()
-        _validate_describe_table_args(schema_name, table_name)
+            raise RuntimeError("The column listing is disabled.")
 
         query = dedent(
             f"""
@@ -319,11 +400,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def describe_constraints(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
-        table_name: Annotated[str, Field(description="name of the table", default="")],
+        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
     ) -> ExaDbResult:
         """
         Returns the list of constraints in the given table. Currently, this is a part
@@ -331,9 +408,7 @@ class ExasolMCPServer(FastMCP):
         """
         conf = self.config.columns
         if not conf.enable:
-            raise RuntimeError("Constraint listing is disabled.")
-        schema_name = schema_name or self.connection.current_schema()
-        _validate_describe_table_args(schema_name, table_name)
+            raise RuntimeError("The constraint listing is disabled.")
 
         query = dedent(
             f"""
@@ -357,7 +432,6 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
-        schema_name = schema_name or self.connection.current_schema()
         # `table_name` can be the name of a table or a view.
         # This query tries both possibilities. The UNION clause collapses
         # the result into a single non-NULL distinct value.
@@ -384,11 +458,7 @@ class ExasolMCPServer(FastMCP):
         return str(table_comment)
 
     def describe_table(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
-        table_name: Annotated[str, Field(description="name of the table", default="")],
+        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
     ) -> dict[str, Any]:
 
         conf = self.config.columns
@@ -404,13 +474,7 @@ class ExasolMCPServer(FastMCP):
         }
 
     def describe_function(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
-        func_name: Annotated[
-            str, Field(description="name of the function", default="")
-        ],
+        self, schema_name: SCHEMA_NAME_TYPE, func_name: FUNCTION_NAME_TYPE
     ) -> dict[str, Any]:
         parser = FuncParameterParser(
             connection=self.connection, conf=self.config.parameters
@@ -418,13 +482,7 @@ class ExasolMCPServer(FastMCP):
         return parser.describe(schema_name, func_name)
 
     def describe_script(
-        self,
-        schema_name: Annotated[
-            str, Field(description="name of the database schema", default="")
-        ],
-        script_name: Annotated[
-            str, Field(description="name of the script", default="")
-        ],
+        self, schema_name: SCHEMA_NAME_TYPE, script_name: SCRIPT_NAME_TYPE
     ) -> dict[str, Any]:
         parser = ScriptParameterParser(
             connection=self.connection, conf=self.config.parameters
