@@ -13,6 +13,13 @@ def sql_text_value(text: str) -> str:
 
 @cache
 def _get_word_split_pattern() -> re.Pattern:
+    r"""
+    The pattern splits camel case and snake case words into multiple words. However,
+    the camel case splitting only works for ASCII characters. More precisely, it will
+    not work if a word starts or ends with a diacritic or non-latin character.
+    The issue can be fixed using the regex library and the pattern
+    (?<=\p{Ll})(?=\p{Lu})|_+
+    """
     pattern = r"(?<=[a-z])(?=[A-Z])|_+"
     return re.compile(pattern, flags=re.MULTILINE)
 

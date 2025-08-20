@@ -320,26 +320,46 @@ def test_list_tables(
         assert result_json == expected_json
 
 
+@pytest.mark.parametrize(
+    ["use_like", "use_regexp"],
+    [(False, False), (True, False), (False, True)],
+    ids=["all", "like", "regexp"],
+)
 def test_find_tables(
-    pyexasol_connection, setup_database, db_schemas, db_tables, db_views
+    pyexasol_connection,
+    setup_database,
+    db_schemas,
+    db_tables,
+    db_views,
+    use_like,
+    use_regexp,
 ) -> None:
-    config = McpServerSettings(
-        tables=MetaListSettings(
-            enable=True, name_field="name", comment_field="comment"
-        ),
-        views=MetaListSettings(enable=True, name_field="name", comment_field="comment"),
-    )
     for schema in db_schemas:
         #  Will test on new schemas only, where the result can be guaranteed.
         if not schema.is_new:
             continue
+        config = McpServerSettings(
+            schemas=MetaListSettings(
+                like_pattern=schema.name if use_like else "",
+                regexp_pattern=schema.name if use_regexp else "",
+            ),
+            tables=MetaListSettings(
+                enable=True, name_field="name", comment_field="comment"
+            ),
+            views=MetaListSettings(
+                enable=True, name_field="name", comment_field="comment"
+            ),
+        )
+        # If the schema visibility is restricted to one schema we will not
+        # specify the schema name in the call.
+        schema_name = "" if use_like or use_regexp else schema.name
         for table in chain(db_tables, db_views):
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_tables",
                 keywords=table.keywords,
-                schema_name=schema.name,
+                schema_name=schema_name,
             )
 
             result_json = _get_result_json(result)["result"][0]
@@ -380,25 +400,37 @@ def test_list_functions(
         assert result_json == expected_json
 
 
+@pytest.mark.parametrize(
+    ["use_like", "use_regexp"],
+    [(False, False), (True, False), (False, True)],
+    ids=["all", "like", "regexp"],
+)
 def test_find_functions(
-    pyexasol_connection, setup_database, db_schemas, db_functions
+    pyexasol_connection, setup_database, db_schemas, db_functions, use_like, use_regexp
 ) -> None:
-    config = McpServerSettings(
-        functions=MetaListSettings(
-            enable=True, name_field="name", comment_field="comment"
-        )
-    )
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
         if not schema.is_new:
             continue
+        config = McpServerSettings(
+            schemas=MetaListSettings(
+                like_pattern=schema.name if use_like else "",
+                regexp_pattern=schema.name if use_regexp else "",
+            ),
+            functions=MetaListSettings(
+                enable=True, name_field="name", comment_field="comment"
+            ),
+        )
+        # If the schema visibility is restricted to one schema we will not
+        # specify the schema name in the call.
+        schema_name = "" if use_like or use_regexp else schema.name
         for func in db_functions:
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_functions",
                 keywords=func.keywords,
-                schema_name=schema.name,
+                schema_name=schema_name,
             )
             result_json = _get_result_json(result)["result"][0]
             expected_json = {"name": func.name, "comment": func.comment}
@@ -438,25 +470,37 @@ def test_list_scripts(
         assert result_json == expected_json
 
 
+@pytest.mark.parametrize(
+    ["use_like", "use_regexp"],
+    [(False, False), (True, False), (False, True)],
+    ids=["all", "like", "regexp"],
+)
 def test_find_scripts(
-    pyexasol_connection, setup_database, db_schemas, db_scripts
+    pyexasol_connection, setup_database, db_schemas, db_scripts, use_like, use_regexp
 ) -> None:
-    config = McpServerSettings(
-        scripts=MetaListSettings(
-            enable=True, name_field="name", comment_field="comment"
-        )
-    )
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
         if not schema.is_new:
             continue
+        config = McpServerSettings(
+            schemas=MetaListSettings(
+                like_pattern=schema.name if use_like else "",
+                regexp_pattern=schema.name if use_regexp else "",
+            ),
+            scripts=MetaListSettings(
+                enable=True, name_field="name", comment_field="comment"
+            ),
+        )
+        # If the schema visibility is restricted to one schema we will not
+        # specify the schema name in the call.
+        schema_name = "" if use_like or use_regexp else schema.name
         for script in db_scripts:
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_scripts",
                 keywords=script.keywords,
-                schema_name=schema.name,
+                schema_name=schema_name,
             )
             result_json = _get_result_json(result)["result"][0]
             expected_json = {"name": script.name, "comment": script.comment}

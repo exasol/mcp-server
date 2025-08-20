@@ -263,10 +263,22 @@ class ExasolMCPServer(FastMCP):
         """
         predicates = [conf.select_predicate, *predicates]
         if meta_name != "SCHEMA":
+            schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
-                predicates.append(f"{meta_name}_SCHEMA = {sql_text_value(schema_name)}")
+                predicates.append(f"{schema_column} = {sql_text_value(schema_name)}")
             else:
-                predicates.append(self.config.schemas.select_predicate)
+                # Adds the schema restriction if specified in the settings.
+                schema_conf = self.config.schemas
+                if schema_conf.like_pattern:
+                    predicates.append(
+                        f"{schema_column} LIKE "
+                        f"{sql_text_value(schema_conf.like_pattern)}"
+                    )
+                if schema_conf.regexp_pattern:
+                    predicates.append(
+                        f"{schema_column} REGEXP_LIKE "
+                        f"{sql_text_value(schema_conf.regexp_pattern)}"
+                    )
         return dedent(
             f"""
             SELECT {meta_name}_NAME AS "{conf.name_field}", {meta_name}_COMMENT AS "{conf.comment_field}"
