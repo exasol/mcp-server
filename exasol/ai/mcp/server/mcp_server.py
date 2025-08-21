@@ -1,5 +1,3 @@
-import json
-import os
 import re
 from functools import cache
 from textwrap import dedent
@@ -10,10 +8,7 @@ from typing import (
 
 import pyexasol
 from fastmcp import FastMCP
-from pydantic import (
-    Field,
-    ValidationError,
-)
+from pydantic import Field
 from sqlglot import (
     exp,
     parse_one,
@@ -37,11 +32,6 @@ from exasol.ai.mcp.server.utils import (
     keyword_filter,
     sql_text_value,
 )
-
-ENV_SETTINGS = "EXA_MCP_SETTINGS"
-ENV_DSN = "EXA_DSN"
-ENV_USER = "EXA_USER"
-ENV_PASSWORD = "EXA_PASSWORD"
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
@@ -117,130 +107,6 @@ class ExasolMCPServer(FastMCP):
         self.connection = connection
         self.connection.options["fetch_dict"] = True
         self.config = config
-        self._register_tools()
-
-    def _register_tools(self):
-        if self.config.schemas.enable:
-            self.tool(
-                self.list_schemas,
-                description=(
-                    "The tool lists schemas in the Exasol Database. "
-                    "For each schema, it provides the name and an optional comment."
-                ),
-            )
-            self.tool(
-                self.find_schemas,
-                description=(
-                    "The tool finds schemas in the Exasol Database by looking for the "
-                    "specified keywords in their names and comments. "
-                    "For each schema it finds, it provides the name and an optional "
-                    "comment."
-                ),
-            )
-        if self.config.tables.enable or self.config.views.enable:
-            self.tool(
-                self.list_tables,
-                description=(
-                    "The tool lists tables and views in the specified schema of the "
-                    "the Exasol Database. For each table and view, it provides the "
-                    "name and an optional comment."
-                ),
-            )
-            self.tool(
-                self.find_tables,
-                description=(
-                    "The tool finds tables and views in the Exasol Database by looking "
-                    "for the specified keywords in their names and comments. "
-                    "For each table or view it finds, it provides the name and an "
-                    "optional comment. An optional `schema_name` argument allows "
-                    "restricting the search to tables and views in the specified schema."
-                ),
-            )
-        if self.config.functions.enable:
-            self.tool(
-                self.list_functions,
-                description=(
-                    "The tool lists functions in the specified schema of the Exasol "
-                    "Database. For each function, it provides the name and an optional "
-                    "comment."
-                ),
-            )
-            self.tool(
-                self.find_functions,
-                description=(
-                    "The tool finds functions in the Exasol Database by looking for "
-                    "the specified keywords in their names and comments. For each "
-                    "function it finds, it provides the name and an optional comment. "
-                    "An optional `schema_name` argument allows restricting the search "
-                    "to functions in the specified schema."
-                ),
-            )
-        if self.config.scripts.enable:
-            self.tool(
-                self.list_scripts,
-                description=(
-                    "The tool lists the user defined functions (UDF) in the specified "
-                    "schema of the Exasol Database. For each UDF, it provides the name "
-                    "and an optional comment."
-                ),
-            )
-            self.tool(
-                self.find_scripts,
-                description=(
-                    "The tool finds the user defined functions (UDF) in the Exasol "
-                    "Database by looking for the specified keywords in their names and "
-                    "comments. For each UDF it finds, it provides the name and an "
-                    "optional comment. An optional `schema_name` argument allows "
-                    "restricting the search to UDFs in the specified schema."
-                ),
-            )
-        if self.config.columns.enable:
-            self.tool(
-                self.describe_table,
-                description=(
-                    "The tool describes the specified table or view in the specified "
-                    "schema of the Exasol Database. The description includes the list "
-                    "of columns and for a table also the list of constraints. For each "
-                    "column the tool provides the name, the SQL data type and an "
-                    "optional comment. For each constraint it provides its type, e.g. "
-                    "PRIMARY KEY, the list of columns the constraint is applied to and "
-                    "an optional name. For a FOREIGN KEY it also provides the referenced "
-                    "schema, table and a list of columns in the referenced table."
-                ),
-            )
-        if self.config.parameters.enable:
-            self.tool(
-                self.describe_function,
-                description=(
-                    "The tool describes the specified function in the specified schema "
-                    "of the Exasol Database. It provides the list of input parameters "
-                    "and the return SQL type. For each parameter it specifies the name "
-                    "and the SQL type."
-                ),
-            )
-            self.tool(
-                self.describe_script,
-                description=(
-                    "The tool describes the specified user defined function (UDF) in "
-                    "the specified schema of the Exasol Database. It provides the "
-                    "list of input parameters, the list of emitted parameters or the "
-                    "SQL type of a single returned value. For each parameter it "
-                    "provides the name and the SQL type. Both the input and the "
-                    "emitted parameters can be dynamic or, in other words, flexible. "
-                    "The dynamic parameters are indicated with ... (triple dot) string "
-                    "instead of the parameter list. The description includes some usage "
-                    "notes and a call example."
-                ),
-            )
-        if self.config.enable_read_query:
-            self.tool(
-                self.execute_query,
-                description=(
-                    "The tool executes the specified query in the Exasol Database. The "
-                    "query must be a SELECT statement. The tool returns data selected "
-                    "by the query."
-                ),
-            )
 
     def _build_meta_query(
         self, meta_name: str, conf: MetaListSettings, schema_name: str, *predicates
@@ -498,48 +364,3 @@ class ExasolMCPServer(FastMCP):
             result = self.connection.execute(query=query).fetchall()
             return ExaDbResult(result)
         raise ValueError("The query is invalid or not a SELECT statement.")
-
-
-def get_mcp_settings() -> McpServerSettings:
-    """
-    Reads optional settings. They can be provided either in a json string stored in the
-    EXA_MCP_SETTINGS environment variable or in a json file. In the latter case
-    EXA_MCP_SETTINGS must contain the file path.
-    """
-    try:
-        settings_text = os.environ.get(ENV_SETTINGS)
-        if not settings_text:
-            return McpServerSettings()
-        elif re.match(r"^\s*\{.*\}\s*$", settings_text):
-            return McpServerSettings.model_validate_json(settings_text)
-        elif os.path.isfile(settings_text):
-            with open(settings_text) as f:
-                return McpServerSettings.model_validate(json.load(f))
-        raise ValueError(
-            "Invalid MCP Server configuration settings. The configuration "
-            "environment variable should either contain a json string or "
-            "point to an existing json file."
-        )
-    except (ValidationError, json.decoder.JSONDecodeError) as config_error:
-        raise ValueError("Invalid MCP Server configuration settings.") from config_error
-
-
-def main():
-    """
-    Main entry point that creates and runs the MCP server.
-    """
-    dsn = os.environ[ENV_DSN]
-    user = os.environ[ENV_USER]
-    password = os.environ[ENV_PASSWORD]
-    mcp_settings = get_mcp_settings()
-
-    conn = pyexasol.connect(
-        dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
-    )
-
-    mcp_server = ExasolMCPServer(connection=conn, config=mcp_settings)
-    mcp_server.run()
-
-
-if __name__ == "__main__":
-    main()
