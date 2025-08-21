@@ -9,7 +9,7 @@ from unittest.mock import (
 import pytest
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.mcp_server import (
+from exasol.ai.mcp.server.main import (
     ENV_DSN,
     ENV_PASSWORD,
     ENV_SETTINGS,
@@ -17,6 +17,7 @@ from exasol.ai.mcp.server.mcp_server import (
     get_mcp_settings,
     main,
 )
+from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 
@@ -79,11 +80,14 @@ def test_get_mcp_settings_no_file(clear_settings, tmp_path) -> None:
 
 
 @patch("pyexasol.connect")
-@patch("exasol.ai.mcp.server.mcp_server.ExasolMCPServer")
+@patch("exasol.ai.mcp.server.main.create_mcp_server")
 def test_main_with_json_str(
-    mock_server, mock_connect, clear_settings, settings_json
+    mock_create_server, mock_connect, clear_settings, settings_json
 ) -> None:
-    mock_connect.return_value = create_autospec(ExaConnection)
+    mock_connection = create_autospec(ExaConnection)
+    mock_connect.return_value = mock_connection
+    mock_server = create_autospec(ExasolMCPServer)
+    mock_create_server.return_value = mock_server
     os.environ[ENV_DSN] = "my.db.dsn"
     os.environ[ENV_USER] = "my_user_name"
     os.environ[ENV_PASSWORD] = "my_password"
@@ -93,5 +97,7 @@ def test_main_with_json_str(
     assert kwargs["dsn"] == "my.db.dsn"
     assert kwargs["user"] == "my_user_name"
     assert kwargs["password"] == "my_password"
-    _, kwargs = mock_server.call_args
-    assert kwargs["config"] == McpServerSettings.model_validate(settings_json)
+    mock_create_server.assert_called_once_with(
+        mock_connection, McpServerSettings.model_validate(settings_json)
+    )
+    mock_server.run.assert_called_once()
