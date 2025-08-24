@@ -2,7 +2,11 @@ from textwrap import dedent
 
 import pytest
 
-from exasol.ai.mcp.server.mcp_server import verify_query
+from exasol.ai.mcp.server.mcp_server import (
+    remove_info_column,
+    verify_query,
+)
+from exasol.ai.mcp.server.meta_query import INFO_COLUMN
 
 
 def sample_select_query() -> str:
@@ -165,3 +169,20 @@ def test_verify_query(query, expected_result):
     in this case is that such queries are not recognised as valid SQL statements.
     """
     assert verify_query(query) == expected_result
+
+
+def test_remove_info_column():
+    input_data = [
+        {"name": "db_object1", "comment": "this is my first db object"},
+        {
+            "name": "db_object2",
+            "comment": "this is my second db object",
+            INFO_COLUMN: "this column should be removed",
+        },
+    ]
+    output_data = remove_info_column(input_data)
+    expected_output_data = [
+        {"name": "db_object1", "comment": "this is my first db object"},
+        {"name": "db_object2", "comment": "this is my second db object"},
+    ]
+    assert output_data == expected_output_data

@@ -21,7 +21,7 @@ NoDoubleQuotesStr = Annotated[str, AfterValidator(check_no_double_quotes)]
 
 @dataclass
 class ExaDbResult:
-    result: list[str:Any]
+    result: list[dict[str, Any]]
 
 
 class MetaSettings(BaseModel):
@@ -32,6 +32,11 @@ class MetaSettings(BaseModel):
     enable: bool = True
     """
     Allows to disable the listing of a particular type of metadata.
+    """
+
+    schema_field: NoDoubleQuotesStr = "schema"
+    """
+    The name of the output field that contains the object schema, e.g. "table_schema".
     """
 
     name_field: NoDoubleQuotesStr = "name"

@@ -43,7 +43,7 @@ def _register_list_tables(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The tool lists tables and views in the specified schema of the "
             "the Exasol Database. For each table and view, it provides the "
-            "name and an optional comment."
+            "name, the schema, and an optional comment."
         ),
     )
 
@@ -54,8 +54,8 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The tool finds tables and views in the Exasol Database by looking "
             "for the specified keywords in their names and comments. "
-            "For each table or view it finds, it provides the name and an "
-            "optional comment. An optional `schema_name` argument allows "
+            "For each table or view it finds, it provides the name, the schema, "
+            "and an optional comment. An optional `schema_name` argument allows "
             "restricting the search to tables and views in the specified schema."
         ),
     )
@@ -66,8 +66,8 @@ def _register_list_functions(mcp_server: ExasolMCPServer) -> None:
         mcp_server.list_functions,
         description=(
             "The tool lists functions in the specified schema of the Exasol "
-            "Database. For each function, it provides the name and an optional "
-            "comment."
+            "Database. For each function, it provides the name, the schema, "
+            "and an optional comment."
         ),
     )
 
@@ -78,9 +78,9 @@ def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The tool finds functions in the Exasol Database by looking for "
             "the specified keywords in their names and comments. For each "
-            "function it finds, it provides the name and an optional comment. "
-            "An optional `schema_name` argument allows restricting the search "
-            "to functions in the specified schema."
+            "function it finds, it provides the name, the schema, and an optional "
+            "comment. An optional `schema_name` argument allows restricting the "
+            "search to functions in the specified schema."
         ),
     )
 
@@ -90,8 +90,8 @@ def _register_list_scripts(mcp_server: ExasolMCPServer) -> None:
         mcp_server.list_scripts,
         description=(
             "The tool lists the user defined functions (UDF) in the specified "
-            "schema of the Exasol Database. For each UDF, it provides the name "
-            "and an optional comment."
+            "schema of the Exasol Database. For each UDF, it provides the name, "
+            "the schema, and an optional comment."
         ),
     )
 
@@ -102,8 +102,8 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The tool finds the user defined functions (UDF) in the Exasol "
             "Database by looking for the specified keywords in their names and "
-            "comments. For each UDF it finds, it provides the name and an "
-            "optional comment. An optional `schema_name` argument allows "
+            "comments. For each UDF it finds, it provides the name, the schema, "
+            "and an optional comment. An optional `schema_name` argument allows "
             "restricting the search to UDFs in the specified schema."
         ),
     )

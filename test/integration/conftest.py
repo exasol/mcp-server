@@ -105,7 +105,7 @@ def db_tables() -> list[ExaTable]:
                     ref_columns=["resort_id"],
                 ),
             ],
-            keywords=["sky run", "detailed information"],
+            keywords=["ski run", "detailed information"],
             rows=[
                 (1000, "Christine", "Blue", 1200),
                 (1000, "Allamande", "Red", 950),

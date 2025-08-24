@@ -1,6 +1,5 @@
 import re
 from functools import cache
-from textwrap import dedent
 from typing import (
     Annotated,
     Any,
@@ -15,6 +14,11 @@ from sqlglot import (
 )
 from sqlglot.errors import ParseError
 
+from exasol.ai.mcp.server.meta_query import (
+    INFO_COLUMN,
+    ExasolMetaQuery,
+    MetaType,
+)
 from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
     ScriptParameterParser,
@@ -26,12 +30,8 @@ from exasol.ai.mcp.server.parameter_pattern import (
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
-    MetaListSettings,
 )
-from exasol.ai.mcp.server.utils import (
-    keyword_filter,
-    sql_text_value,
-)
+from exasol.ai.mcp.server.utils import keyword_filter
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
@@ -53,13 +53,6 @@ TABLE_NAME_TYPE = Annotated[str, "name of the table"]
 FUNCTION_NAME_TYPE = Annotated[str, "name of the function"]
 
 SCRIPT_NAME_TYPE = Annotated[str, "name of the script"]
-
-
-def _where_clause(*predicates) -> str:
-    condition = " AND ".join(filter(bool, predicates))
-    if condition:
-        return f"WHERE {condition}"
-    return ""
 
 
 @cache
@@ -88,6 +81,16 @@ def verify_query(query: str) -> bool:
         return False
 
 
+def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Removes the column with extra information, collected for data filtering.
+    """
+    for row in result:
+        if INFO_COLUMN in row:
+            row.pop(INFO_COLUMN)
+    return result
+
+
 class ExasolMCPServer(FastMCP):
     """
     An Exasol MCP server based on FastMCP.
@@ -106,52 +109,11 @@ class ExasolMCPServer(FastMCP):
         super().__init__(name="exasol-mcp")
         self.connection = connection
         self.connection.options["fetch_dict"] = True
-        self.config = config
+        self.meta_query = ExasolMetaQuery(config)
 
-    def _build_meta_query(
-        self, meta_name: str, conf: MetaListSettings, schema_name: str, *predicates
-    ) -> str:
-        """
-        Builds a metadata query.
-
-        Args:
-            meta_name:
-                Must be one of "SCHEMA", "TABLE", "VIEW", "FUNCTION", or "SCRIPT".
-            conf:
-                Metadata type settings, which is a part of the server configuration.
-            schema_name:
-                An optional schema name provided in the call to the tool. Ignored if
-                meta_name=='SCHEMA'. In all other cases, if the name is specified, it
-                will be included in the WHERE clause. Otherwise, the query will return
-                objects from all visible schemas.
-            predicates:
-                Any additional predicates to be used in the WHERE clause.
-        """
-        predicates = [conf.select_predicate, *predicates]
-        if meta_name != "SCHEMA":
-            schema_column = f"{meta_name}_SCHEMA"
-            if schema_name:
-                predicates.append(f"{schema_column} = {sql_text_value(schema_name)}")
-            else:
-                # Adds the schema restriction if specified in the settings.
-                schema_conf = self.config.schemas
-                if schema_conf.like_pattern:
-                    predicates.append(
-                        f"{schema_column} LIKE "
-                        f"{sql_text_value(schema_conf.like_pattern)}"
-                    )
-                if schema_conf.regexp_pattern:
-                    predicates.append(
-                        f"{schema_column} REGEXP_LIKE "
-                        f"{sql_text_value(schema_conf.regexp_pattern)}"
-                    )
-        return dedent(
-            f"""
-            SELECT {meta_name}_NAME AS "{conf.name_field}", {meta_name}_COMMENT AS "{conf.comment_field}"
-            FROM SYS.EXA_ALL_{meta_name}S
-            {_where_clause(*predicates)}
-        """
-        )
+    @property
+    def config(self) -> McpServerSettings:
+        return self.meta_query.config
 
     def _execute_meta_query(
         self, query: str, keywords: list[str] | None = None
@@ -159,86 +121,84 @@ class ExasolMCPServer(FastMCP):
         """
         Executes a metadata query and returns the result as a list of dictionaries.
         Applies the keyword fitter if provided.
+        Removes the column with extra information that could be added to the result
+        to assist filtering. This is necessary to avoid polluting the LLM's context
+        with data it doesn't need at the current stage.
         """
         result = self.connection.meta.execute_snapshot(query=query).fetchall()
         if keywords:
             result = keyword_filter(result, keywords)
-        return ExaDbResult(result)
-
-    def _find_schemas(self, keywords: list[str] | None = None) -> ExaDbResult:
-        conf = self.config.schemas
-        if not conf.enable:
-            raise RuntimeError("The schema listing is disabled.")
-
-        query = self._build_meta_query("SCHEMA", conf, "")
-        return self._execute_meta_query(query, keywords)
-
-    def find_schemas(self, keywords: KEYWORDS_TYPE) -> ExaDbResult:
-        return self._find_schemas(keywords)
+        return ExaDbResult(remove_info_column(result))
 
     def list_schemas(self) -> ExaDbResult:
-        return self._find_schemas()
+        if not self.config.schemas.enable:
+            raise RuntimeError("The schema listing is disabled.")
 
-    def _find_tables(
-        self, keywords: list[str] | None = None, schema_name: str | None = None
-    ) -> ExaDbResult:
+        query = self.meta_query.get_metadata(MetaType.SCHEMA)
+        return self._execute_meta_query(query)
+
+    def find_schemas(self, keywords: KEYWORDS_TYPE) -> ExaDbResult:
+        if not self.config.schemas.enable:
+            raise RuntimeError("The schema listing is disabled.")
+
+        query = self.meta_query.find_schemas()
+        return self._execute_meta_query(query, keywords)
+
+    def list_tables(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
         table_conf = self.config.tables
         view_conf = self.config.views
         if (not table_conf.enable) and (not view_conf.enable):
             raise RuntimeError("Both the table and the view listings are disabled.")
 
         query = "\nUNION\n".join(
-            self._build_meta_query(meta_name, conf, schema_name)
-            for meta_name, conf in zip(["TABLE", "VIEW"], [table_conf, view_conf])
+            self.meta_query.get_metadata(meta_type, schema_name)
+            for meta_type, conf in zip(
+                [MetaType.TABLE, MetaType.VIEW], [table_conf, view_conf]
+            )
             if conf.enable
         )
-        return self._execute_meta_query(query, keywords)
+        return self._execute_meta_query(query)
 
     def find_tables(
         self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
     ) -> ExaDbResult:
-        return self._find_tables(keywords, schema_name)
+        if (not self.config.tables.enable) and (not self.config.views.enable):
+            raise RuntimeError("Both the table and the view listings are disabled.")
 
-    def list_tables(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
-        return self._find_tables(schema_name=schema_name)
+        query = self.meta_query.find_tables(schema_name)
+        return self._execute_meta_query(query, keywords)
 
-    def _find_functions(
-        self, keywords: list[str] | None = None, schema_name: str | None = None
-    ) -> ExaDbResult:
-        conf = self.config.functions
-        if not conf.enable:
+    def list_functions(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+        if not self.config.functions.enable:
             raise RuntimeError("The function listing is disabled.")
 
-        query = self._build_meta_query("FUNCTION", conf, schema_name)
-        return self._execute_meta_query(query, keywords)
+        query = self.meta_query.get_metadata(MetaType.FUNCTION, schema_name)
+        return self._execute_meta_query(query)
 
     def find_functions(
         self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
     ) -> ExaDbResult:
-        return self._find_functions(keywords, schema_name)
+        if not self.config.functions.enable:
+            raise RuntimeError("The function listing is disabled.")
 
-    def list_functions(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
-        return self._find_functions(schema_name=schema_name)
+        query = self.meta_query.get_metadata(MetaType.FUNCTION, schema_name)
+        return self._execute_meta_query(query, keywords)
 
-    def _find_scripts(
-        self, keywords: list[str] | None = None, schema_name: str | None = None
-    ) -> ExaDbResult:
-        conf = self.config.scripts
-        if not conf.enable:
+    def list_scripts(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+        if not self.config.scripts.enable:
             raise RuntimeError("The script listing is disabled.")
 
-        query = self._build_meta_query(
-            "SCRIPT", conf, schema_name, "SCRIPT_TYPE = 'UDF'"
-        )
-        return self._execute_meta_query(query, keywords)
+        query = self.meta_query.get_metadata(MetaType.SCRIPT, schema_name)
+        return self._execute_meta_query(query)
 
     def find_scripts(
         self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
     ) -> ExaDbResult:
-        return self._find_scripts(keywords, schema_name)
+        if not self.config.scripts.enable:
+            raise RuntimeError("The script listing is disabled.")
 
-    def list_scripts(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
-        return self._find_scripts(schema_name=schema_name)
+        query = self.meta_query.get_metadata(MetaType.SCRIPT, schema_name)
+        return self._execute_meta_query(query, keywords)
 
     def describe_columns(
         self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
@@ -247,22 +207,10 @@ class ExasolMCPServer(FastMCP):
         Returns the list of columns in the given table. Currently, this is a part of
         the `describe_table` tool, but it can be used independently in the future.
         """
-        conf = self.config.columns
-        if not conf.enable:
+        if not self.config.columns.enable:
             raise RuntimeError("The column listing is disabled.")
 
-        query = dedent(
-            f"""
-            SELECT
-                COLUMN_NAME AS "{conf.name_field}",
-                COLUMN_TYPE AS "{conf.type_field}",
-                COLUMN_COMMENT AS "{conf.comment_field}"
-            FROM SYS.EXA_ALL_COLUMNS
-            WHERE
-                COLUMN_SCHEMA = {sql_text_value(schema_name)} AND
-                COLUMN_TABLE = {sql_text_value(table_name)}
-        """
-        )
+        query = self.meta_query.describe_columns(schema_name, table_name)
         return self._execute_meta_query(query)
 
     def describe_constraints(
@@ -272,49 +220,14 @@ class ExasolMCPServer(FastMCP):
         Returns the list of constraints in the given table. Currently, this is a part
         of the `describe_table` tool, but it can be used independently in the future.
         """
-        conf = self.config.columns
-        if not conf.enable:
+        if not self.config.columns.enable:
             raise RuntimeError("The constraint listing is disabled.")
 
-        query = dedent(
-            f"""
-            SELECT
-                FIRST_VALUE(CONSTRAINT_TYPE) AS "{conf.constraint_type_field}",
-                CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
-                    ELSE CONSTRAINT_NAME END AS "{conf.constraint_name_field}",
-                GROUP_CONCAT(DISTINCT COLUMN_NAME ORDER BY ORDINAL_POSITION)
-                    AS "{conf.constraint_columns_field}",
-                FIRST_VALUE(REFERENCED_SCHEMA) AS "{conf.referenced_schema_field}",
-                FIRST_VALUE(REFERENCED_TABLE) AS "{conf.referenced_table_field}",
-                GROUP_CONCAT(DISTINCT REFERENCED_COLUMN ORDER BY ORDINAL_POSITION)
-                    AS "{conf.referenced_columns_field}"
-            FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-            WHERE
-                CONSTRAINT_SCHEMA = {sql_text_value(schema_name)} AND
-                CONSTRAINT_TABLE = {sql_text_value(table_name)}
-            GROUP BY CONSTRAINT_NAME
-        """
-        )
+        query = self.meta_query.describe_constraints(schema_name, table_name)
         return self._execute_meta_query(query)
 
     def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
-        # `table_name` can be the name of a table or a view.
-        # This query tries both possibilities. The UNION clause collapses
-        # the result into a single non-NULL distinct value.
-        query = dedent(
-            f"""
-            SELECT TABLE_COMMENT AS COMMENT FROM SYS.EXA_ALL_TABLES
-            WHERE
-                TABLE_SCHEMA = {sql_text_value(schema_name)} AND
-                TABLE_NAME = {sql_text_value(table_name)}
-            UNION
-            SELECT VIEW_COMMENT AS COMMENT FROM SYS.EXA_ALL_VIEWS
-            WHERE
-                VIEW_SCHEMA = {sql_text_value(schema_name)} AND
-                VIEW_NAME = {sql_text_value(table_name)}
-            LIMIT 1;
-        """
-        )
+        query = self.meta_query.get_table_comment(schema_name, table_name)
         comment_row = self.connection.meta.execute_snapshot(query=query).fetchone()
         if comment_row is None:
             return None
