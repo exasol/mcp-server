@@ -81,12 +81,24 @@ def _get_list_result_json(result) -> ExaDbResult:
     return unsorted
 
 
+def _get_expected_json(
+    db_obj: ExaDbObject, conf: MetaListSettings, schema_name: str | None
+) -> dict[str, Any]:
+    expected_json = {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
+    if schema_name:
+        expected_json[conf.schema_field] = schema_name
+    return expected_json
+
+
 def _get_expected_list_json(
-    db_objects: list[ExaDbObject], name_part: str, conf: MetaListSettings
+    db_objects: list[ExaDbObject],
+    name_part: str,
+    conf: MetaListSettings,
+    schema_name: str | None = None,
 ) -> ExaDbResult:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
-        {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
+        _get_expected_json(db_obj, conf, schema_name)
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
@@ -309,10 +321,14 @@ def test_list_tables(
         result_json = _get_list_result_json(result)
         expected_result: list[dict[str, Any]] = []
         if enable_tables:
-            expected_json = _get_expected_list_json(db_tables, "resort", config.tables)
+            expected_json = _get_expected_list_json(
+                db_tables, "resort", config.tables, schema.name
+            )
             expected_result.extend(expected_json.result)
         if enable_views:
-            expected_json = _get_expected_list_json(db_views, "run", config.views)
+            expected_json = _get_expected_list_json(
+                db_views, "run", config.views, schema.name
+            )
             expected_result.extend(expected_json.result)
         expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
         assert result_json == expected_json
@@ -342,10 +358,16 @@ def test_find_tables(
                 regexp_pattern=schema.name if use_regexp else "",
             ),
             tables=MetaListSettings(
-                enable=True, name_field="name", comment_field="comment"
+                enable=True,
+                name_field="name",
+                comment_field="comment",
+                schema_field="schema",
             ),
             views=MetaListSettings(
-                enable=True, name_field="name", comment_field="comment"
+                enable=True,
+                name_field="name",
+                comment_field="comment",
+                schema_field="schema",
             ),
         )
         # If the schema visibility is restricted to one schema we will not
@@ -361,7 +383,11 @@ def test_find_tables(
             )
 
             result_json = _get_result_json(result)["result"][0]
-            expected_json = {"name": table.name, "comment": table.comment}
+            expected_json = {
+                "name": table.name,
+                "comment": table.comment,
+                "schema": schema.name,
+            }
             assert result_json == expected_json
 
 
@@ -394,7 +420,9 @@ def test_list_functions(
             schema_name=schema.name,
         )
         result_json = _get_list_result_json(result)
-        expected_json = _get_expected_list_json(db_functions, "cut", config.functions)
+        expected_json = _get_expected_list_json(
+            db_functions, "cut", config.functions, schema.name
+        )
         assert result_json == expected_json
 
 
@@ -416,7 +444,10 @@ def test_find_functions(
                 regexp_pattern=schema.name if use_regexp else "",
             ),
             functions=MetaListSettings(
-                enable=True, name_field="name", comment_field="comment"
+                enable=True,
+                name_field="name",
+                comment_field="comment",
+                schema_field="schema",
             ),
         )
         # If the schema visibility is restricted to one schema we will not
@@ -431,7 +462,11 @@ def test_find_functions(
                 schema_name=schema_name,
             )
             result_json = _get_result_json(result)["result"][0]
-            expected_json = {"name": func.name, "comment": func.comment}
+            expected_json = {
+                "name": func.name,
+                "comment": func.comment,
+                "schema": schema.name,
+            }
             assert result_json == expected_json
 
 
@@ -464,7 +499,9 @@ def test_list_scripts(
             schema_name=schema.name,
         )
         result_json = _get_list_result_json(result)
-        expected_json = _get_expected_list_json(db_scripts, "fibo", config.scripts)
+        expected_json = _get_expected_list_json(
+            db_scripts, "fibo", config.scripts, schema.name
+        )
         assert result_json == expected_json
 
 
@@ -486,7 +523,10 @@ def test_find_scripts(
                 regexp_pattern=schema.name if use_regexp else "",
             ),
             scripts=MetaListSettings(
-                enable=True, name_field="name", comment_field="comment"
+                enable=True,
+                name_field="name",
+                comment_field="comment",
+                schema_field="schema",
             ),
         )
         # If the schema visibility is restricted to one schema we will not
@@ -501,7 +541,11 @@ def test_find_scripts(
                 schema_name=schema_name,
             )
             result_json = _get_result_json(result)["result"][0]
-            expected_json = {"name": script.name, "comment": script.comment}
+            expected_json = {
+                "name": script.name,
+                "comment": script.comment,
+                "schema": schema.name,
+            }
             assert result_json == expected_json
 
 
