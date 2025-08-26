@@ -25,22 +25,8 @@ class MetaParams:
     obj2_name_pattern_type: str = ""
     expected_where_clause: str = ""
 
-    @property
-    def schema_settings(self):
-        return MetaListSettings(
-            enable=True,
-            like_pattern=(
-                self.schema_pattern if self.schema_pattern_type == "LIKE" else ""
-            ),
-            regexp_pattern=(
-                self.schema_pattern if self.schema_pattern_type == "REGEXP_LIKE" else ""
-            ),
-            name_field="name",
-            comment_field="comment",
-        )
-
     @staticmethod
-    def _db_obj_settings(pattern: str, pattern_type: str) -> MetaListSettings:
+    def _meta_settings(pattern: str, pattern_type: str) -> MetaListSettings:
         return MetaListSettings(
             enable=True,
             like_pattern=pattern if pattern_type == "LIKE" else "",
@@ -51,14 +37,16 @@ class MetaParams:
         )
 
     @property
+    def schema_settings(self):
+        return self._meta_settings(self.schema_pattern, self.schema_pattern_type)
+
+    @property
     def db_obj_settings(self):
-        return self._db_obj_settings(self.obj_name_pattern, self.obj_name_pattern_type)
+        return self._meta_settings(self.obj_name_pattern, self.obj_name_pattern_type)
 
     @property
     def db_obj2_settings(self):
-        return self._db_obj_settings(
-            self.obj2_name_pattern, self.obj2_name_pattern_type
-        )
+        return self._meta_settings(self.obj2_name_pattern, self.obj2_name_pattern_type)
 
     @property
     def schema_based_where_clause(self):
