@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from test.utils.text_utils import collapse_spaces
 
 import pytest
@@ -13,34 +14,112 @@ from exasol.ai.mcp.server.server_settings import (
 )
 
 
+@dataclass
+class MetaParams:
+    schema_name: str = ""
+    schema_pattern: str = ""
+    schema_pattern_type: str = ""
+    obj_name_pattern: str = ""
+    obj_name_pattern_type: str = ""
+    obj2_name_pattern: str = ""
+    obj2_name_pattern_type: str = ""
+    expected_where_clause: str = ""
+
+    @property
+    def schema_settings(self):
+        return MetaListSettings(
+            enable=True,
+            like_pattern=(
+                self.schema_pattern if self.schema_pattern_type == "LIKE" else ""
+            ),
+            regexp_pattern=(
+                self.schema_pattern if self.schema_pattern_type == "REGEXP_LIKE" else ""
+            ),
+            name_field="name",
+            comment_field="comment",
+        )
+
+    @staticmethod
+    def _db_obj_settings(pattern: str, pattern_type: str) -> MetaListSettings:
+        return MetaListSettings(
+            enable=True,
+            like_pattern=pattern if pattern_type == "LIKE" else "",
+            regexp_pattern=pattern if pattern_type == "REGEXP_LIKE" else "",
+            name_field="name",
+            comment_field="comment",
+            schema_field="schema",
+        )
+
+    @property
+    def db_obj_settings(self):
+        return self._db_obj_settings(self.obj_name_pattern, self.obj_name_pattern_type)
+
+    @property
+    def db_obj2_settings(self):
+        return self._db_obj_settings(
+            self.obj2_name_pattern, self.obj2_name_pattern_type
+        )
+
+    @property
+    def schema_based_where_clause(self):
+        return (
+            f"""WHERE local."name" {self.schema_pattern_type} '{self.schema_pattern}'"""
+            if self.schema_pattern
+            else ""
+        )
+
+    @staticmethod
+    def _db_obj_based_where_clause(pattern: str, pattern_type: str) -> str:
+        return f"""WHERE local."name" {pattern_type} '{pattern}'""" if pattern else ""
+
+    @property
+    def db_obj_based_where_clause(self):
+        return self._db_obj_based_where_clause(
+            self.obj_name_pattern, self.obj_name_pattern_type
+        )
+
+    @property
+    def db_obj2_based_where_clause(self):
+        return self._db_obj_based_where_clause(
+            self.obj2_name_pattern, self.obj2_name_pattern_type
+        )
+
+    @property
+    def column_based_where_clause(self) -> str:
+        if self.schema_name:
+            return f"""WHERE "COLUMN_SCHEMA" = '{self.schema_name}'"""
+        elif self.schema_pattern:
+            return f"""WHERE "COLUMN_SCHEMA" {self.schema_pattern_type} '{self.schema_pattern}'"""
+        return ""
+
+
 @pytest.mark.parametrize(
+    "meta_params",
     [
-        "schema_name",
-        "schema_pattern",
-        "schema_pattern_type",
-        "table_pattern",
-        "table_pattern_type",
-        "expected_where_clause",
-    ],
-    [
-        ("", "", "", "", "", ""),
-        ("EXA_TOOLBOX", "", "", "", "", """WHERE "TABLE_SCHEMA" = 'EXA_TOOLBOX'"""),
-        ("", "", "", "PUB", "REGEXP_LIKE", """WHERE local."name" REGEXP_LIKE 'PUB'"""),
-        (
-            "EXA_TOOLBOX",
-            "EXA%",
-            "LIKE",
-            "PUB%",
-            "LIKE",
-            """WHERE local."name" LIKE 'PUB%' AND "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+        MetaParams(),
+        MetaParams(
+            schema_name="EXA_TOOLBOX",
+            expected_where_clause="""WHERE "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
         ),
-        (
-            "",
-            "EXA",
-            "REGEXP_LIKE",
-            "PUB%",
-            "LIKE",
-            """WHERE local."name" LIKE 'PUB%' AND "TABLE_SCHEMA" REGEXP_LIKE 'EXA'""",
+        MetaParams(
+            obj_name_pattern="PUB",
+            obj_name_pattern_type="REGEXP_LIKE",
+            expected_where_clause="""WHERE local."name" REGEXP_LIKE 'PUB'""",
+        ),
+        MetaParams(
+            schema_name="EXA_TOOLBOX",
+            schema_pattern="EXA%",
+            schema_pattern_type="LIKE",
+            obj_name_pattern="PUB%",
+            obj_name_pattern_type="LIKE",
+            expected_where_clause="""WHERE local."name" LIKE 'PUB%' AND "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+        ),
+        MetaParams(
+            schema_pattern="EXA",
+            schema_pattern_type="REGEXP_LIKE",
+            obj_name_pattern="PUB%",
+            obj_name_pattern_type="LIKE",
+            expected_where_clause="""WHERE local."name" LIKE 'PUB%' AND "TABLE_SCHEMA" REGEXP_LIKE 'EXA'""",
         ),
     ],
     ids=[
@@ -51,32 +130,15 @@ from exasol.ai.mcp.server.server_settings import (
         "schema-and-table-patterns",
     ],
 )
-def test_get_metadata(
-    schema_name,
-    schema_pattern,
-    schema_pattern_type,
-    table_pattern,
-    table_pattern_type,
-    expected_where_clause,
-):
+def test_get_metadata(meta_params):
     config = McpServerSettings(
-        schemas=MetaListSettings(
-            like_pattern=schema_pattern if schema_pattern_type == "LIKE" else "",
-            regexp_pattern=(
-                schema_pattern if schema_pattern_type == "REGEXP_LIKE" else ""
-            ),
-        ),
-        tables=MetaListSettings(
-            enable=True,
-            like_pattern=table_pattern if table_pattern_type == "LIKE" else "",
-            regexp_pattern=table_pattern if table_pattern_type == "REGEXP_LIKE" else "",
-            name_field="name",
-            comment_field="comment",
-            schema_field="schema",
-        ),
+        schemas=meta_params.schema_settings,
+        tables=meta_params.db_obj_settings,
     )
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.get_metadata(MetaType.TABLE, schema_name))
+    query = collapse_spaces(
+        meta_query.get_metadata(MetaType.TABLE, meta_params.schema_name)
+    )
     expected_query = collapse_spaces(
         f"""
         SELECT
@@ -84,39 +146,39 @@ def test_get_metadata(
             "TABLE_COMMENT" AS "comment",
             "TABLE_SCHEMA" AS "schema"
         FROM SYS."EXA_ALL_TABLES"
-        {expected_where_clause}
+        {meta_params.expected_where_clause}
     """
     )
     assert query == expected_query
 
 
 @pytest.mark.parametrize(
-    ["schema_name", "schema_pattern", "script_pattern", "expected_where_clause"],
+    "meta_params",
     [
-        ("", "", "", """WHERE "SCRIPT_TYPE" = 'UDF'"""),
-        (
-            "EXA_TOOLBOX",
-            "",
-            "",
-            """WHERE "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+        MetaParams(expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF'"""),
+        MetaParams(
+            schema_name="EXA_TOOLBOX",
+            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
         ),
-        (
-            "",
-            "",
-            "BUCKETFS%",
-            """WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF'""",
+        MetaParams(
+            obj_name_pattern="BUCKETFS%",
+            obj_name_pattern_type="LIKE",
+            expected_where_clause="""WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF'""",
         ),
-        (
-            "EXA_TOOLBOX",
-            "EXA%",
-            "BUCKETFS%",
-            """WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+        MetaParams(
+            schema_name="EXA_TOOLBOX",
+            schema_pattern="EXA%",
+            schema_pattern_type="LIKE",
+            obj_name_pattern="BUCKETFS%",
+            obj_name_pattern_type="LIKE",
+            expected_where_clause="""WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
         ),
-        (
-            "",
-            "EXA%",
-            "BUCKETFS%",
-            """WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" LIKE 'EXA%'""",
+        MetaParams(
+            schema_pattern="EXA%",
+            schema_pattern_type="LIKE",
+            obj_name_pattern="BUCKETFS%",
+            obj_name_pattern_type="LIKE",
+            expected_where_clause="""WHERE local."name" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" LIKE 'EXA%'""",
         ),
     ],
     ids=[
@@ -127,21 +189,14 @@ def test_get_metadata(
         "schema-and-table-patterns",
     ],
 )
-def test_get_script_metadata(
-    schema_name, schema_pattern, script_pattern, expected_where_clause
-):
+def test_get_script_metadata(meta_params):
     config = McpServerSettings(
-        schemas=MetaListSettings(like_pattern=schema_pattern),
-        scripts=MetaListSettings(
-            enable=True,
-            like_pattern=script_pattern,
-            name_field="name",
-            comment_field="comment",
-            schema_field="schema",
-        ),
+        schemas=meta_params.schema_settings, scripts=meta_params.db_obj_settings
     )
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.get_metadata(MetaType.SCRIPT, schema_name))
+    query = collapse_spaces(
+        meta_query.get_metadata(MetaType.SCRIPT, meta_params.schema_name)
+    )
     expected_query = collapse_spaces(
         f"""
         SELECT
@@ -149,64 +204,56 @@ def test_get_script_metadata(
             "SCRIPT_COMMENT" AS "comment",
             "SCRIPT_SCHEMA" AS "schema"
         FROM SYS."EXA_ALL_SCRIPTS"
-        {expected_where_clause}
+        {meta_params.expected_where_clause}
     """
     )
     assert query == expected_query
 
 
 @pytest.mark.parametrize(
-    ["pattern", "pattern_type"],
-    [("", ""), ("EXASOL%", "LIKE"), ("EXASOL", "REGEXP_LIKE")],
+    "meta_params",
+    [
+        MetaParams(),
+        MetaParams(schema_pattern="EXASOL%", schema_pattern_type="LIKE"),
+        MetaParams(schema_pattern="EXASOL", schema_pattern_type="REGEXP_LIKE"),
+    ],
     ids=["no-pattern", "like", "regexp"],
 )
-def test_get_schema_metadata(pattern, pattern_type):
-    config = McpServerSettings(
-        schemas=MetaListSettings(
-            enable=True,
-            like_pattern=pattern if pattern_type == "LIKE" else "",
-            regexp_pattern=pattern if pattern_type == "REGEXP_LIKE" else "",
-            name_field="name",
-            comment_field="comment",
-        )
-    )
+def test_get_schema_metadata(meta_params):
+    config = McpServerSettings(schemas=meta_params.schema_settings)
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.get_metadata(MetaType.SCHEMA, "to be ignored"))
-    expected_where_clause = (
-        f"""WHERE local."name" {pattern_type} '{pattern}'""" if pattern else ""
-    )
     expected_query = collapse_spaces(
         f"""
         SELECT
             "SCHEMA_NAME" AS "name",
             "SCHEMA_COMMENT" AS "comment"
         FROM SYS."EXA_ALL_SCHEMAS"
-        {expected_where_clause}
+        {meta_params.schema_based_where_clause}
     """
     )
     assert query == expected_query
 
 
 @pytest.mark.parametrize(
-    ["pattern", "pattern_type"],
-    [("", ""), ("EXASOL%", "LIKE"), ("EXASOL", "REGEXP_LIKE")],
+    "meta_params",
+    [
+        MetaParams(),
+        MetaParams(schema_pattern="EXASOL%", schema_pattern_type="LIKE"),
+        MetaParams(schema_pattern="EXASOL", schema_pattern_type="REGEXP_LIKE"),
+    ],
     ids=["no-pattern", "like", "regexp"],
 )
-def test_find_schemas(pattern, pattern_type) -> None:
+def test_find_schemas(meta_params) -> None:
     config = McpServerSettings(
-        schemas=MetaListSettings(
-            enable=True,
-            like_pattern=pattern if pattern_type == "LIKE" else "",
-            regexp_pattern=pattern if pattern_type == "REGEXP_LIKE" else "",
-            name_field="name",
-            comment_field="comment",
-        )
+        schemas=meta_params.schema_settings,
+        tables=MetaListSettings(enable=True),
+        views=MetaListSettings(enable=True),
+        functions=MetaListSettings(enable=True),
+        scripts=MetaListSettings(enable=True),
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_schemas())
-    expected_where_clause = (
-        f"""WHERE local."name" {pattern_type} '{pattern}'""" if pattern else ""
-    )
     expected_query = collapse_spaces(
         f"""
         SELECT
@@ -258,20 +305,29 @@ def test_find_schemas(pattern, pattern_type) -> None:
                 )
             GROUP BY "SCHEMA"
         ) O ON S."SCHEMA_NAME" = O."SCHEMA"
-        {expected_where_clause}
+        {meta_params.schema_based_where_clause}
     """
     )
     assert query == expected_query
 
 
 @pytest.mark.parametrize(
-    ["schema_name", "schema_regex_pattern", "table_regex_pattern"],
+    "meta_params",
     [
-        ("", "", ""),
-        ("EXA_TOOLBOX", "EXA", ""),
-        ("", "EXA", ""),
-        ("", "", "PUB"),
-        ("", "EXA%", "PUB%"),
+        MetaParams(),
+        MetaParams(
+            schema_name="EXA_TOOLBOX",
+            schema_pattern="EXA",
+            schema_pattern_type="REGEXP_LIKE",
+        ),
+        MetaParams(schema_pattern="EXA", schema_pattern_type="REGEXP_LIKE"),
+        MetaParams(obj_name_pattern="PUB", obj_name_pattern_type="REGEXP_LIKE"),
+        MetaParams(
+            schema_pattern="EXA",
+            schema_pattern_type="REGEXP_LIKE",
+            obj_name_pattern="PUB",
+            obj_name_pattern_type="REGEXP_LIKE",
+        ),
     ],
     ids=[
         "no-predicates",
@@ -281,32 +337,14 @@ def test_find_schemas(pattern, pattern_type) -> None:
         "all-patterns",
     ],
 )
-def test_find_tables(schema_name, schema_regex_pattern, table_regex_pattern) -> None:
+def test_find_tables(meta_params) -> None:
     config = McpServerSettings(
-        schemas=MetaListSettings(regexp_pattern=schema_regex_pattern),
-        tables=MetaListSettings(
-            enable=True,
-            regexp_pattern=table_regex_pattern,
-            name_field="name",
-            comment_field="comment",
-        ),
+        schemas=meta_params.schema_settings,
+        tables=meta_params.db_obj_settings,
         views=MetaListSettings(enable=False),
     )
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.find_tables(schema_name))
-    if schema_name:
-        expected_column_where_clause = f"""WHERE "COLUMN_SCHEMA" = '{schema_name}'"""
-    elif schema_regex_pattern:
-        expected_column_where_clause = (
-            f"""WHERE "COLUMN_SCHEMA" REGEXP_LIKE '{schema_regex_pattern}'"""
-        )
-    else:
-        expected_column_where_clause = ""
-    expected_table_where_clause = (
-        f"""WHERE local."name" REGEXP_LIKE '{table_regex_pattern}'"""
-        if table_regex_pattern
-        else ""
-    )
+    query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
     expected_query = collapse_spaces(
         f"""
         WITH C AS (
@@ -323,7 +361,7 @@ def test_find_tables(schema_name, schema_regex_pattern, table_regex_pattern) -> 
                         '"}}'
                     ) AS "OBJ_INFO"
                 FROM SYS."EXA_ALL_COLUMNS"
-                {expected_column_where_clause}
+                {meta_params.column_based_where_clause}
             )
             GROUP BY "SCHEMA", "TABLE"
         )
@@ -336,21 +374,30 @@ def test_find_tables(schema_name, schema_regex_pattern, table_regex_pattern) -> 
         JOIN C ON
             T."TABLE_SCHEMA" = C."SCHEMA" AND
             T."TABLE_NAME" = C."TABLE"
-        {expected_table_where_clause}
+        {meta_params.db_obj_based_where_clause}
     """
     )
     assert query == expected_query
 
 
 @pytest.mark.parametrize(
-    ["schema_name", "schema_like_pattern", "table_like_pattern", "view_like_pattern"],
+    "meta_params",
     [
-        ("", "", "", ""),
-        ("EXA_TOOLBOX", "EXA%", "", ""),
-        ("", "EXA%", "", ""),
-        ("", "", "PUB%", ""),
-        ("", "", "", "AUDITING%"),
-        ("", "EXA%", "PUB%", "AUDITING%"),
+        MetaParams(),
+        MetaParams(
+            schema_name="EXA_TOOLBOX", schema_pattern="EXA%", schema_pattern_type="LIKE"
+        ),
+        MetaParams(schema_pattern="EXA%", schema_pattern_type="LIKE"),
+        MetaParams(obj_name_pattern="PUB%", obj_name_pattern_type="LIKE"),
+        MetaParams(obj2_name_pattern="AUDITING%", obj2_name_pattern_type="LIKE"),
+        MetaParams(
+            schema_pattern="EXA%",
+            schema_pattern_type="LIKE",
+            obj_name_pattern="PUB%",
+            obj_name_pattern_type="LIKE",
+            obj2_name_pattern="AUDITING%",
+            obj2_name_pattern_type="LIKE",
+        ),
     ],
     ids=[
         "no-predicates",
@@ -361,44 +408,14 @@ def test_find_tables(schema_name, schema_regex_pattern, table_regex_pattern) -> 
         "all-patterns",
     ],
 )
-def test_find_tables_and_views(
-    schema_name, schema_like_pattern, table_like_pattern, view_like_pattern
-) -> None:
+def test_find_tables_and_views(meta_params) -> None:
     config = McpServerSettings(
-        schemas=MetaListSettings(like_pattern=schema_like_pattern),
-        tables=MetaListSettings(
-            enable=True,
-            like_pattern=table_like_pattern,
-            name_field="name",
-            comment_field="comment",
-        ),
-        views=MetaListSettings(
-            enable=True,
-            like_pattern=view_like_pattern,
-            name_field="name",
-            comment_field="comment",
-        ),
+        schemas=meta_params.schema_settings,
+        tables=meta_params.db_obj_settings,
+        views=meta_params.db_obj2_settings,
     )
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.find_tables(schema_name))
-    if schema_name:
-        expected_column_where_clause = f"""WHERE "COLUMN_SCHEMA" = '{schema_name}'"""
-    elif schema_like_pattern:
-        expected_column_where_clause = (
-            f"""WHERE "COLUMN_SCHEMA" LIKE '{schema_like_pattern}'"""
-        )
-    else:
-        expected_column_where_clause = ""
-    expected_table_where_clause = (
-        f"""WHERE local."name" LIKE '{table_like_pattern}'"""
-        if table_like_pattern
-        else ""
-    )
-    expected_view_where_clause = (
-        f"""WHERE local."name" LIKE '{view_like_pattern}'"""
-        if view_like_pattern
-        else ""
-    )
+    query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
     expected_query = collapse_spaces(
         f"""
         WITH C AS (
@@ -415,7 +432,7 @@ def test_find_tables_and_views(
                         '"}}'
                     ) AS "OBJ_INFO"
                 FROM SYS."EXA_ALL_COLUMNS"
-                {expected_column_where_clause}
+                {meta_params.column_based_where_clause}
             )
             GROUP BY "SCHEMA", "TABLE"
         )
@@ -428,7 +445,7 @@ def test_find_tables_and_views(
         JOIN C ON
             T."TABLE_SCHEMA" = C."SCHEMA" AND
             T."TABLE_NAME" = C."TABLE"
-        {expected_table_where_clause}
+        {meta_params.db_obj_based_where_clause}
         UNION
         SELECT
             T."VIEW_NAME" AS "name",
@@ -439,7 +456,7 @@ def test_find_tables_and_views(
         JOIN C ON
             T."VIEW_SCHEMA" = C."SCHEMA" AND
             T."VIEW_NAME" = C."TABLE"
-        {expected_view_where_clause}
+        {meta_params.db_obj2_based_where_clause}
     """
     )
     assert query == expected_query
