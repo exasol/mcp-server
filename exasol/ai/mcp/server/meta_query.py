@@ -133,7 +133,7 @@ class ExasolMetaQuery:
         ]
         predicates = [conf.select_predicate]
         if meta_type == MetaType.SCRIPT:
-            predicates.append(""""SCRIPT_TYPE" = 'UDF'""")
+            predicates.append(""" "SCRIPT_TYPE" = 'UDF' """)
         if meta_type != MetaType.SCHEMA:
             schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
@@ -179,6 +179,7 @@ class ExasolMetaQuery:
                 (MetaType.FUNCTION, ""),
                 (MetaType.SCRIPT, """"SCRIPT_TYPE"='UDF'"""),
             ]
+            if self._meta_conf[meta_type].enable
         )
         predicate = self._config.schemas.select_predicate
         return dedent(
