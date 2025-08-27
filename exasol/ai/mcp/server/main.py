@@ -3,10 +3,10 @@ import os
 import re
 
 import pyexasol
-import spacy.util
 from pydantic import ValidationError
 from pyexasol import ExaConnection
 from spacy.cli.download import download as spacy_download
+from spacy.util import is_package
 
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -217,7 +217,7 @@ def install_language_model(model_name) -> None:
     """
     Installs the specified spaCy language model if it's not installed yet.
     """
-    if not spacy.util.is_package(model_name):
+    if not is_package(model_name):
         spacy_download(model_name)
 
 

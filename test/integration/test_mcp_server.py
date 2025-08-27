@@ -30,8 +30,6 @@ from exasol.ai.mcp.server.server_settings import (
     MetaParameterSettings,
 )
 
-SPACY_PIPELINE = "en_core_web_md"
-
 
 async def _run_tool_async(
     connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
@@ -237,13 +235,13 @@ def test_list_schemas(
 
 @pytest.mark.parametrize("use_model", [False, True], ids=["no-model", "with-model"])
 def test_find_schemas(
-    pyexasol_connection, setup_database, use_model, db_schemas
+    pyexasol_connection, setup_database, spacy_pipeline, use_model, db_schemas
 ) -> None:
     config = McpServerSettings(
         schemas=MetaListSettings(
             enable=True, name_field="name", comment_field="comment"
         ),
-        language_model=SPACY_PIPELINE if use_model else "",
+        language_model=spacy_pipeline if use_model else "",
     )
     for schema in db_schemas:
         # Will test on new schemas only, where the result is more reliable.
@@ -362,6 +360,7 @@ def test_list_tables(
 def test_find_tables(
     pyexasol_connection,
     setup_database,
+    spacy_pipeline,
     db_schemas,
     db_tables,
     db_views,
@@ -390,7 +389,7 @@ def test_find_tables(
                 comment_field="comment",
                 schema_field="schema",
             ),
-            language_model=SPACY_PIPELINE if use_model else "",
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -470,6 +469,7 @@ def test_list_functions(
 def test_find_functions(
     pyexasol_connection,
     setup_database,
+    spacy_pipeline,
     db_schemas,
     db_functions,
     use_model,
@@ -491,7 +491,7 @@ def test_find_functions(
                 comment_field="comment",
                 schema_field="schema",
             ),
-            language_model=SPACY_PIPELINE if use_model else "",
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -570,6 +570,7 @@ def test_list_scripts(
 def test_find_scripts(
     pyexasol_connection,
     setup_database,
+    spacy_pipeline,
     db_schemas,
     db_scripts,
     use_model,
@@ -591,7 +592,7 @@ def test_find_scripts(
                 comment_field="comment",
                 schema_field="schema",
             ),
-            language_model=SPACY_PIPELINE if use_model else "",
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
