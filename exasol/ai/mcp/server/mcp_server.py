@@ -14,6 +14,7 @@ from sqlglot import (
 )
 from sqlglot.errors import ParseError
 
+from exasol.ai.mcp.server.keyword_search import keyword_filter
 from exasol.ai.mcp.server.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
@@ -31,7 +32,6 @@ from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
 )
-from exasol.ai.mcp.server.utils import keyword_filter
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
@@ -127,7 +127,9 @@ class ExasolMCPServer(FastMCP):
         """
         result = self.connection.meta.execute_snapshot(query=query).fetchall()
         if keywords:
-            result = keyword_filter(result, keywords)
+            result = keyword_filter(
+                result, keywords, model_name=self.config.language_model
+            )
         return ExaDbResult(remove_info_column(result))
 
     def list_schemas(self) -> ExaDbResult:

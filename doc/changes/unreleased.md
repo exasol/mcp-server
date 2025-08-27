@@ -4,6 +4,7 @@
 
 * #43: Modified `find_schemas` and `find_tables`, adding extra information about child objects.
 * #45: Added object schema to the output of meta queries.
+* #48: Improved keyword search.
 
 ## Refactoring
 
