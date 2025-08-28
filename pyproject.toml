@@ -29,7 +29,7 @@ fastmcp = "^2.10.4"
 pyexasol = "^0.27.0"
 sqlglot = "^27.2.0"
 spacy = "<3.8.7"    # v3.8.7 caused ModuleNotFoundError: No module named 'spacy.pipeline.factories'
-pip = "^25.2"       # This is to let spaCy download and istall a model in a uv controlled environment
+pip = "^25.2"       # This is to let spaCy download and install a model in a uv controlled environment
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
