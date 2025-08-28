@@ -63,7 +63,7 @@ def extract_words(sentences: Iterable[str], model_name: str | None = None) -> li
     """
     Extracts words from all texts in the provided collection.
     All words in camel case or snake case get split into multiple words.
-    All extracted words returned lowercased.
+    All extracted words are returned lowercased.
     If a spaCy model name is provided the words get lemmatized.
     """
     if model_name:
