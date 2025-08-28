@@ -157,21 +157,6 @@ limited to tables with certain name pattern.
 }
 ```
 
-### Set language model
-
-A language model can help the tools execute more precise search of requested database
-object. The installed model should support the language of communication with LLM
-and the language used for naming and documenting the database objects. The server uses
-[spaCy](https://spacy.io/) NLP. To choose the right model, please check the list
-of [supported languages and models](https://spacy.io/usage/models).
-Below is an example of configuration settings that enables an English model.
-
-```json
-{
-  "language_model": "en_core_web_sm"
-}
-```
-
 ### Add the server configuration to the MCP Client configuration
 
 The customised settings can be specified directly in the MCP Client configuration file

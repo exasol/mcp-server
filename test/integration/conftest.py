@@ -13,16 +13,7 @@ from typing import Any
 
 import pytest
 
-from exasol.ai.mcp.server.main import install_language_model
 from exasol.ai.mcp.server.utils import sql_text_value
-
-SPACY_PIPELINE = "en_core_web_sm"
-
-
-@pytest.fixture(scope="session")
-def spacy_pipeline() -> str:
-    install_language_model(SPACY_PIPELINE)
-    return SPACY_PIPELINE
 
 
 def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
