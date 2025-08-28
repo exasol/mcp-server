@@ -1,6 +1,6 @@
 [project]
 name = "exasol-mcp-server"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.10,<3.14"    # Currently excluding 3.14 due to spaCy restrictions
 description = "Exasol MCP Server"
 authors = [
