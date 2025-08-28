@@ -5,6 +5,8 @@ import re
 import pyexasol
 from pydantic import ValidationError
 from pyexasol import ExaConnection
+from spacy.cli.download import download as spacy_download
+from spacy.util import is_package
 
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -211,6 +213,14 @@ def get_mcp_settings() -> McpServerSettings:
         raise ValueError("Invalid MCP Server configuration settings.") from config_error
 
 
+def install_language_model(model_name) -> None:
+    """
+    Installs the specified spaCy language model if it's not installed yet.
+    """
+    if not is_package(model_name):
+        spacy_download(model_name)
+
+
 def create_mcp_server(
     connection: ExaConnection, config: McpServerSettings
 ) -> ExasolMCPServer:
@@ -230,6 +240,9 @@ def main():
     user = os.environ[ENV_USER]
     password = os.environ[ENV_PASSWORD]
     mcp_settings = get_mcp_settings()
+
+    if mcp_settings.language_model:
+        install_language_model(mcp_settings.language_model)
 
     connection = pyexasol.connect(
         dsn=dsn, user=user, password=password, fetch_dict=True, compression=True

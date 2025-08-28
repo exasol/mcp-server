@@ -233,11 +233,15 @@ def test_list_schemas(
             assert expected_json.result[0] in result_json.result
 
 
-def test_find_schemas(pyexasol_connection, setup_database, db_schemas) -> None:
+@pytest.mark.parametrize("use_model", [False, True], ids=["no-model", "with-model"])
+def test_find_schemas(
+    pyexasol_connection, setup_database, spacy_pipeline, use_model, db_schemas
+) -> None:
     config = McpServerSettings(
         schemas=MetaListSettings(
             enable=True, name_field="name", comment_field="comment"
-        )
+        ),
+        language_model=spacy_pipeline if use_model else "",
     )
     for schema in db_schemas:
         # Will test on new schemas only, where the result is more reliable.
@@ -335,16 +339,32 @@ def test_list_tables(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
+    ["use_model", "use_like", "use_regexp"],
+    [
+        (False, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, False, False),
+        (True, True, False),
+        (True, False, True),
+    ],
+    ids=[
+        "no-model-all",
+        "no-model-like",
+        "no-model-regexp",
+        "with-model-all",
+        "with-like",
+        "with-regexp",
+    ],
 )
 def test_find_tables(
     pyexasol_connection,
     setup_database,
+    spacy_pipeline,
     db_schemas,
     db_tables,
     db_views,
+    use_model,
     use_like,
     use_regexp,
 ) -> None:
@@ -369,6 +389,7 @@ def test_find_tables(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -427,12 +448,33 @@ def test_list_functions(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
+    ["use_model", "use_like", "use_regexp"],
+    [
+        (False, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, False, False),
+        (True, True, False),
+        (True, False, True),
+    ],
+    ids=[
+        "no-model-all",
+        "no-model-like",
+        "no-model-regexp",
+        "with-model-all",
+        "with-like",
+        "with-regexp",
+    ],
 )
 def test_find_functions(
-    pyexasol_connection, setup_database, db_schemas, db_functions, use_like, use_regexp
+    pyexasol_connection,
+    setup_database,
+    spacy_pipeline,
+    db_schemas,
+    db_functions,
+    use_model,
+    use_like,
+    use_regexp,
 ) -> None:
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
@@ -449,6 +491,7 @@ def test_find_functions(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -506,12 +549,33 @@ def test_list_scripts(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
+    ["use_model", "use_like", "use_regexp"],
+    [
+        (False, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, False, False),
+        (True, True, False),
+        (True, False, True),
+    ],
+    ids=[
+        "no-model-all",
+        "no-model-like",
+        "no-model-regexp",
+        "with-model-all",
+        "with-like",
+        "with-regexp",
+    ],
 )
 def test_find_scripts(
-    pyexasol_connection, setup_database, db_schemas, db_scripts, use_like, use_regexp
+    pyexasol_connection,
+    setup_database,
+    spacy_pipeline,
+    db_schemas,
+    db_scripts,
+    use_model,
+    use_like,
+    use_regexp,
 ) -> None:
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
@@ -528,6 +592,7 @@ def test_find_scripts(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language_model=spacy_pipeline if use_model else "",
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.

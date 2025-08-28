@@ -106,6 +106,8 @@ In the above example the server is configured to run using default settings.
 The way the server runs can be fine-tuned by providing customised settings in
 json format.
 
+### Enable SQL queries
+
 Most importantly, the server configuration specifies if reading the data using SQL
 queries is enabled. Note that reading is disabled by default. To enable the data
 reading, set the `enable_read_query` property to true:
@@ -114,6 +116,8 @@ reading, set the `enable_read_query` property to true:
   "enable_read_query": true
 }
 ```
+
+### Set DB object listing filters
 
 The server configuration settings can also be used to enable/disable or filter the
 listing of a particular type of database objects. Similar settings are defined for
@@ -153,6 +157,23 @@ limited to tables with certain name pattern.
 }
 ```
 
+### Set language model
+
+A language model can help the tools execute more precise search of requested database
+object. The installed model should support the language of communication with LLM
+and the language used for naming and documenting the database objects. The server uses
+[spaCy](https://spacy.io/) NLP. To choose the right model, please check the list
+of [supported languages and models](https://spacy.io/usage/models).
+Below is an example of configuration settings that enables an English model.
+
+```json
+{
+  "language_model": "en_core_web_sm"
+}
+```
+
+### Add the server configuration to the MCP Client configuration
+
 The customised settings can be specified directly in the MCP Client configuration file
 using another environment variable - `EXA_MCP_SETTINGS`:
 ```json
@@ -180,6 +201,8 @@ Alternatively, the settings can be written in a json file. In this case, the
   }
 }
 ```
+
+### Default server settings
 
 The following json shows the default settings.
 ```json
@@ -209,7 +232,8 @@ The following json shows the default settings.
     "like_pattern": "",
     "regexp_pattern": ""
   },
-  "enable_read_query": false
+  "enable_read_query": false,
+  "language_model": ""
 }
 ```
 The default values do not need to be repeated in the customised settings.

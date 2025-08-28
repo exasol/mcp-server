@@ -211,4 +211,10 @@ class McpServerSettings(BaseModel):
     parameters: MetaParameterSettings = MetaParameterSettings(
         name_field="parameter_name", comment_field="function_comment"
     )
+
     enable_read_query: bool = False
+
+    language_model: str = ""
+    """
+    An optional spaCy language model, e.g. 'en_core_web_sm'
+    """
