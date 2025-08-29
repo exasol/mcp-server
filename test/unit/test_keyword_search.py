@@ -36,6 +36,25 @@ def test_extract_words():
     assert words == expected_words
 
 
+def test_extract_words_english():
+    input_sentences = [
+        "I've got a BagOfApples",
+        "They are from MY_ALLOTMENT, which I got last year.",
+    ]
+    expected_words = [
+        "ve",
+        "got",
+        "bag",
+        "apples",
+        "allotment",
+        "got",
+        "last",
+        "year",
+    ]
+    words = extract_words(input_sentences, "english")
+    assert words == expected_words
+
+
 def test_get_match_scores():
     corpus = [
         ["apples", "bananas", "apples", "cherries", "apples"],

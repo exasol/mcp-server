@@ -233,11 +233,15 @@ def test_list_schemas(
             assert expected_json.result[0] in result_json.result
 
 
-def test_find_schemas(pyexasol_connection, setup_database, db_schemas) -> None:
+@pytest.mark.parametrize("language", ["", "english"])
+def test_find_schemas(
+    pyexasol_connection, setup_database, db_schemas, language
+) -> None:
     config = McpServerSettings(
         schemas=MetaListSettings(
             enable=True, name_field="name", comment_field="comment"
         ),
+        language=language,
     )
     for schema in db_schemas:
         # Will test on new schemas only, where the result is more reliable.
@@ -335,13 +339,16 @@ def test_list_tables(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp"],
     [
-        (False, False),
-        (True, False),
-        (False, True),
+        ("", False, False),
+        ("", True, False),
+        ("", False, True),
+        ("english", False, False),
+        ("english", True, False),
+        ("english", False, True),
     ],
-    ids=["all", "like", "model-regexp"],
+    ids=["all", "like", "model-regexp", "eng-all", "eng-like", "eng-regexp"],
 )
 def test_find_tables(
     pyexasol_connection,
@@ -349,6 +356,7 @@ def test_find_tables(
     db_schemas,
     db_tables,
     db_views,
+    language,
     use_like,
     use_regexp,
 ) -> None:
@@ -373,6 +381,7 @@ def test_find_tables(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language=language,
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -431,19 +440,23 @@ def test_list_functions(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp"],
     [
-        (False, False),
-        (True, False),
-        (False, True),
+        ("", False, False),
+        ("", True, False),
+        ("", False, True),
+        ("english", False, False),
+        ("english", True, False),
+        ("english", False, True),
     ],
-    ids=["all", "like", "regexp"],
+    ids=["all", "like", "regexp", "eng-all", "eng-like", "eng-regexp"],
 )
 def test_find_functions(
     pyexasol_connection,
     setup_database,
     db_schemas,
     db_functions,
+    language,
     use_like,
     use_regexp,
 ) -> None:
@@ -462,6 +475,7 @@ def test_find_functions(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language=language,
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.
@@ -519,19 +533,23 @@ def test_list_scripts(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp"],
     [
-        (False, False),
-        (True, False),
-        (False, True),
+        ("", False, False),
+        ("", True, False),
+        ("", False, True),
+        ("english", False, False),
+        ("english", True, False),
+        ("english", False, True),
     ],
-    ids=["all", "like", "regexp"],
+    ids=["all", "like", "regexp", "eng-all", "eng-like", "eng-regexp"],
 )
 def test_find_scripts(
     pyexasol_connection,
     setup_database,
     db_schemas,
     db_scripts,
+    language,
     use_like,
     use_regexp,
 ) -> None:
@@ -550,6 +568,7 @@ def test_find_scripts(
                 comment_field="comment",
                 schema_field="schema",
             ),
+            language=language,
         )
         # If the schema visibility is restricted to one schema we will not
         # specify the schema name in the call.

@@ -213,3 +213,9 @@ class McpServerSettings(BaseModel):
     )
 
     enable_read_query: bool = False
+
+    language: str = ""
+    """
+    An optional language of communication with the LLM, e.g. 'english'. It must be
+    the same language that was used for naming and documenting the database objects.
+    """
