@@ -5,8 +5,6 @@ import re
 import pyexasol
 from pydantic import ValidationError
 from pyexasol import ExaConnection
-from spacy.cli.download import download as spacy_download
-from spacy.util import is_package
 
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -32,9 +30,10 @@ def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_schemas,
         description=(
             "The tool finds schemas in the Exasol Database by looking for the "
-            "specified keywords in their names and comments. "
-            "For each schema it finds, it provides the name and an optional "
-            "comment."
+            "specified keywords in their names and comments. The search operates "
+            "on exact lexical matches. Including common inflections of the keywords "
+            "may improve the recall. "
+            "For each schema it finds, it provides the name and an optional comment."
         ),
     )
 
@@ -55,8 +54,10 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_tables,
         description=(
             "The tool finds tables and views in the Exasol Database by looking "
-            "for the specified keywords in their names and comments. "
-            "For each table or view it finds, it provides the name, the schema, "
+            "for the specified keywords in their names and comments. The search "
+            "operates on exact lexical matches. Including common inflections of "
+            "the keywords may improve the recall. "
+            "For each table or view the tool finds, it provides the name, the schema, "
             "and an optional comment. An optional `schema_name` argument allows "
             "restricting the search to tables and views in the specified schema."
         ),
@@ -79,10 +80,12 @@ def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_functions,
         description=(
             "The tool finds functions in the Exasol Database by looking for "
-            "the specified keywords in their names and comments. For each "
-            "function it finds, it provides the name, the schema, and an optional "
-            "comment. An optional `schema_name` argument allows restricting the "
-            "search to functions in the specified schema."
+            "the specified keywords in their names and comments. The search operates "
+            "on exact lexical matches. Including common inflections of the keywords "
+            "may improve the recall. "
+            "For each function the tool finds, it provides the name, the schema,"
+            "and an optional comment. An optional `schema_name` argument allows "
+            "restricting the search to functions in the specified schema."
         ),
     )
 
@@ -102,11 +105,13 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_scripts,
         description=(
-            "The tool finds the user defined functions (UDF) in the Exasol "
-            "Database by looking for the specified keywords in their names and "
-            "comments. For each UDF it finds, it provides the name, the schema, "
-            "and an optional comment. An optional `schema_name` argument allows "
-            "restricting the search to UDFs in the specified schema."
+            "The tool finds the user defined functions (UDF) in the Exasol Database "
+            "by looking for the specified keywords in their names and comments. The "
+            "search operates on exact lexical matches. Including common inflections of "
+            "the keywords may improve the recall. "
+            "For each UDF the tool finds, it provides the name, the schema, and an "
+            "optional comment. An optional `schema_name` argument allows restricting "
+            "the search to UDFs in the specified schema."
         ),
     )
 
@@ -213,14 +218,6 @@ def get_mcp_settings() -> McpServerSettings:
         raise ValueError("Invalid MCP Server configuration settings.") from config_error
 
 
-def install_language_model(model_name) -> None:
-    """
-    Installs the specified spaCy language model if it's not installed yet.
-    """
-    if not is_package(model_name):
-        spacy_download(model_name)
-
-
 def create_mcp_server(
     connection: ExaConnection, config: McpServerSettings
 ) -> ExasolMCPServer:
@@ -240,9 +237,6 @@ def main():
     user = os.environ[ENV_USER]
     password = os.environ[ENV_PASSWORD]
     mcp_settings = get_mcp_settings()
-
-    if mcp_settings.language_model:
-        install_language_model(mcp_settings.language_model)
 
     connection = pyexasol.connect(
         dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
