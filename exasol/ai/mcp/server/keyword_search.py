@@ -10,6 +10,7 @@ from math import log
 from typing import Any
 
 import numpy as np
+import stopwords
 
 
 @cache
@@ -39,13 +40,18 @@ def _extract_raw_words(sentences: Iterable[str]) -> Generator[None, None, str]:
             yield match.group().lower()
 
 
-def extract_words(sentences: Iterable[str], model_name: str | None = None) -> list[str]:
+def extract_words(sentences: Iterable[str], language: str | None = None) -> list[str]:
     """
     Extracts words from all texts in the provided collection.
     All words in camel case or snake case get split into multiple words.
     All extracted words are returned lowercased.
+    If the language is specified, a stopwords filter is applied.
     """
-    return list(_extract_raw_words(sentences))
+    words = list(_extract_raw_words(sentences))
+    if language:
+        # An error will be raised if the language is misspelled or not supported.
+        return stopwords.clean(words, language.lower(), safe=False)
+    return words
 
 
 def get_match_scores(corpus: list[list[str]], keywords: list[str]) -> list[float]:
@@ -137,7 +143,9 @@ def top_score_indices(scores: list[float]) -> list[int]:
 
 
 def keyword_filter(
-    input_rows: list[dict[str, Any]], key_phrases: list[str]
+    input_rows: list[dict[str, Any]],
+    key_phrases: list[str],
+    language: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     For each row in the input list, computes the keyword matching score. Returns the
@@ -149,10 +157,13 @@ def keyword_filter(
             list of input rows, formatted as {column_name: column_value} dictionaries.
         key_phrases:
             list of key_phrases.
+        language:
+            The language, e.g. german, the texts in the `input_rows` and the key phrases
+            are written in.
     """
-    keywords = extract_words(key_phrases)
+    keywords = extract_words(key_phrases, language)
     corpus = [
-        extract_words(filter(lambda v: isinstance(v, str), di.values()))
+        extract_words(filter(lambda v: isinstance(v, str), di.values()), language)
         for di in input_rows
     ]
     scores = get_match_scores(corpus, keywords)

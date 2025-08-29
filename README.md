@@ -157,6 +157,20 @@ limited to tables with certain name pattern.
 }
 ```
 
+### Set the language
+
+The language, if specified, can help the tools execute more precise search of requested
+database object. This should be the language of communication with the LLM and also the
+language used for naming and documenting the database objects. The language must be set
+to its english name, e.g. "spanish", not "español".
+Below is an example of configuration settings that sets the language to English.
+
+```json
+{
+  "language": "english"
+}
+```
+
 ### Add the server configuration to the MCP Client configuration
 
 The customised settings can be specified directly in the MCP Client configuration file
@@ -218,7 +232,7 @@ The following json shows the default settings.
     "regexp_pattern": ""
   },
   "enable_read_query": false,
-  "language_model": ""
+  "language": ""
 }
 ```
 The default values do not need to be repeated in the customised settings.

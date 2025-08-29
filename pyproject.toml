@@ -29,6 +29,7 @@ fastmcp = "^2.10.4"
 pyexasol = "^0.27.0"
 sqlglot = "^27.2.0"
 numpy = ">=2,<=2.2.0"
+stopwords = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
