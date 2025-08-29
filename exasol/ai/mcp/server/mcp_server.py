@@ -127,7 +127,7 @@ class ExasolMCPServer(FastMCP):
         """
         result = self.connection.meta.execute_snapshot(query=query).fetchall()
         if keywords:
-            result = keyword_filter(result, keywords)
+            result = keyword_filter(result, keywords, language=self.config.language)
         return ExaDbResult(remove_info_column(result))
 
     def list_schemas(self) -> ExaDbResult:

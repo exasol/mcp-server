@@ -4186,6 +4186,18 @@ files = [
 ]
 
 [[package]]
+name = "stopwords"
+version = "1.0.1"
+description = "Stopwords filter for 42 languages"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "stopwords-1.0.1-py2.py3-none-any.whl", hash = "sha256:f1db1d74c8feef64da0ecf4848bddcf9f29276429a2880bbf60c3f513152c2ad"},
+    {file = "stopwords-1.0.1.tar.gz", hash = "sha256:50c769db2e5907a4616a973b234efaece3704e3698a7b2ec68bd1ac449de3ce4"},
+]
+
+[[package]]
 name = "tenacity"
 version = "8.5.0"
 description = "Retry code until it succeeds"
@@ -4583,4 +4595,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<=3.13"
-content-hash = "33aaf95743a91ec03b487fc189f4a8d9c1ca62eeb9d6e6c0f9f4ca4d1ae54c0c"
+content-hash = "8be8565b979087f359e4549351d1368f04ed9c670fed0e1a6ccbb5f88e707561"

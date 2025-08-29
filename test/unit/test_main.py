@@ -35,7 +35,7 @@ def settings_json() -> dict[str, Any]:
         "schemas": {"enable": True, "like_pattern": "my_schema"},
         "tables": {"enable": True, "like_pattern": "my_tables%"},
         "views": {"enable": False},
-        "language_model": "my_language_model",
+        "language": "english",
     }
 
 
