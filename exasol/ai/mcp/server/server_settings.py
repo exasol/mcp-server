@@ -213,8 +213,3 @@ class McpServerSettings(BaseModel):
     )
 
     enable_read_query: bool = False
-
-    language_model: str = ""
-    """
-    An optional spaCy language model, e.g. 'en_core_web_sm'
-    """

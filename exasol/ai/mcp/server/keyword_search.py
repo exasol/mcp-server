@@ -10,7 +10,6 @@ from math import log
 from typing import Any
 
 import numpy as np
-import spacy
 
 
 @cache
@@ -32,25 +31,6 @@ def _get_word_extract_pattern() -> re.Pattern:
     return re.compile(pattern, flags=re.MULTILINE | re.UNICODE | re.IGNORECASE)
 
 
-@cache
-def _get_nlp(model_name: str):
-    return spacy.load(
-        model_name, enable=["tok2vec", "tagger", "attribute_ruler", "lemmatizer"]
-    )
-
-
-def _extract_lemmatized_words(
-    sentences: Iterable[str], model_name: str
-) -> Generator[None, None, str]:
-    nlp = _get_nlp(model_name)
-    for sentence in sentences:
-        text = _get_word_split_pattern().sub(" ", sentence)
-        doc = nlp(text)
-        for token in doc:
-            if not token.is_punct and not token.is_stop:
-                yield token.lemma_.lower()
-
-
 def _extract_raw_words(sentences: Iterable[str]) -> Generator[None, None, str]:
     for sentence in sentences:
         for match in _get_word_extract_pattern().finditer(
@@ -64,10 +44,7 @@ def extract_words(sentences: Iterable[str], model_name: str | None = None) -> li
     Extracts words from all texts in the provided collection.
     All words in camel case or snake case get split into multiple words.
     All extracted words are returned lowercased.
-    If a spaCy model name is provided the words get lemmatized.
     """
-    if model_name:
-        return list(_extract_lemmatized_words(sentences, model_name))
     return list(_extract_raw_words(sentences))
 
 
@@ -160,9 +137,7 @@ def top_score_indices(scores: list[float]) -> list[int]:
 
 
 def keyword_filter(
-    input_rows: list[dict[str, Any]],
-    key_phrases: list[str],
-    model_name: str | None = None,
+    input_rows: list[dict[str, Any]], key_phrases: list[str]
 ) -> list[dict[str, Any]]:
     """
     For each row in the input list, computes the keyword matching score. Returns the
@@ -174,14 +149,10 @@ def keyword_filter(
             list of input rows, formatted as {column_name: column_value} dictionaries.
         key_phrases:
             list of key_phrases.
-        model_name:
-            An optional name of the spaCy model to use. If provided, will be used for
-            extracting lemmatized tokens from a text. Otherwise, words will be extracted
-            using a regexp pattern.
     """
-    keywords = extract_words(key_phrases, model_name)
+    keywords = extract_words(key_phrases)
     corpus = [
-        extract_words(filter(lambda v: isinstance(v, str), di.values()), model_name)
+        extract_words(filter(lambda v: isinstance(v, str), di.values()))
         for di in input_rows
     ]
     scores = get_match_scores(corpus, keywords)

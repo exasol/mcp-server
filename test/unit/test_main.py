@@ -82,9 +82,8 @@ def test_get_mcp_settings_no_file(clear_settings, tmp_path) -> None:
 
 @patch("pyexasol.connect")
 @patch("exasol.ai.mcp.server.main.create_mcp_server")
-@patch("exasol.ai.mcp.server.main.install_language_model")
 def test_main_with_json_str(
-    mock_install_model, mock_create_server, mock_connect, clear_settings, settings_json
+    mock_create_server, mock_connect, clear_settings, settings_json
 ) -> None:
     mock_connection = create_autospec(ExaConnection)
     mock_connect.return_value = mock_connection
@@ -103,4 +102,3 @@ def test_main_with_json_str(
         mock_connection, McpServerSettings.model_validate(settings_json)
     )
     mock_server.run.assert_called_once()
-    mock_install_model.assert_called_once_with(settings_json["language_model"])

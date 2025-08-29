@@ -1,7 +1,7 @@
 [project]
 name = "exasol-mcp-server"
 version = "0.6.0"
-requires-python = ">=3.10,<3.14"    # Currently excluding 3.14 due to spaCy restrictions
+requires-python = ">=3.10,<=3.13"   # Restriction is due to numpy
 description = "Exasol MCP Server"
 authors = [
     {name = "Mikhail Beck", email = "mikhail.beck@exasol.com"},
@@ -28,8 +28,7 @@ homepage = "https://github.com/exasol/mcp-server"
 fastmcp = "^2.10.4"
 pyexasol = "^0.27.0"
 sqlglot = "^27.2.0"
-spacy = "<3.8.7"    # v3.8.7 caused ModuleNotFoundError: No module named 'spacy.pipeline.factories'
-pip = "^25.2"       # This is to let spaCy download and install a model in a uv controlled environment
+numpy = ">=2,<=2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
