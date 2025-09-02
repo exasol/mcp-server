@@ -247,6 +247,20 @@ def test_get_schema_metadata(meta_params):
     assert query == expected_query
 
 
+def test_get_object_metadata() -> str:
+    query = collapse_spaces(
+        ExasolMetaQuery.get_object_metadata(MetaType.FUNCTION, "my_schema", "my_table")
+    )
+    expected_query = collapse_spaces(
+        f"""
+        SELECT * FROM SYS.EXA_ALL_FUNCTIONS
+        WHERE "FUNCTION_SCHEMA" = 'my_schema' AND
+            "FUNCTION_NAME" = 'my_table'
+        """
+    )
+    assert query == expected_query
+
+
 @pytest.mark.parametrize(
     "meta_params",
     [

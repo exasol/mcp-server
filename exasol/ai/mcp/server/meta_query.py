@@ -194,6 +194,27 @@ class ExasolMetaQuery:
         )
         return query.sql(dialect="exasol", identify=True)
 
+    @staticmethod
+    def get_object_metadata(
+        meta_type: MetaType, schema_name: str, obj_name: str
+    ) -> str:
+        """
+        Builds a query requesting metadata for a given database object.
+        """
+        meta_name = meta_type.value
+        query = (
+            exp.Select()
+            .select(exp.Star())
+            .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
+            .where(
+                exp.and_(
+                    exp.column(f"{meta_name}_SCHEMA").eq(schema_name),
+                    exp.column(f"{meta_name}_NAME").eq(obj_name),
+                )
+            )
+        )
+        return query.sql(dialect="exasol", identify=True)
+
     @cache
     def find_schemas(self) -> str:
         """

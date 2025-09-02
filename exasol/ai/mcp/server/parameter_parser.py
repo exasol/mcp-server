@@ -5,9 +5,12 @@ from abc import (
 )
 from typing import Any
 
-import sqlglot.expressions as exp
 from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.meta_query import (
+    ExasolMetaQuery,
+    MetaType,
+)
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
@@ -106,28 +109,10 @@ class ParameterParser(ABC):
     def format_return_type(self, param: str) -> str | dict[str, str]:
         return {self.conf.type_field: param}
 
+    @abstractmethod
     def get_func_query(self, schema_name: str, func_name: str) -> str:
         """
         Builds a query requesting metadata for a given function or script.
-        """
-        query = (
-            exp.Select()
-            .select(exp.Star())
-            .from_(exp.Table(this=f"EXA_ALL_{self.meta_name}S", db="SYS"))
-            .where(
-                exp.and_(
-                    exp.column(f"{self.meta_name}_SCHEMA").eq(schema_name),
-                    exp.column(f"{self.meta_name}_NAME").eq(func_name),
-                )
-            )
-        )
-        return query.sql(dialect="exasol", identify=True)
-
-    @property
-    @abstractmethod
-    def meta_name(self) -> str:
-        """
-        FUNCTION or SCRIPT.
         """
 
     @abstractmethod
@@ -154,9 +139,10 @@ class FuncParameterParser(ParameterParser):
         super().__init__(connection, conf)
         self._func_pattern: re.Pattern | None = None
 
-    @property
-    def meta_name(self) -> str:
-        return "FUNCTION"
+    def get_func_query(self, schema_name: str, func_name: str) -> str:
+        return ExasolMetaQuery.get_object_metadata(
+            MetaType.FUNCTION, schema_name, func_name
+        )
 
     @property
     def func_pattern(self) -> re.Pattern:
@@ -204,9 +190,10 @@ class ScriptParameterParser(ParameterParser):
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
 
-    @property
-    def meta_name(self) -> str:
-        return "SCRIPT"
+    def get_func_query(self, schema_name: str, func_name: str) -> str:
+        return ExasolMetaQuery.get_object_metadata(
+            MetaType.SCRIPT, schema_name, func_name
+        )
 
     def _udf_pattern(self, emits: bool) -> re.Pattern:
         """Compiles a pattern for parsing a UDF script."""
