@@ -1,17 +1,23 @@
+import re
 from enum import Enum
 from functools import cache
-from textwrap import dedent
-from typing import Any
+
+import sqlglot.expressions as exp
 
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
-from exasol.ai.mcp.server.utils import sql_text_value
 
 INFO_COLUMN = "SUPPORT_INFO"
 """
 Column with additional information, to be used for filtering.
+"""
+
+GROUP_CONCAT = "GROUP_CONCAT_"
+"""
+A surrogate name for the GROUP_CONCAT function, to be replaced with "GROUP_CONCAT"
+in the syntax correction.
 """
 
 
@@ -24,31 +30,44 @@ class MetaType(Enum):
     COLUMN = "COLUMN"
 
 
-def _where_clause(*predicates) -> str:
-    condition = " AND ".join(filter(bool, predicates))
-    if condition:
-        return f"WHERE {condition}"
-    return ""
+@cache
+def _get_group_concat_pattern() -> re.Pattern:
+    return re.compile(
+        rf'{GROUP_CONCAT}\(\s*((?:DISTINCT)?\s+"\w+"),?(\s+ORDER\sBY\s+"\w+")?\s*\)'
+    )
 
 
-def _get_meta_predicates(column: str, conf: MetaListSettings) -> list[str]:
+def _fix_group_concat(query_sql: str, separator: str | None = None) -> str:
+    """
+    Corrects the GROUP_CONCAT syntax, as the Exasol syntax is not yet supported.
+    """
+    pattern = _get_group_concat_pattern()
+    repl_separator = f" SEPARATOR '{separator}'" if separator else ""
+    return pattern.sub(rf"GROUP_CONCAT(\1\2{repl_separator})", query_sql)
+
+
+def _get_meta_predicates(column: str, conf: MetaListSettings) -> list[exp.Predicate]:
     """
     Constructs predicates for the provided column using the LIKE and REGEXP_LIKE
     patterns in the provided configuration.
     """
-    predicates: list[str] = []
+    predicates: list[exp.Predicate] = []
     if conf.like_pattern:
-        predicates.append(f'"{column}" LIKE {sql_text_value(conf.like_pattern)}')
+        predicates.append(exp.column(column).like(conf.like_pattern))
     if conf.regexp_pattern:
         predicates.append(
-            f'"{column}" REGEXP_LIKE {sql_text_value(conf.regexp_pattern)}'
+            exp.func(
+                "REGEXP_INSTR",
+                exp.column(column),
+                exp.Literal.string(conf.regexp_pattern),
+            ).neq(0)
         )
     return predicates
 
 
 def _inner_meta_query(
     meta_type: MetaType, output_types: list[MetaType], *predicates
-) -> str:
+) -> exp.Query:
     """
     Builds a query collecting names and comments for the given type of meta and putting
     them in a json string. The comment element is omitted if NULL.
@@ -70,23 +89,45 @@ def _inner_meta_query(
     }
     """
     meta_name = meta_type.value
-    select_list = ", ".join(
-        f'"{meta_name}_{out_type.value}" AS "{out_type.value}"'
+    select_list = [
+        exp.column(f"{meta_name}_{out_type.value}").as_(out_type.value)
         for out_type in output_types
+    ]
+    query = (
+        exp.Select()
+        .select(
+            *select_list,
+            exp.func(
+                "CONCAT",
+                exp.Literal.string(f'{{"{meta_name}": "'),
+                exp.column(f"{meta_name}_NAME"),
+                exp.func(
+                    "NVL2",
+                    exp.column(f"{meta_name}_COMMENT"),
+                    exp.func(
+                        "CONCAT",
+                        exp.Literal.string('", "COMMENT": "'),
+                        exp.column(f"{meta_name}_COMMENT"),
+                    ),
+                    exp.Literal.string(""),
+                ),
+                exp.Literal.string('"}'),
+            ).as_("OBJ_INFO"),
+        )
+        .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
+        .where(*predicates)
     )
-    return dedent(
-        f"""
-        SELECT
-            {select_list},
-            CONCAT(
-                '{{"{meta_name}": "', "{meta_name}_NAME",
-                NVL2("{meta_name}_COMMENT", CONCAT('", "COMMENT": "', "{meta_name}_COMMENT"), ''),
-                '"}}'
-            ) AS "OBJ_INFO"
-        FROM SYS."EXA_ALL_{meta_name}S"
-        {_where_clause(*predicates)}
-    """
-    )
+    return query
+
+
+@cache
+def _info_concat_func() -> exp.Expression:
+    return exp.func(
+        "CONCAT",
+        exp.Literal.string("["),
+        exp.func(GROUP_CONCAT, exp.Distinct(expressions=[exp.column("OBJ_INFO")])),
+        exp.Literal.string("]"),
+    ).as_(INFO_COLUMN)
 
 
 class ExasolMetaQuery:
@@ -127,30 +168,31 @@ class ExasolMetaQuery:
         """
         conf = self._meta_conf[meta_type]
         meta_name = meta_type.value
+        meta_name_column = f"{meta_name}_NAME"
         select_list = [
-            f'"{meta_name}_NAME" AS "{conf.name_field}"',
-            f'"{meta_name}_COMMENT" AS "{conf.comment_field}"',
+            exp.column(meta_name_column).as_(conf.name_field),
+            exp.column(f"{meta_name}_COMMENT").as_(conf.comment_field),
         ]
-        predicates = [conf.select_predicate]
+        predicates = _get_meta_predicates(meta_name_column, conf)
         if meta_type == MetaType.SCRIPT:
-            predicates.append(""" "SCRIPT_TYPE" = 'UDF' """)
+            predicates.append(exp.column("SCRIPT_TYPE").eq("UDF"))
         if meta_type != MetaType.SCHEMA:
             schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
-                predicates.append(f'"{schema_column}" = {sql_text_value(schema_name)}')
+                predicates.append(exp.column(schema_column).eq(schema_name))
             else:
                 # Adds the schema restriction if specified in the settings.
                 predicates.extend(
                     _get_meta_predicates(schema_column, self.config.schemas)
                 )
-            select_list.append(f'"{schema_column}" AS "{conf.schema_field}"')
-        return dedent(
-            f"""
-            SELECT {', '.join(select_list)}
-            FROM SYS."EXA_ALL_{meta_name}S"
-            {_where_clause(*predicates)}
-        """
+            select_list.append(exp.column(schema_column).as_(conf.schema_field))
+        query = (
+            exp.Select()
+            .select(*select_list)
+            .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
+            .where(*predicates)
         )
+        return query.sql(dialect="exasol", identify=True)
 
     @cache
     def find_schemas(self) -> str:
@@ -164,41 +206,58 @@ class ExasolMetaQuery:
         The support information is formated as json. For an example see the
         `_inner_meta_query`.
         """
-        inner_queries = "UNION".join(
-            _inner_meta_query(
-                meta_type,
-                [MetaType.SCHEMA],
-                predicate,
-                *_get_meta_predicates(
-                    f"{meta_type.value}_NAME", self._meta_conf[meta_type]
+        inner_queries = exp.Paren(
+            this=exp.union(
+                *(
+                    _inner_meta_query(
+                        meta_type,
+                        [MetaType.SCHEMA],
+                        predicate,
+                        *_get_meta_predicates(
+                            f"{meta_type.value}_NAME", self._meta_conf[meta_type]
+                        ),
+                    )
+                    for meta_type, predicate in [
+                        (MetaType.TABLE, ""),
+                        (MetaType.VIEW, ""),
+                        (MetaType.FUNCTION, ""),
+                        (
+                            MetaType.SCRIPT,
+                            exp.column("SCRIPT_TYPE").eq(exp.Literal.string("UDF")),
+                        ),
+                    ]
+                    if self._meta_conf[meta_type].enable
                 ),
+                dialect="exasol",
             )
-            for meta_type, predicate in [
-                (MetaType.TABLE, ""),
-                (MetaType.VIEW, ""),
-                (MetaType.FUNCTION, ""),
-                (MetaType.SCRIPT, """"SCRIPT_TYPE"='UDF'"""),
-            ]
-            if self._meta_conf[meta_type].enable
         )
-        predicate = self._config.schemas.select_predicate
-        return dedent(
-            f"""
-            SELECT
-                S."SCHEMA_NAME" AS "{self._config.schemas.name_field}",
-                S."SCHEMA_COMMENT" AS "{self._config.schemas.comment_field}",
-                O."{INFO_COLUMN}"
-            FROM SYS.EXA_ALL_SCHEMAS S
-            JOIN (
-                SELECT
-                    "SCHEMA",
-                    CONCAT('[', GROUP_CONCAT(DISTINCT "OBJ_INFO" SEPARATOR ', '), ']') AS "{INFO_COLUMN}"
-                FROM ({inner_queries})
-                GROUP BY "SCHEMA"
-            ) O ON S."SCHEMA_NAME" = O."SCHEMA"
-            {_where_clause(predicate)}
-        """
+
+        predicates = _get_meta_predicates("SCHEMA_NAME", self._config.schemas)
+
+        query = (
+            exp.Select()
+            .select(
+                exp.column("SCHEMA_NAME", table="S").as_(
+                    self._config.schemas.name_field
+                ),
+                exp.column("SCHEMA_COMMENT", table="S").as_(
+                    self._config.schemas.comment_field
+                ),
+                exp.column(INFO_COLUMN, db="O"),
+            )
+            .from_(exp.Table(this="EXA_ALL_SCHEMAS", db="SYS").as_("S"))
+            .where(*predicates)
+            .join(
+                exp.Select()
+                .select(exp.column("SCHEMA"), _info_concat_func())
+                .from_(inner_queries)
+                .group_by("SCHEMA")
+                .as_("O"),
+                on='"S"."SCHEMA_NAME" = "O"."SCHEMA"',
+            )
         )
+        query_sql = query.sql(dialect="exasol", identify=True)
+        return _fix_group_concat(query_sql, separator=", ")
 
     def find_tables(self, schema_name: str | None) -> str:
         """
@@ -211,109 +270,135 @@ class ExasolMetaQuery:
         It is formated as json. For an example see the `_inner_meta_query`.
         """
         if schema_name:
-            predicates = [f'"COLUMN_SCHEMA" = {sql_text_value(schema_name)}']
+            predicates = [exp.column("COLUMN_SCHEMA").eq(schema_name)]
         else:
             predicates = _get_meta_predicates("COLUMN_SCHEMA", self.config.schemas)
         inner_query = _inner_meta_query(
             MetaType.COLUMN, [MetaType.SCHEMA, MetaType.TABLE], *predicates
         )
-        main_query = "UNION".join(
-            dedent(
-                f"""
-                SELECT
-                    T."{meta_name}_NAME" AS "{conf.name_field}",
-                    T."{meta_name}_COMMENT" AS "{conf.comment_field}",
-                    T."{meta_name}_SCHEMA" AS "{conf.schema_field}",
-                    C."{INFO_COLUMN}"
-                FROM SYS.EXA_ALL_{meta_name}S T
-                JOIN C ON
-                    T."{meta_name}_SCHEMA" = C."SCHEMA" AND
-                    T."{meta_name}_NAME" = C."TABLE"
-                {_where_clause(conf.select_predicate)}
-            """
+        cte = (
+            exp.Select()
+            .select(exp.column("SCHEMA"), exp.column("TABLE"), _info_concat_func())
+            .from_(exp.Paren(this=inner_query))
+            .group_by("SCHEMA", "TABLE")
+        )
+        main_queries = [
+            (
+                exp.Select()
+                .select(
+                    exp.column(f"{meta_name}_NAME", table="T").as_(conf.name_field),
+                    exp.column(f"{meta_name}_COMMENT", table="T").as_(
+                        conf.comment_field
+                    ),
+                    exp.column(f"{meta_name}_SCHEMA", table="T").as_(conf.schema_field),
+                    exp.column(INFO_COLUMN, table="C"),
+                )
+                .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS").as_("T"))
+                .join(
+                    "C",
+                    on=(
+                        f'"T"."{meta_name}_SCHEMA" = "C"."SCHEMA" AND '
+                        f'"T"."{meta_name}_NAME" = "C"."TABLE"'
+                    ),
+                )
+                .where(*_get_meta_predicates(f"{meta_name}_NAME", conf))
             )
             for meta_name, conf in [
                 ("TABLE", self._config.tables),
                 ("VIEW", self._config.views),
             ]
             if conf.enable
-        )
-        return dedent(
-            f"""
-            WITH C AS (
-                SELECT
-                    "SCHEMA",
-                    "TABLE",
-                    CONCAT('[', GROUP_CONCAT(DISTINCT "OBJ_INFO" SEPARATOR ', '), ']') AS "{INFO_COLUMN}"
-                FROM ({inner_query})
-                GROUP BY "SCHEMA", "TABLE"
-            )
-            {main_query}
-        """
-        )
+        ]
+        query = main_queries[0] if len(main_queries) == 1 else exp.union(*main_queries)
+        query = query.with_(alias="C", as_=cte)
+        query_sql = query.sql(dialect="exasol", identify=True)
+        return _fix_group_concat(query_sql, separator=", ")
 
     def describe_columns(self, schema_name: str, table_name: str) -> str:
         """
         Gathers a list of columns in a given table.
         """
         conf = self._config.columns
-        return dedent(
-            f"""
-            SELECT
-                COLUMN_NAME AS "{conf.name_field}",
-                COLUMN_TYPE AS "{conf.type_field}",
-                COLUMN_COMMENT AS "{conf.comment_field}"
-            FROM SYS.EXA_ALL_COLUMNS
-            WHERE
-                COLUMN_SCHEMA = {sql_text_value(schema_name)} AND
-                COLUMN_TABLE = {sql_text_value(table_name)}
-        """
+        query = (
+            exp.Select()
+            .select(
+                exp.column("COLUMN_NAME").as_(conf.name_field),
+                exp.column("COLUMN_TYPE").as_(conf.type_field),
+                exp.column("COLUMN_COMMENT").as_(conf.comment_field),
+            )
+            .from_(exp.Table(this="EXA_ALL_COLUMNS", db="SYS"))
+            .where(
+                exp.and_(
+                    exp.column("COLUMN_SCHEMA").eq(schema_name),
+                    exp.column("COLUMN_TABLE").eq(table_name),
+                )
+            )
         )
+        return query.sql(dialect="exasol", identify=True)
 
     def describe_constraints(self, schema_name: str, table_name: str) -> str:
         """
         Gathers a list of constraints for a given table.
         """
         conf = self._config.columns
-        return dedent(
-            f"""
-            SELECT
-                FIRST_VALUE(CONSTRAINT_TYPE) AS "{conf.constraint_type_field}",
-                CASE LEFT(CONSTRAINT_NAME, 4) WHEN 'SYS_' THEN NULL
-                    ELSE CONSTRAINT_NAME END AS "{conf.constraint_name_field}",
-                GROUP_CONCAT(DISTINCT COLUMN_NAME ORDER BY ORDINAL_POSITION)
-                    AS "{conf.constraint_columns_field}",
-                FIRST_VALUE(REFERENCED_SCHEMA) AS "{conf.referenced_schema_field}",
-                FIRST_VALUE(REFERENCED_TABLE) AS "{conf.referenced_table_field}",
-                GROUP_CONCAT(DISTINCT REFERENCED_COLUMN ORDER BY ORDINAL_POSITION)
-                    AS "{conf.referenced_columns_field}"
-            FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
-            WHERE
-                CONSTRAINT_SCHEMA = {sql_text_value(schema_name)} AND
-                CONSTRAINT_TABLE = {sql_text_value(table_name)}
-            GROUP BY CONSTRAINT_NAME
-        """
+        query = (
+            exp.Select()
+            .select(
+                exp.FirstValue(this=exp.column("CONSTRAINT_TYPE")).as_(
+                    conf.constraint_type_field
+                ),
+                exp.case(exp.func("LEFT", exp.column("CONSTRAINT_NAME"), 4))
+                .when(exp.Literal.string("SYS_"), exp.Null())
+                .else_(exp.column("CONSTRAINT_NAME"))
+                .as_(conf.constraint_name_field),
+                exp.func(
+                    GROUP_CONCAT,
+                    exp.Distinct(expressions=[exp.column("COLUMN_NAME")]),
+                    exp.Order(expressions=[exp.column("ORDINAL_POSITION")]),
+                ).as_(conf.constraint_columns_field),
+                exp.FirstValue(this=exp.column("REFERENCED_SCHEMA")).as_(
+                    conf.referenced_schema_field
+                ),
+                exp.FirstValue(this=exp.column("REFERENCED_TABLE")).as_(
+                    conf.referenced_table_field
+                ),
+                exp.func(
+                    GROUP_CONCAT,
+                    exp.Distinct(expressions=[exp.column("REFERENCED_COLUMN")]),
+                    exp.Order(expressions=[exp.column("ORDINAL_POSITION")]),
+                ).as_(conf.referenced_columns_field),
+            )
+            .from_(exp.Table(this="EXA_ALL_CONSTRAINT_COLUMNS", db="SYS"))
+            .where(
+                exp.and_(
+                    exp.column("CONSTRAINT_SCHEMA").eq(schema_name),
+                    exp.column("CONSTRAINT_TABLE").eq(table_name),
+                )
+            )
+            .group_by("CONSTRAINT_NAME")
         )
+        query_sql = query.sql(dialect="exasol", identify=True)
+        return _fix_group_concat(query_sql)
 
     @staticmethod
-    def get_table_comment(schema_name: str, table_name: str) -> str | None:
+    def get_table_comment(schema_name: str, table_name: str) -> str:
         """
         The query returns a single row with a comment for a given table or view.
         """
         # `table_name` can be the name of a table or a view.
         # This query tries both possibilities. The UNION clause collapses
         # the result into a single non-NULL distinct value.
-        return dedent(
-            f"""
-            SELECT TABLE_COMMENT AS COMMENT FROM SYS.EXA_ALL_TABLES
-            WHERE
-                TABLE_SCHEMA = {sql_text_value(schema_name)} AND
-                TABLE_NAME = {sql_text_value(table_name)}
-            UNION
-            SELECT VIEW_COMMENT AS COMMENT FROM SYS.EXA_ALL_VIEWS
-            WHERE
-                VIEW_SCHEMA = {sql_text_value(schema_name)} AND
-                VIEW_NAME = {sql_text_value(table_name)}
-            LIMIT 1;
-        """
-        )
+        queries = [
+            exp.Select()
+            .select(exp.column(f"{meta_name}_COMMENT").as_("COMMENT"))
+            .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
+            .where(
+                exp.and_(
+                    exp.column(f"{meta_name}_SCHEMA").eq(schema_name),
+                    exp.column(f"{meta_name}_NAME").eq(table_name),
+                )
+            )
+            for meta_name in ["TABLE", "VIEW"]
+        ]
+        query = exp.Union(this=queries[0], expression=queries[1]).limit(1)
+        return query.sql(dialect="exasol", identify=True)

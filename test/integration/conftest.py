@@ -13,7 +13,9 @@ from typing import Any
 
 import pytest
 
-from exasol.ai.mcp.server.utils import sql_text_value
+
+def sql_text_value(text: str) -> str:
+    return f"""'{text.replace("'", "''")}'"""
 
 
 def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
