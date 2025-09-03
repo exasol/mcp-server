@@ -97,7 +97,7 @@ class MetaParams:
     @property
     def column_based_where_clause(self) -> str:
         if self.schema_name:
-            return f"""WHERE "COLUMN_SCHEMA" = '{self.schema_name}'"""
+            return f"""WHERE UPPER("COLUMN_SCHEMA") = '{self.schema_name.upper()}'"""
         elif self.schema_pattern:
             return self._db_obj_based_where_clause(
                 "COLUMN_SCHEMA", self.schema_pattern, self.schema_pattern_type
@@ -110,8 +110,8 @@ class MetaParams:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
-            expected_where_clause="""WHERE "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+            schema_name="exa_toolbox",
+            expected_where_clause="""WHERE UPPER("TABLE_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             obj_name_pattern="PUB",
@@ -119,12 +119,12 @@ class MetaParams:
             expected_where_clause="""WHERE REGEXP_INSTR("TABLE_NAME", 'PUB') <> 0""",
         ),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA%",
             schema_pattern_type="LIKE",
             obj_name_pattern="PUB%",
             obj_name_pattern_type="LIKE",
-            expected_where_clause="""WHERE "TABLE_NAME" LIKE 'PUB%' AND "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+            expected_where_clause="""WHERE "TABLE_NAME" LIKE 'PUB%' AND UPPER("TABLE_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             schema_pattern="EXA",
@@ -169,8 +169,8 @@ def test_get_metadata(meta_params):
     [
         MetaParams(expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF'"""),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
-            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+            schema_name="exa_toolbox",
+            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND UPPER("SCRIPT_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             obj_name_pattern="BUCKETFS%",
@@ -178,12 +178,12 @@ def test_get_metadata(meta_params):
             expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF'""",
         ),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA%",
             schema_pattern_type="LIKE",
             obj_name_pattern="BUCKETFS%",
             obj_name_pattern_type="LIKE",
-            expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+            expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND UPPER("SCRIPT_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             schema_pattern="EXA%",
@@ -254,8 +254,8 @@ def test_get_object_metadata() -> str:
     expected_query = collapse_spaces(
         f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
-        WHERE "FUNCTION_SCHEMA" = 'my_schema' AND
-            "FUNCTION_NAME" = 'my_table'
+        WHERE UPPER("FUNCTION_SCHEMA") = 'MY_SCHEMA' AND
+            UPPER("FUNCTION_NAME") = 'MY_TABLE'
         """
     )
     assert query == expected_query
@@ -342,7 +342,7 @@ def test_find_schemas(meta_params) -> None:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA",
             schema_pattern_type="REGEXP_LIKE",
         ),
@@ -411,7 +411,7 @@ def test_find_tables(meta_params) -> None:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX", schema_pattern="EXA%", schema_pattern_type="LIKE"
+            schema_name="exa_toolbox", schema_pattern="EXA%", schema_pattern_type="LIKE"
         ),
         MetaParams(schema_pattern="EXA%", schema_pattern_type="LIKE"),
         MetaParams(obj_name_pattern="PUB%", obj_name_pattern_type="LIKE"),
@@ -499,8 +499,8 @@ def test_describe_columns(column_config) -> str:
             "COLUMN_COMMENT" AS "comment"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
-            "COLUMN_SCHEMA" = 'my''_schema' AND
-            "COLUMN_TABLE" = 'my''_table'
+            UPPER("COLUMN_SCHEMA") = 'MY''_SCHEMA' AND
+            UPPER("COLUMN_TABLE") = 'MY''_TABLE'
         """
     )
     assert query == expected_query
@@ -523,8 +523,8 @@ def test_describe_constraints(column_config) -> str:
                 AS "referenced_columns"
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
-            "CONSTRAINT_SCHEMA" = 'my_schema' AND
-            "CONSTRAINT_TABLE" = 'my_table'
+            UPPER("CONSTRAINT_SCHEMA") = 'MY_SCHEMA' AND
+            UPPER("CONSTRAINT_TABLE") = 'MY_TABLE'
         GROUP BY "CONSTRAINT_NAME"
         """
     )
@@ -537,13 +537,13 @@ def test_get_table_comment() -> str | None:
         f"""
         SELECT "TABLE_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_TABLES
         WHERE
-            "TABLE_SCHEMA" = 'my_schema' AND
-            "TABLE_NAME" = 'my_table'
+            UPPER("TABLE_SCHEMA") = 'MY_SCHEMA' AND
+            UPPER("TABLE_NAME") = 'MY_TABLE'
         UNION
         SELECT "VIEW_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_VIEWS
         WHERE
-            "VIEW_SCHEMA" = 'my_schema' AND
-            "VIEW_NAME" = 'my_table'
+            UPPER("VIEW_SCHEMA") = 'MY_SCHEMA' AND
+            UPPER("VIEW_NAME") = 'MY_TABLE'
         LIMIT 1
         """
     )

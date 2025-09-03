@@ -65,6 +65,17 @@ def _get_meta_predicates(column: str, conf: MetaListSettings) -> list[exp.Predic
     return predicates
 
 
+def _get_column_eq_predicate(
+    column: str, value: str, table: str | None = None
+) -> exp.Predicate:
+    """
+    Builds an expression of a case-insensitive text column equality
+    """
+    return exp.func("UPPER", exp.column(column, table=table)).eq(
+        exp.Literal.string(value.upper())
+    )
+
+
 def _inner_meta_query(
     meta_type: MetaType, output_types: list[MetaType], *predicates
 ) -> exp.Query:
@@ -179,7 +190,7 @@ class ExasolMetaQuery:
         if meta_type != MetaType.SCHEMA:
             schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
-                predicates.append(exp.column(schema_column).eq(schema_name))
+                predicates.append(_get_column_eq_predicate(schema_column, schema_name))
             else:
                 # Adds the schema restriction if specified in the settings.
                 predicates.extend(
@@ -208,8 +219,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
             .where(
                 exp.and_(
-                    exp.column(f"{meta_name}_SCHEMA").eq(schema_name),
-                    exp.column(f"{meta_name}_NAME").eq(obj_name),
+                    _get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
+                    _get_column_eq_predicate(f"{meta_name}_NAME", obj_name),
                 )
             )
         )
@@ -293,7 +304,7 @@ class ExasolMetaQuery:
         It is formated as json. For an example see the `_inner_meta_query`.
         """
         if schema_name:
-            predicates = [exp.column("COLUMN_SCHEMA").eq(schema_name)]
+            predicates = [_get_column_eq_predicate("COLUMN_SCHEMA", schema_name)]
         else:
             predicates = _get_meta_predicates("COLUMN_SCHEMA", self.config.schemas)
         inner_query = _inner_meta_query(
@@ -356,8 +367,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this="EXA_ALL_COLUMNS", db="SYS"))
             .where(
                 exp.and_(
-                    exp.column("COLUMN_SCHEMA").eq(schema_name),
-                    exp.column("COLUMN_TABLE").eq(table_name),
+                    _get_column_eq_predicate("COLUMN_SCHEMA", schema_name),
+                    _get_column_eq_predicate("COLUMN_TABLE", table_name),
                 )
             )
         )
@@ -398,8 +409,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this="EXA_ALL_CONSTRAINT_COLUMNS", db="SYS"))
             .where(
                 exp.and_(
-                    exp.column("CONSTRAINT_SCHEMA").eq(schema_name),
-                    exp.column("CONSTRAINT_TABLE").eq(table_name),
+                    _get_column_eq_predicate("CONSTRAINT_SCHEMA", schema_name),
+                    _get_column_eq_predicate("CONSTRAINT_TABLE", table_name),
                 )
             )
             .group_by("CONSTRAINT_NAME")
@@ -421,8 +432,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
             .where(
                 exp.and_(
-                    exp.column(f"{meta_name}_SCHEMA").eq(schema_name),
-                    exp.column(f"{meta_name}_NAME").eq(table_name),
+                    _get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
+                    _get_column_eq_predicate(f"{meta_name}_NAME", table_name),
                 )
             )
             for meta_name in ["TABLE", "VIEW"]
