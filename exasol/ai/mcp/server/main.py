@@ -6,6 +6,7 @@ import pyexasol
 from pydantic import ValidationError
 from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
@@ -219,7 +220,7 @@ def get_mcp_settings() -> McpServerSettings:
 
 
 def create_mcp_server(
-    connection: ExaConnection, config: McpServerSettings
+    connection: DbConnection, config: McpServerSettings
 ) -> ExasolMCPServer:
     """
     Creates the Exasol MCP Server and registers its tools.
@@ -238,11 +239,14 @@ def main():
     password = os.environ[ENV_PASSWORD]
     mcp_settings = get_mcp_settings()
 
-    connection = pyexasol.connect(
-        dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
-    )
+    def connection_factory() -> ExaConnection:
+        return pyexasol.connect(
+            dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
+        )
 
-    mcp_server = create_mcp_server(connection, mcp_settings)
+    connection = DbConnection(connection_factory=connection_factory)
+
+    mcp_server = create_mcp_server(connection=connection, config=mcp_settings)
     mcp_server.run()
 
 

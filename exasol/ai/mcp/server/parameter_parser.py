@@ -5,8 +5,7 @@ from abc import (
 )
 from typing import Any
 
-from pyexasol import ExaConnection
-
+from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.meta_query import (
     ExasolMetaQuery,
     MetaType,
@@ -30,13 +29,13 @@ FUNCTION_USAGE = (
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
         self.connection = connection
         self.conf = conf
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
-        return self.connection.meta.execute_snapshot(query=query).fetchall()
+        return self.connection.execute_query(query=query).fetchall()
 
     def describe(
         self,
@@ -135,7 +134,7 @@ class ParameterParser(ABC):
 
 class FuncParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
         super().__init__(connection, conf)
         self._func_pattern: re.Pattern | None = None
 
@@ -185,7 +184,7 @@ class FuncParameterParser(ParameterParser):
 
 class ScriptParameterParser(ParameterParser):
 
-    def __init__(self, connection: ExaConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
         super().__init__(connection, conf)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
