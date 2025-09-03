@@ -87,6 +87,7 @@ def test_main_with_json_str(
     mock_create_server, mock_connect, clear_settings, settings_json
 ) -> None:
     mock_connection = create_autospec(ExaConnection)
+    mock_connection.options = {}
     mock_connect.return_value = mock_connection
     mock_server = create_autospec(ExasolMCPServer)
     mock_create_server.return_value = mock_server
