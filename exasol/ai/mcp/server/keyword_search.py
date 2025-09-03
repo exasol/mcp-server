@@ -1,16 +1,14 @@
 import re
-from collections import Counter
 from collections.abc import (
     Generator,
     Iterable,
 )
 from functools import cache
-from itertools import chain
-from math import log
 from typing import Any
 
 import numpy as np
 import stopwords
+from rank_bm25 import BM25Plus
 
 
 @cache
@@ -56,43 +54,10 @@ def extract_words(sentences: Iterable[str], language: str | None = None) -> list
 
 def get_match_scores(corpus: list[list[str]], keywords: list[str]) -> list[float]:
     """
-    For each text in the corpus assigns a keyword matching score.
-    Computes the score as the cosine similarity between the TF-IDF vectors
-    of the keywords and each of the text in the corpus.
-
-    Here is an implementation of the vanilla TF-IDF algorithm. Alternatively, the
-    scikit-learn `TfidfVectorizer` could be used. This would allow using additional
-    options and features, including preprocessing. Whether it will justify adding the
-    scikit-learn dependency is an open question. In regard to preprocessing, the method
-    of preference is the spaCy pipeline.
-
-    Also to consider, is replacing TF-IDF with a better algorithm, e.g. BM25.
+    Assigns a keyword matching score for each text in the corpus .
     """
-    text_counters = [Counter(text) for text in chain(corpus, [keywords])]
-    vocab_counter = Counter()
-    for counter in text_counters:
-        vocab_counter.update(counter.keys())
-    vocab_index = {word: index for index, word in enumerate(vocab_counter)}
-    vocab_size = len(vocab_index)
-    corpus_size = len(corpus) + 1
-
-    def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-    def tf_idf(c: Counter, num_words: int) -> np.ndarray:
-        u = np.zeros(vocab_size)
-        for word, freq in c.items():
-            tf = freq / num_words
-            idf = log(corpus_size / vocab_counter[word])
-            word_index = vocab_index[word]
-            u[word_index] = tf * idf
-        return u
-
-    kw = tf_idf(text_counters[-1], len(keywords))
-    return [
-        cosine_similarity(kw, tf_idf(counter, len(text)))
-        for counter, text in zip(text_counters, corpus)
-    ]
+    bm25 = BM25Plus(corpus)
+    return bm25.get_scores(keywords).tolist()
 
 
 def _clipped_k_means(points: np.ndarray, max_iters=100) -> np.ndarray:
