@@ -274,7 +274,9 @@ class ExasolMetaQuery:
                 .from_(inner_queries)
                 .group_by("SCHEMA")
                 .as_("O"),
-                on='"S"."SCHEMA_NAME" = "O"."SCHEMA"',
+                on=exp.column("SCHEMA_NAME", table="S").eq(
+                    exp.column("SCHEMA", table="O")
+                ),
             )
         )
         query_sql = query.sql(dialect="exasol", identify=True)
@@ -317,9 +319,13 @@ class ExasolMetaQuery:
                 .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS").as_("T"))
                 .join(
                     "C",
-                    on=(
-                        f'"T"."{meta_name}_SCHEMA" = "C"."SCHEMA" AND '
-                        f'"T"."{meta_name}_NAME" = "C"."TABLE"'
+                    on=exp.and_(
+                        exp.column(f"{meta_name}_SCHEMA", table="T").eq(
+                            exp.column("SCHEMA", table="C")
+                        ),
+                        exp.column(f"{meta_name}_NAME", table="T").eq(
+                            exp.column("TABLE", table="C")
+                        ),
                     ),
                 )
                 .where(*_get_meta_predicates(f"{meta_name}_NAME", conf))
