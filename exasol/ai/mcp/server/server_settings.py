@@ -7,8 +7,6 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.functional_validators import AfterValidator
 
-from exasol.ai.mcp.server.utils import sql_text_value
-
 
 def check_no_double_quotes(v: str) -> str:
     if '"' in v:
@@ -72,23 +70,6 @@ class MetaListSettings(MetaSettings):
     Both like_pattern and regexp_pattern can be used at the same time, although there is
     not much point in doing so.
     """
-
-    @property
-    def select_predicate(self) -> str:
-        """
-        The SQL predicate for the object filtering by name.
-        Empty string if neigher of the filtering patterns are defined.
-        """
-        conditions: list[str] = []
-        if self.like_pattern:
-            conditions.append(
-                f"""local."{self.name_field}" LIKE {sql_text_value(self.like_pattern)}"""
-            )
-        if self.regexp_pattern:
-            conditions.append(
-                f"""local."{self.name_field}" REGEXP_LIKE {sql_text_value(self.regexp_pattern)}"""
-            )
-        return " AND ".join(conditions)
 
 
 class MetaColumnSettings(MetaSettings):

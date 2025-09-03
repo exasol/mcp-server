@@ -3,11 +3,14 @@ from abc import (
     ABC,
     abstractmethod,
 )
-from textwrap import dedent
 from typing import Any
 
 from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.meta_query import (
+    ExasolMetaQuery,
+    MetaType,
+)
 from exasol.ai.mcp.server.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
@@ -16,7 +19,6 @@ from exasol.ai.mcp.server.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.server_settings import MetaParameterSettings
-from exasol.ai.mcp.server.utils import sql_text_value
 
 VARIADIC_MARKER = "..."
 
@@ -138,12 +140,8 @@ class FuncParameterParser(ParameterParser):
         self._func_pattern: re.Pattern | None = None
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return dedent(
-            f"""
-            SELECT * FROM SYS.EXA_ALL_FUNCTIONS
-            WHERE FUNCTION_SCHEMA = {sql_text_value(schema_name)} AND
-                FUNCTION_NAME = {sql_text_value(func_name)}
-        """
+        return ExasolMetaQuery.get_object_metadata(
+            MetaType.FUNCTION, schema_name, func_name
         )
 
     @property
@@ -193,12 +191,8 @@ class ScriptParameterParser(ParameterParser):
         self._return_pattern: re.Pattern | None = None
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return dedent(
-            f"""
-            SELECT * FROM SYS.EXA_ALL_SCRIPTS
-            WHERE SCRIPT_SCHEMA = {sql_text_value(schema_name)} AND
-                SCRIPT_NAME = {sql_text_value(func_name)}
-        """
+        return ExasolMetaQuery.get_object_metadata(
+            MetaType.SCRIPT, schema_name, func_name
         )
 
     def _udf_pattern(self, emits: bool) -> re.Pattern:
