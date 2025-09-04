@@ -31,9 +31,8 @@ def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_schemas,
         description=(
             "The tool finds schemas in the Exasol Database by looking for the "
-            "specified keywords in their names and comments. The search operates "
-            "on exact lexical matches. Including common inflections of the keywords "
-            "may improve the recall. "
+            "specified keywords in their names and comments. The list of keywords "
+            "should include common inflections of each keyword. "
             "For each schema it finds, it provides the name and an optional comment."
         ),
     )
@@ -55,9 +54,8 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_tables,
         description=(
             "The tool finds tables and views in the Exasol Database by looking "
-            "for the specified keywords in their names and comments. The search "
-            "operates on exact lexical matches. Including common inflections of "
-            "the keywords may improve the recall. "
+            "for the specified keywords in their names and comments. The list of "
+            "keywords should include common inflections of each keyword. "
             "For each table or view the tool finds, it provides the name, the schema, "
             "and an optional comment. An optional `schema_name` argument allows "
             "restricting the search to tables and views in the specified schema."
@@ -81,9 +79,8 @@ def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
         mcp_server.find_functions,
         description=(
             "The tool finds functions in the Exasol Database by looking for "
-            "the specified keywords in their names and comments. The search operates "
-            "on exact lexical matches. Including common inflections of the keywords "
-            "may improve the recall. "
+            "the specified keywords in their names and comments. The list of "
+            "keywords should include common inflections of each keyword. "
             "For each function the tool finds, it provides the name, the schema,"
             "and an optional comment. An optional `schema_name` argument allows "
             "restricting the search to functions in the specified schema."
@@ -108,8 +105,7 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The tool finds the user defined functions (UDF) in the Exasol Database "
             "by looking for the specified keywords in their names and comments. The "
-            "search operates on exact lexical matches. Including common inflections of "
-            "the keywords may improve the recall. "
+            "list of keywords should include common inflections of each keyword. "
             "For each UDF the tool finds, it provides the name, the schema, and an "
             "optional comment. An optional `schema_name` argument allows restricting "
             "the search to UDFs in the specified schema."
