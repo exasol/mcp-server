@@ -2,6 +2,7 @@
 
 ## Features
 
+* #57: Added DB connection recovery.
 * #60: Made meta queries case-insensitive in terms of input parameters.
 
 ## Refactoring
