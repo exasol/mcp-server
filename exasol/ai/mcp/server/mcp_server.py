@@ -251,17 +251,13 @@ class ExasolMCPServer(FastMCP):
     def describe_function(
         self, schema_name: SCHEMA_NAME_TYPE, func_name: FUNCTION_NAME_TYPE
     ) -> dict[str, Any]:
-        parser = FuncParameterParser(
-            connection=self.connection, conf=self.config.parameters
-        )
+        parser = FuncParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, func_name)
 
     def describe_script(
         self, schema_name: SCHEMA_NAME_TYPE, script_name: SCRIPT_NAME_TYPE
     ) -> dict[str, Any]:
-        parser = ScriptParameterParser(
-            connection=self.connection, conf=self.config.parameters
-        )
+        parser = ScriptParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, script_name)
 
     def execute_query(

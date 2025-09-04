@@ -65,17 +65,6 @@ def _get_meta_predicates(column: str, conf: MetaListSettings) -> list[exp.Predic
     return predicates
 
 
-def _get_column_eq_predicate(
-    column: str, value: str, table: str | None = None
-) -> exp.Predicate:
-    """
-    Builds an expression of a case-insensitive text column equality
-    """
-    return exp.func("UPPER", exp.column(column, table=table)).eq(
-        exp.Literal.string(value.upper())
-    )
-
-
 def _inner_meta_query(
     meta_type: MetaType, output_types: list[MetaType], *predicates
 ) -> exp.Query:
@@ -161,6 +150,19 @@ class ExasolMetaQuery:
     def config(self) -> McpServerSettings:
         return self._config
 
+    def _get_column_eq_predicate(
+        self, column: str, value: str, table: str | None = None
+    ) -> exp.Predicate:
+        """
+        Builds an expression of a text column equality, considering the
+        case sensitivity setting.
+        """
+        if self.config.case_sensitive:
+            return exp.column(column, table=table).eq(exp.Literal.string(value))
+        return exp.func("UPPER", exp.column(column, table=table)).eq(
+            exp.Literal.string(value.upper())
+        )
+
     def get_metadata(self, meta_type: MetaType, schema_name: str | None = None) -> str:
         """
         A generic metadata query. Collects the DB object name, schema and comment
@@ -190,7 +192,9 @@ class ExasolMetaQuery:
         if meta_type != MetaType.SCHEMA:
             schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
-                predicates.append(_get_column_eq_predicate(schema_column, schema_name))
+                predicates.append(
+                    self._get_column_eq_predicate(schema_column, schema_name)
+                )
             else:
                 # Adds the schema restriction if specified in the settings.
                 predicates.extend(
@@ -205,9 +209,8 @@ class ExasolMetaQuery:
         )
         return query.sql(dialect="exasol", identify=True)
 
-    @staticmethod
     def get_object_metadata(
-        meta_type: MetaType, schema_name: str, obj_name: str
+        self, meta_type: MetaType, schema_name: str, obj_name: str
     ) -> str:
         """
         Builds a query requesting metadata for a given database object.
@@ -219,8 +222,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
             .where(
                 exp.and_(
-                    _get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
-                    _get_column_eq_predicate(f"{meta_name}_NAME", obj_name),
+                    self._get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
+                    self._get_column_eq_predicate(f"{meta_name}_NAME", obj_name),
                 )
             )
         )
@@ -304,7 +307,7 @@ class ExasolMetaQuery:
         It is formated as json. For an example see the `_inner_meta_query`.
         """
         if schema_name:
-            predicates = [_get_column_eq_predicate("COLUMN_SCHEMA", schema_name)]
+            predicates = [self._get_column_eq_predicate("COLUMN_SCHEMA", schema_name)]
         else:
             predicates = _get_meta_predicates("COLUMN_SCHEMA", self.config.schemas)
         inner_query = _inner_meta_query(
@@ -367,8 +370,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this="EXA_ALL_COLUMNS", db="SYS"))
             .where(
                 exp.and_(
-                    _get_column_eq_predicate("COLUMN_SCHEMA", schema_name),
-                    _get_column_eq_predicate("COLUMN_TABLE", table_name),
+                    self._get_column_eq_predicate("COLUMN_SCHEMA", schema_name),
+                    self._get_column_eq_predicate("COLUMN_TABLE", table_name),
                 )
             )
         )
@@ -409,8 +412,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this="EXA_ALL_CONSTRAINT_COLUMNS", db="SYS"))
             .where(
                 exp.and_(
-                    _get_column_eq_predicate("CONSTRAINT_SCHEMA", schema_name),
-                    _get_column_eq_predicate("CONSTRAINT_TABLE", table_name),
+                    self._get_column_eq_predicate("CONSTRAINT_SCHEMA", schema_name),
+                    self._get_column_eq_predicate("CONSTRAINT_TABLE", table_name),
                 )
             )
             .group_by("CONSTRAINT_NAME")
@@ -418,8 +421,7 @@ class ExasolMetaQuery:
         query_sql = query.sql(dialect="exasol", identify=True)
         return _fix_group_concat(query_sql)
 
-    @staticmethod
-    def get_table_comment(schema_name: str, table_name: str) -> str:
+    def get_table_comment(self, schema_name: str, table_name: str) -> str:
         """
         The query returns a single row with a comment for a given table or view.
         """
@@ -432,8 +434,8 @@ class ExasolMetaQuery:
             .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
             .where(
                 exp.and_(
-                    _get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
-                    _get_column_eq_predicate(f"{meta_name}_NAME", table_name),
+                    self._get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
+                    self._get_column_eq_predicate(f"{meta_name}_NAME", table_name),
                 )
             )
             for meta_name in ["TABLE", "VIEW"]
