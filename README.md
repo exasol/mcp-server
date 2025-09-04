@@ -171,6 +171,18 @@ Below is an example of configuration settings that sets the language to English.
 }
 ```
 
+### Set the case-sensitive search option
+
+By default, the database objects are searched in case-insensitive way, i.e. it is assumed
+that the names "My_Table" and "MY_TABLE" refer to the same table. If this is undesirable,
+the configuration setting `case_sensitive` should be set to true, as in the example below.
+
+```json
+{
+  "case_sensitive": true
+}
+```
+
 ### Add the server configuration to the MCP Client configuration
 
 The customised settings can be specified directly in the MCP Client configuration file

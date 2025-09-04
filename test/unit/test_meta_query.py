@@ -15,8 +15,7 @@ from exasol.ai.mcp.server.server_settings import (
 )
 
 
-@pytest.fixture
-def column_config() -> McpServerSettings:
+def _column_config(case_sensitive: bool) -> McpServerSettings:
     return McpServerSettings(
         columns=MetaColumnSettings(
             enable=True,
@@ -32,8 +31,15 @@ def column_config() -> McpServerSettings:
             columns_field="columns",
             constraints_field="constraints",
             table_comment_field="table_comment",
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
+
+
+def _column_predicate(column: str, value: str, case_sensitive: bool) -> str:
+    if case_sensitive:
+        return f""""{column}" = '{value}'"""
+    return f"""UPPER("{column}") = '{value.upper()}'"""
 
 
 @dataclass
@@ -46,6 +52,7 @@ class MetaParams:
     obj2_name_pattern: str = ""
     obj2_name_pattern_type: str = ""
     expected_where_clause: str = ""
+    case_sensitive: bool = False
 
     @staticmethod
     def _meta_settings(pattern: str, pattern_type: str) -> MetaListSettings:
@@ -97,7 +104,7 @@ class MetaParams:
     @property
     def column_based_where_clause(self) -> str:
         if self.schema_name:
-            return f"""WHERE "COLUMN_SCHEMA" = '{self.schema_name}'"""
+            return f'WHERE {_column_predicate("COLUMN_SCHEMA", self.schema_name, self.case_sensitive)}'
         elif self.schema_pattern:
             return self._db_obj_based_where_clause(
                 "COLUMN_SCHEMA", self.schema_pattern, self.schema_pattern_type
@@ -110,8 +117,13 @@ class MetaParams:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
-            expected_where_clause="""WHERE "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+            schema_name="exa_toolbox",
+            expected_where_clause="""WHERE UPPER("TABLE_SCHEMA") = 'EXA_TOOLBOX'""",
+        ),
+        MetaParams(
+            schema_name="exa_toolbox",
+            case_sensitive=True,
+            expected_where_clause="""WHERE "TABLE_SCHEMA" = 'exa_toolbox'""",
         ),
         MetaParams(
             obj_name_pattern="PUB",
@@ -119,12 +131,12 @@ class MetaParams:
             expected_where_clause="""WHERE REGEXP_INSTR("TABLE_NAME", 'PUB') <> 0""",
         ),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA%",
             schema_pattern_type="LIKE",
             obj_name_pattern="PUB%",
             obj_name_pattern_type="LIKE",
-            expected_where_clause="""WHERE "TABLE_NAME" LIKE 'PUB%' AND "TABLE_SCHEMA" = 'EXA_TOOLBOX'""",
+            expected_where_clause="""WHERE "TABLE_NAME" LIKE 'PUB%' AND UPPER("TABLE_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             schema_pattern="EXA",
@@ -137,6 +149,7 @@ class MetaParams:
     ids=[
         "all-tables",
         "exact-schema",
+        "exact-schema-case-sensitive",
         "table-pattern",
         "exact-schema-table-pattern",
         "schema-and-table-patterns",
@@ -146,6 +159,7 @@ def test_get_metadata(meta_params):
     config = McpServerSettings(
         schemas=meta_params.schema_settings,
         tables=meta_params.db_obj_settings,
+        case_sensitive=meta_params.case_sensitive,
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(
@@ -169,8 +183,13 @@ def test_get_metadata(meta_params):
     [
         MetaParams(expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF'"""),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
-            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+            schema_name="exa_toolbox",
+            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND UPPER("SCRIPT_SCHEMA") = 'EXA_TOOLBOX'""",
+        ),
+        MetaParams(
+            schema_name="exa_toolbox",
+            case_sensitive=True,
+            expected_where_clause="""WHERE "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'exa_toolbox'""",
         ),
         MetaParams(
             obj_name_pattern="BUCKETFS%",
@@ -178,12 +197,12 @@ def test_get_metadata(meta_params):
             expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF'""",
         ),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA%",
             schema_pattern_type="LIKE",
             obj_name_pattern="BUCKETFS%",
             obj_name_pattern_type="LIKE",
-            expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND "SCRIPT_SCHEMA" = 'EXA_TOOLBOX'""",
+            expected_where_clause="""WHERE "SCRIPT_NAME" LIKE 'BUCKETFS%' AND "SCRIPT_TYPE" = 'UDF' AND UPPER("SCRIPT_SCHEMA") = 'EXA_TOOLBOX'""",
         ),
         MetaParams(
             schema_pattern="EXA%",
@@ -196,6 +215,7 @@ def test_get_metadata(meta_params):
     ids=[
         "all-tables",
         "exact-schema",
+        "exact-schema-case-sensitive",
         "table-pattern",
         "exact-schema-table-pattern",
         "schema-and-table-patterns",
@@ -203,7 +223,9 @@ def test_get_metadata(meta_params):
 )
 def test_get_script_metadata(meta_params):
     config = McpServerSettings(
-        schemas=meta_params.schema_settings, scripts=meta_params.db_obj_settings
+        schemas=meta_params.schema_settings,
+        scripts=meta_params.db_obj_settings,
+        case_sensitive=meta_params.case_sensitive,
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(
@@ -247,15 +269,19 @@ def test_get_schema_metadata(meta_params):
     assert query == expected_query
 
 
-def test_get_object_metadata() -> str:
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_get_object_metadata(case_sensitive) -> str:
+    config = McpServerSettings(case_sensitive=case_sensitive)
+    meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(
-        ExasolMetaQuery.get_object_metadata(MetaType.FUNCTION, "my_schema", "my_table")
+        meta_query.get_object_metadata(MetaType.FUNCTION, "my_schema", "my_table")
     )
     expected_query = collapse_spaces(
         f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
-        WHERE "FUNCTION_SCHEMA" = 'my_schema' AND
-            "FUNCTION_NAME" = 'my_table'
+        WHERE
+            {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
+            {_column_predicate("FUNCTION_NAME", 'my_table', case_sensitive)}
         """
     )
     assert query == expected_query
@@ -342,10 +368,11 @@ def test_find_schemas(meta_params) -> None:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX",
+            schema_name="exa_toolbox",
             schema_pattern="EXA",
             schema_pattern_type="REGEXP_LIKE",
         ),
+        MetaParams(schema_name="exa_toolbox", case_sensitive=True),
         MetaParams(schema_pattern="EXA", schema_pattern_type="REGEXP_LIKE"),
         MetaParams(obj_name_pattern="PUB", obj_name_pattern_type="REGEXP_LIKE"),
         MetaParams(
@@ -358,6 +385,7 @@ def test_find_schemas(meta_params) -> None:
     ids=[
         "no-predicates",
         "exact-schema",
+        "exact-schema-case-sensitive",
         "schema-pattern",
         "table-pattern",
         "all-patterns",
@@ -368,6 +396,7 @@ def test_find_tables(meta_params) -> None:
         schemas=meta_params.schema_settings,
         tables=meta_params.db_obj_settings,
         views=MetaListSettings(enable=False),
+        case_sensitive=meta_params.case_sensitive,
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
@@ -411,8 +440,9 @@ def test_find_tables(meta_params) -> None:
     [
         MetaParams(),
         MetaParams(
-            schema_name="EXA_TOOLBOX", schema_pattern="EXA%", schema_pattern_type="LIKE"
+            schema_name="exa_toolbox", schema_pattern="EXA%", schema_pattern_type="LIKE"
         ),
+        MetaParams(schema_name="exa_toolbox", case_sensitive=True),
         MetaParams(schema_pattern="EXA%", schema_pattern_type="LIKE"),
         MetaParams(obj_name_pattern="PUB%", obj_name_pattern_type="LIKE"),
         MetaParams(obj2_name_pattern="AUDITING%", obj2_name_pattern_type="LIKE"),
@@ -428,6 +458,7 @@ def test_find_tables(meta_params) -> None:
     ids=[
         "no-predicates",
         "exact-schema",
+        "exact-schema-case-sensitive",
         "schema-pattern",
         "table-pattern",
         "view-pattern",
@@ -439,6 +470,7 @@ def test_find_tables_and_views(meta_params) -> None:
         schemas=meta_params.schema_settings,
         tables=meta_params.db_obj_settings,
         views=meta_params.db_obj2_settings,
+        case_sensitive=meta_params.case_sensitive,
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
@@ -488,8 +520,9 @@ def test_find_tables_and_views(meta_params) -> None:
     assert query == expected_query
 
 
-def test_describe_columns(column_config) -> str:
-    meta_query = ExasolMetaQuery(column_config)
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_columns(case_sensitive) -> str:
+    meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_columns("my'_schema", "my'_table"))
     expected_query = collapse_spaces(
         f"""
@@ -499,15 +532,16 @@ def test_describe_columns(column_config) -> str:
             "COLUMN_COMMENT" AS "comment"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
-            "COLUMN_SCHEMA" = 'my''_schema' AND
-            "COLUMN_TABLE" = 'my''_table'
+            {_column_predicate("COLUMN_SCHEMA", "my''_schema", case_sensitive)} AND
+            {_column_predicate("COLUMN_TABLE", "my''_table", case_sensitive)}
         """
     )
     assert query == expected_query
 
 
-def test_describe_constraints(column_config) -> str:
-    meta_query = ExasolMetaQuery(column_config)
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_constraints(case_sensitive) -> str:
+    meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_constraints("my_schema", "my_table"))
     expected_query = collapse_spaces(
         f"""
@@ -523,27 +557,29 @@ def test_describe_constraints(column_config) -> str:
                 AS "referenced_columns"
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
-            "CONSTRAINT_SCHEMA" = 'my_schema' AND
-            "CONSTRAINT_TABLE" = 'my_table'
+            {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
+            {_column_predicate("CONSTRAINT_TABLE", "my_table", case_sensitive)}
         GROUP BY "CONSTRAINT_NAME"
         """
     )
     assert query == expected_query
 
 
-def test_get_table_comment() -> str | None:
-    query = collapse_spaces(ExasolMetaQuery.get_table_comment("my_schema", "my_table"))
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_get_table_comment(case_sensitive) -> str | None:
+    meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
+    query = collapse_spaces(meta_query.get_table_comment("my_schema", "my_table"))
     expected_query = collapse_spaces(
         f"""
         SELECT "TABLE_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_TABLES
         WHERE
-            "TABLE_SCHEMA" = 'my_schema' AND
-            "TABLE_NAME" = 'my_table'
+            {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
+            {_column_predicate("TABLE_NAME", "my_table", case_sensitive)}
         UNION
         SELECT "VIEW_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_VIEWS
         WHERE
-            "VIEW_SCHEMA" = 'my_schema' AND
-            "VIEW_NAME" = 'my_table'
+            {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
+            {_column_predicate("VIEW_NAME", "my_table", case_sensitive)}
         LIMIT 1
         """
     )

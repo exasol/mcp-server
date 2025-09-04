@@ -7,6 +7,7 @@ from test.utils.db_objects import (
     ExaDbObject,
     ExaFunction,
     ExaParameter,
+    ExaSchema,
     ExaTable,
 )
 from typing import (
@@ -179,6 +180,30 @@ def _get_expected_param_json(
     return expected_json
 
 
+def _get_db_name_param(db_obj: ExaDbObject, case_sensitive: bool) -> str:
+    """
+    Returns the object name as a parameter for a tool call.
+    If an object selection is case-insensitive, the object name case is swapped
+    in order to test this feature.
+    """
+    if case_sensitive:
+        return db_obj.name
+    else:
+        return db_obj.name.swapcase()
+
+
+def _get_schema_param(schema: ExaSchema, restricted: bool, case_sensitive: bool) -> str:
+    """
+    Returns the schema name as a parameter for a tool call.
+    If the schema visibility is restricted to one schema the schema_name parameter
+    should not be provided in a call to a tool.
+    """
+    if restricted:
+        return ""
+    else:
+        return _get_db_name_param(schema, case_sensitive)
+
+
 @pytest.mark.parametrize(
     ["tool_name", "meta_types"],
     [
@@ -259,28 +284,34 @@ def test_find_schemas(
 
 
 @pytest.mark.parametrize(
-    ["enable_tables", "enable_views", "use_like", "use_regexp"],
+    ["enable_tables", "enable_views", "use_like", "use_regexp", "case_sensitive"],
     [
-        (True, True, False, False),
-        (True, True, True, False),
-        (True, True, False, True),
-        (True, False, False, False),
-        (True, False, True, False),
-        (True, False, False, True),
-        (False, True, False, False),
-        (False, True, True, False),
-        (False, True, False, True),
+        (True, True, False, False, False),  # both-all
+        (True, True, False, False, True),  # both-all-case-sensitive
+        (True, True, True, False, False),  # both-like
+        (True, True, False, True, False),  # both-regexp
+        (True, False, False, False, False),  # tables-all
+        (True, False, True, False, False),  # tables-like
+        (True, False, True, False, True),  # tables-like-case-sensitive
+        (True, False, False, True, False),  # tables-regexp
+        (False, True, False, False, False),  # views-all
+        (False, True, True, False, False),  # views-like
+        (False, True, False, True, False),  # views-regexp
+        (False, True, False, True, True),  # views-regexp-case-sensitive
     ],
     ids=[
         "both-all",
+        "both-all-case-sensitive",
         "both-like",
         "both-regexp",
         "tables-all",
         "tables-like",
+        "tables-like-case-sensitive",
         "tables-regexp",
         "views-all",
         "views-like",
         "views-regexp",
+        "views-regexp-case-sensitive",
     ],
 )
 def test_list_tables(
@@ -293,6 +324,7 @@ def test_list_tables(
     enable_views,
     use_like,
     use_regexp,
+    case_sensitive,
 ) -> None:
     """
     Test the `list_tables` tool with various combinations of configuration parameters.
@@ -315,6 +347,7 @@ def test_list_tables(
             like_pattern="%run%" if use_like else "",
             regexp_pattern=".*run.*" if use_regexp else "",
         ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
@@ -323,7 +356,7 @@ def test_list_tables(
             pyexasol_connection,
             config,
             "list_tables",
-            schema_name=schema.name,
+            schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = _get_list_result_json(result)
         expected_result: list[dict[str, Any]] = []
@@ -342,16 +375,25 @@ def test_list_tables(
 
 
 @pytest.mark.parametrize(
-    ["language", "use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp", "case_sensitive"],
     [
-        ("", False, False),
-        ("", True, False),
-        ("", False, True),
-        ("english", False, False),
-        ("english", True, False),
-        ("english", False, True),
+        ("", False, False, False),  # all
+        ("", False, False, True),  # all-case-sensitive
+        ("", True, False, False),  # like
+        ("", False, True, False),  # regexp
+        ("english", False, False, False),  # eng-all
+        ("english", True, False, False),  # eng-like
+        ("english", False, True, False),  # eng-regexp
     ],
-    ids=["all", "like", "model-regexp", "eng-all", "eng-like", "eng-regexp"],
+    ids=[
+        "all",
+        "all-case-sensitive",
+        "like",
+        "regexp",
+        "eng-all",
+        "eng-like",
+        "eng-regexp",
+    ],
 )
 def test_find_tables(
     pyexasol_connection,
@@ -362,6 +404,7 @@ def test_find_tables(
     language,
     use_like,
     use_regexp,
+    case_sensitive,
 ) -> None:
     for schema in db_schemas:
         #  Will test on new schemas only, where the result can be guaranteed.
@@ -385,17 +428,17 @@ def test_find_tables(
                 schema_field="schema",
             ),
             language=language,
+            case_sensitive=case_sensitive,
         )
-        # If the schema visibility is restricted to one schema we will not
-        # specify the schema name in the call.
-        schema_name = "" if use_like or use_regexp else schema.name
         for table in chain(db_tables, db_views):
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_tables",
                 keywords=table.keywords,
-                schema_name=schema_name,
+                schema_name=_get_schema_param(
+                    schema, use_like or use_regexp, case_sensitive
+                ),
             )
 
             result_json = _get_result_json(result)["result"][0]
@@ -408,12 +451,23 @@ def test_find_tables(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
+    ["use_like", "use_regexp", "case_sensitive"],
+    [
+        (False, False, False),
+        (False, False, True),
+        (True, False, False),
+        (False, True, False),
+    ],
+    ids=["all", "all-case-sensitive", "like", "regexp"],
 )
 def test_list_functions(
-    pyexasol_connection, setup_database, db_schemas, db_functions, use_like, use_regexp
+    pyexasol_connection,
+    setup_database,
+    db_schemas,
+    db_functions,
+    use_like,
+    use_regexp,
+    case_sensitive,
 ) -> None:
     """
     Test the `list_functions` tool with various combinations of configuration parameters.
@@ -424,7 +478,8 @@ def test_list_functions(
             enable=True,
             like_pattern="cut%" if use_like else "",
             regexp_pattern="cut.*" if use_regexp else "",
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
@@ -433,7 +488,7 @@ def test_list_functions(
             pyexasol_connection,
             config,
             "list_functions",
-            schema_name=schema.name,
+            schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = _get_list_result_json(result)
         expected_json = _get_expected_list_json(
@@ -443,16 +498,25 @@ def test_list_functions(
 
 
 @pytest.mark.parametrize(
-    ["language", "use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp", "case_sensitive"],
     [
-        ("", False, False),
-        ("", True, False),
-        ("", False, True),
-        ("english", False, False),
-        ("english", True, False),
-        ("english", False, True),
+        ("", False, False, False),  # all
+        ("", False, False, True),  # all-case-sensitive
+        ("", True, False, False),  # like
+        ("", False, True, False),  # regexp
+        ("english", False, False, False),  # eng-all
+        ("english", True, False, False),  # eng-like
+        ("english", False, True, False),  # eng-regexp
     ],
-    ids=["all", "like", "regexp", "eng-all", "eng-like", "eng-regexp"],
+    ids=[
+        "all",
+        "all-case-sensitive",
+        "like",
+        "regexp",
+        "eng-all",
+        "eng-like",
+        "eng-regexp",
+    ],
 )
 def test_find_functions(
     pyexasol_connection,
@@ -462,6 +526,7 @@ def test_find_functions(
     language,
     use_like,
     use_regexp,
+    case_sensitive,
 ) -> None:
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
@@ -479,17 +544,17 @@ def test_find_functions(
                 schema_field="schema",
             ),
             language=language,
+            case_sensitive=case_sensitive,
         )
-        # If the schema visibility is restricted to one schema we will not
-        # specify the schema name in the call.
-        schema_name = "" if use_like or use_regexp else schema.name
         for func in db_functions:
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_functions",
                 keywords=func.keywords,
-                schema_name=schema_name,
+                schema_name=_get_schema_param(
+                    schema, use_like or use_regexp, case_sensitive
+                ),
             )
             result_json = _get_result_json(result)["result"][0]
             expected_json = {
@@ -501,12 +566,23 @@ def test_find_functions(
 
 
 @pytest.mark.parametrize(
-    ["use_like", "use_regexp"],
-    [(False, False), (True, False), (False, True)],
-    ids=["all", "like", "regexp"],
+    ["use_like", "use_regexp", "case_sensitive"],
+    [
+        (False, False, False),
+        (False, False, True),
+        (True, False, False),
+        (False, True, False),
+    ],
+    ids=["all", "all-case-sensitive", "like", "regexp"],
 )
 def test_list_scripts(
-    pyexasol_connection, setup_database, db_schemas, db_scripts, use_like, use_regexp
+    pyexasol_connection,
+    setup_database,
+    db_schemas,
+    db_scripts,
+    use_like,
+    use_regexp,
+    case_sensitive,
 ) -> None:
     """
     Test the `list_scripts` tool with various combinations of configuration parameters.
@@ -517,7 +593,8 @@ def test_list_scripts(
             enable=True,
             like_pattern="fibo%" if use_like else "",
             regexp_pattern="fibo.*" if use_regexp else "",
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
@@ -526,7 +603,7 @@ def test_list_scripts(
             pyexasol_connection,
             config,
             "list_scripts",
-            schema_name=schema.name,
+            schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = _get_list_result_json(result)
         expected_json = _get_expected_list_json(
@@ -536,16 +613,25 @@ def test_list_scripts(
 
 
 @pytest.mark.parametrize(
-    ["language", "use_like", "use_regexp"],
+    ["language", "use_like", "use_regexp", "case_sensitive"],
     [
-        ("", False, False),
-        ("", True, False),
-        ("", False, True),
-        ("english", False, False),
-        ("english", True, False),
-        ("english", False, True),
+        ("", False, False, False),  # all
+        ("", False, False, True),  # all-case-sensitive
+        ("", True, False, False),  # like
+        ("", False, True, False),  # regexp
+        ("english", False, False, False),  # eng-all
+        ("english", True, False, False),  # eng-like
+        ("english", False, True, False),  # eng-regexp
     ],
-    ids=["all", "like", "regexp", "eng-all", "eng-like", "eng-regexp"],
+    ids=[
+        "all",
+        "all-case-sensitive",
+        "like",
+        "regexp",
+        "eng-all",
+        "eng-like",
+        "eng-regexp",
+    ],
 )
 def test_find_scripts(
     pyexasol_connection,
@@ -555,6 +641,7 @@ def test_find_scripts(
     language,
     use_like,
     use_regexp,
+    case_sensitive,
 ) -> None:
     for schema in db_schemas:
         # Will test on new schemas only, where the result can be guaranteed.
@@ -573,16 +660,15 @@ def test_find_scripts(
             ),
             language=language,
         )
-        # If the schema visibility is restricted to one schema we will not
-        # specify the schema name in the call.
-        schema_name = "" if use_like or use_regexp else schema.name
         for script in db_scripts:
             result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_scripts",
                 keywords=script.keywords,
-                schema_name=schema_name,
+                schema_name=_get_schema_param(
+                    schema, use_like or use_regexp, case_sensitive
+                ),
             )
             result_json = _get_result_json(result)["result"][0]
             expected_json = {
@@ -593,8 +679,9 @@ def test_find_scripts(
             assert result_json == expected_json
 
 
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_table(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    pyexasol_connection, setup_database, db_schemas, db_tables, case_sensitive
 ) -> None:
     """
     Test the `describe_table` tool. The tool is tested on each table of every schema.
@@ -602,7 +689,8 @@ def test_describe_table(
     config = McpServerSettings(
         columns=MetaColumnSettings(
             enable=True,
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         for table in db_tables:
@@ -610,21 +698,23 @@ def test_describe_table(
                 pyexasol_connection,
                 config,
                 "describe_table",
-                schema_name=schema.name,
-                table_name=table.name,
+                schema_name=_get_db_name_param(schema, case_sensitive),
+                table_name=_get_db_name_param(table, case_sensitive),
             )
             result_json = _get_sort_result_json(result)
             expected_json = _get_expected_table_json(table, config.columns, schema.name)
             assert result_json == expected_json
 
 
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_view_comment(
-    pyexasol_connection, setup_database, db_schemas, db_views
+    pyexasol_connection, setup_database, db_schemas, db_views, case_sensitive
 ) -> None:
     config = McpServerSettings(
         columns=MetaColumnSettings(
             enable=True,
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         for view in db_views:
@@ -632,8 +722,8 @@ def test_describe_view_comment(
                 pyexasol_connection,
                 config,
                 "describe_table",
-                schema_name=schema.name,
-                table_name=view.name,
+                schema_name=_get_db_name_param(schema, case_sensitive),
+                table_name=_get_db_name_param(view, case_sensitive),
             )
             result_json = _get_sort_result_json(result)
             assert result_json[config.columns.table_comment_field] == view.comment
@@ -687,8 +777,9 @@ def test_describe_no_db_object_name(
             )
 
 
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_function(
-    pyexasol_connection, setup_database, db_schemas, db_functions
+    pyexasol_connection, setup_database, db_schemas, db_functions, case_sensitive
 ) -> None:
     """
     Test the `describe_function` tool. The tool is tested on each function
@@ -697,7 +788,8 @@ def test_describe_function(
     config = McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         for func in db_functions:
@@ -705,8 +797,8 @@ def test_describe_function(
                 pyexasol_connection,
                 config,
                 "describe_function",
-                schema_name=schema.name,
-                func_name=func.name,
+                schema_name=_get_db_name_param(schema, case_sensitive),
+                func_name=_get_db_name_param(func, case_sensitive),
             )
             result_json = _get_result_json(result)
             expected_json = _get_expected_param_json(func, config.parameters)
@@ -714,8 +806,9 @@ def test_describe_function(
             assert result_json == expected_json
 
 
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_script(
-    pyexasol_connection, setup_database, db_schemas, db_scripts
+    pyexasol_connection, setup_database, db_schemas, db_scripts, case_sensitive
 ) -> None:
     """
     Test the `describe_script` tool. The tool is tested on each script
@@ -724,7 +817,8 @@ def test_describe_script(
     config = McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
-        )
+        ),
+        case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
         for script in db_scripts:
@@ -732,8 +826,8 @@ def test_describe_script(
                 pyexasol_connection,
                 config,
                 "describe_script",
-                schema_name=schema.name,
-                script_name=script.name,
+                schema_name=_get_db_name_param(schema, case_sensitive),
+                script_name=_get_db_name_param(script, case_sensitive),
             )
             result_json = _get_result_json(result)
             # The call example message is properly tested in the unit tests.
