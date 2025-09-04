@@ -16,8 +16,9 @@ class DbConnection:
     Args:
         connection_factory:
             Supplied factory that creates a connection. The connection should be created
-            with `fetch_dict`=True. The wrapper sets this option to True anyway.
-
+            with `fetch_dict`=True. The wrapper sets this option to True anyway. The
+            dictionary option is required in order to present the result in a json form.
+            This is what FastMCP expects from a tool.
     """
 
     def __init__(
@@ -35,7 +36,7 @@ class DbConnection:
         will be propagated to the caller.
 
         If snapshot is True, which should be the mode of choice for querying metadata,
-        the `meta.execute_snapshot` method will be called. Otherwise, it will user the
+        the `meta.execute_snapshot` method will be called. Otherwise, it will use the
         normal `execute` method.
         """
         attempt = 1
