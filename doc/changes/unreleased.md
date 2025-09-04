@@ -9,3 +9,4 @@
 
 * #47: Re-written meta SQL queries using SQLGlot.
 * #57: Replaced TF-IDF with BM25 in the keyword search.
+* #61: Modified the keyword hint in the `find_xxx` tools' description.
