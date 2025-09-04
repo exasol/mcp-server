@@ -5,7 +5,6 @@ from typing import (
     Any,
 )
 
-import pyexasol
 from fastmcp import FastMCP
 from pydantic import Field
 from sqlglot import (
@@ -14,6 +13,7 @@ from sqlglot import (
 )
 from sqlglot.errors import ParseError
 
+from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.keyword_search import keyword_filter
 from exasol.ai.mcp.server.meta_query import (
     INFO_COLUMN,
@@ -97,18 +97,14 @@ class ExasolMCPServer(FastMCP):
 
     Args:
         connection:
-            pyexasol connection object. Note: the connection should be created
-            with `fetch_dict`=True. The server sets this option to True anyway.
+            pyexasol connection wrapper.
         config:
             The server configuration.
     """
 
-    def __init__(
-        self, connection: pyexasol.ExaConnection, config: McpServerSettings
-    ) -> None:
+    def __init__(self, connection: DbConnection, config: McpServerSettings) -> None:
         super().__init__(name="exasol-mcp")
         self.connection = connection
-        self.connection.options["fetch_dict"] = True
         self.meta_query = ExasolMetaQuery(config)
 
     @property
@@ -125,7 +121,7 @@ class ExasolMCPServer(FastMCP):
         to assist filtering. This is necessary to avoid polluting the LLM's context
         with data it doesn't need at the current stage.
         """
-        result = self.connection.meta.execute_snapshot(query=query).fetchall()
+        result = self.connection.execute_query(query).fetchall()
         if keywords:
             result = keyword_filter(result, keywords, language=self.config.language)
         return ExaDbResult(remove_info_column(result))
@@ -228,7 +224,7 @@ class ExasolMCPServer(FastMCP):
 
     def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
         query = self.meta_query.get_table_comment(schema_name, table_name)
-        comment_row = self.connection.meta.execute_snapshot(query=query).fetchone()
+        comment_row = self.connection.execute_query(query).fetchone()
         if comment_row is None:
             return None
         table_comment = next(iter(comment_row.values()))
@@ -274,6 +270,6 @@ class ExasolMCPServer(FastMCP):
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if verify_query(query):
-            result = self.connection.execute(query=query).fetchall()
+            result = self.connection.execute_query(query, snapshot=False).fetchall()
             return ExaDbResult(result)
         raise ValueError("The query is invalid or not a SELECT statement.")

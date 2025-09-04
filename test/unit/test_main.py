@@ -9,6 +9,7 @@ from unittest.mock import (
 import pytest
 from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
     ENV_DSN,
     ENV_PASSWORD,
@@ -86,6 +87,7 @@ def test_main_with_json_str(
     mock_create_server, mock_connect, clear_settings, settings_json
 ) -> None:
     mock_connection = create_autospec(ExaConnection)
+    mock_connection.options = {}
     mock_connect.return_value = mock_connection
     mock_server = create_autospec(ExasolMCPServer)
     mock_create_server.return_value = mock_server
@@ -94,11 +96,15 @@ def test_main_with_json_str(
     os.environ[ENV_PASSWORD] = "my_password"
     os.environ[ENV_SETTINGS] = json.dumps(settings_json)
     main()
-    _, kwargs = mock_connect.call_args
-    assert kwargs["dsn"] == "my.db.dsn"
-    assert kwargs["user"] == "my_user_name"
-    assert kwargs["password"] == "my_password"
-    mock_create_server.assert_called_once_with(
-        mock_connection, McpServerSettings.model_validate(settings_json)
+    _, create_server_kwargs = mock_create_server.call_args
+    assert create_server_kwargs["config"] == McpServerSettings.model_validate(
+        settings_json
     )
+    assert isinstance(create_server_kwargs["connection"], DbConnection)
     mock_server.run.assert_called_once()
+    # Test the connection factory
+    create_server_kwargs["connection"].execute_query("SELECT 1", snapshot=False)
+    _, connect_kwargs = mock_connect.call_args
+    assert connect_kwargs["dsn"] == "my.db.dsn"
+    assert connect_kwargs["user"] == "my_user_name"
+    assert connect_kwargs["password"] == "my_password"
