@@ -1,6 +1,6 @@
 [project]
 name = "exasol-mcp-server"
-version = "0.7.0"
+version = "1.0.0"
 requires-python = ">=3.10,<=3.13"   # Restriction is due to numpy
 description = "Exasol MCP Server"
 authors = [
