@@ -200,3 +200,11 @@ class McpServerSettings(BaseModel):
     An optional language of communication with the LLM, e.g. 'english'. It must be
     the same language that was used for naming and documenting the database objects.
     """
+
+    case_sensitive: bool = False
+    """
+    This setting effects the selection of database objects in the tools that are looking
+    for a particular object or a collection of objects. Depending on this setting, the
+    parameters provided to these tools, e.g. a schema name, are used in case sensitive
+    or case insensitive way.
+    """

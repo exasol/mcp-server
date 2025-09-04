@@ -17,7 +17,10 @@ from exasol.ai.mcp.server.parameter_pattern import (
     quoted_identifier_pattern,
     regex_flags,
 )
-from exasol.ai.mcp.server.server_settings import MetaParameterSettings
+from exasol.ai.mcp.server.server_settings import (
+    McpServerSettings,
+    MetaParameterSettings,
+)
 
 VARIADIC_MARKER = "..."
 
@@ -134,12 +137,13 @@ class ParameterParser(ABC):
 
 class FuncParameterParser(ParameterParser):
 
-    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
-        super().__init__(connection, conf)
+    def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
+        super().__init__(connection, settings.parameters)
         self._func_pattern: re.Pattern | None = None
+        self._meta_query = ExasolMetaQuery(settings)
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return ExasolMetaQuery.get_object_metadata(
+        return self._meta_query.get_object_metadata(
             MetaType.FUNCTION, schema_name, func_name
         )
 
@@ -184,13 +188,14 @@ class FuncParameterParser(ParameterParser):
 
 class ScriptParameterParser(ParameterParser):
 
-    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
-        super().__init__(connection, conf)
+    def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
+        super().__init__(connection, settings.parameters)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
+        self._meta_query = ExasolMetaQuery(settings)
 
     def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return ExasolMetaQuery.get_object_metadata(
+        return self._meta_query.get_object_metadata(
             MetaType.SCRIPT, schema_name, func_name
         )
 
