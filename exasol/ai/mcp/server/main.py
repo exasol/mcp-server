@@ -1,8 +1,20 @@
 import json
 import os
 import re
+from collections.abc import Callable
+from enum import (
+    Enum,
+    auto,
+)
 
 import pyexasol
+from fastmcp.server.auth import (
+    AuthProvider,
+    OAuthProxy,
+    RemoteAuthProvider,
+)
+from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.dependencies import get_access_token
 from pydantic import ValidationError
 from pyexasol import ExaConnection
 
@@ -11,9 +23,34 @@ from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
+""" MCP server settings json or a name of a json file with the settings """
 ENV_DSN = "EXA_DSN"
+""" Exasol DB server DSN """
 ENV_USER = "EXA_USER"
+""" The DB user name to be used by the MCP server """
 ENV_PASSWORD = "EXA_PASSWORD"
+""" The DB password for password authentication """
+ENV_JWKS_URI = "EXA_JWKS_URI"
+""" JSON Web Key Set endpoint for remote token verification """
+ENV_AUTH_SERVERS = "EXA_AUTH_SERVERS"
+""" Comma-separated list of authorization servers that support DCR """
+ENV_BASE_URL = "EXA_BASE_URL"
+""" The base URL of the MCP server, where a callback endpoint is created """
+ENV_AUTH_ENDPOINT = "EXA_AUTH_ENDPOINT"
+""" Authorization endpoint of an OAuth provider with manual client registration """
+ENV_TOKEN_ENDPOINT = "EXA_TOKEN_ENDPOINT"
+""" Token endpoint of an OAuth provider with manual client registration """
+ENV_CLIENT_ID = "EXA_CLIENT_ID"
+""" Client ID issued by an OAuth provider with manual client registration """
+ENV_CLIENT_SECRET = "EXA_CLIENT_SECRET"
+""" Client secret issued by an OAuth provider with manual client registration """
+
+
+class AuthenticationMethod(Enum):
+    PASSWORD = auto()
+    OPEN_ID = auto()
+    LDAP = auto()
+    KERBEROS = auto()
 
 
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
@@ -216,33 +253,91 @@ def get_mcp_settings() -> McpServerSettings:
 
 
 def create_mcp_server(
-    connection: DbConnection, config: McpServerSettings
+    connection: DbConnection, config: McpServerSettings, **kwargs
 ) -> ExasolMCPServer:
     """
     Creates the Exasol MCP Server and registers its tools.
     """
-    mcp_server = ExasolMCPServer(connection=connection, config=config)
+    mcp_server = ExasolMCPServer(connection=connection, config=config, **kwargs)
     register_tools(mcp_server, config)
     return mcp_server
+
+
+def get_auth_provider() -> AuthProvider | None:
+
+    def from_env(params: dict[str, str]) -> dict[str, str]:
+        return {k: os.environ[v] for k, v in params.items() if v in os.environ}
+
+    if ENV_BASE_URL in os.environ and ENV_JWKS_URI in os.environ:
+        token_verifier = JWTVerifier(
+            jwks_uri=os.environ[ENV_JWKS_URI],
+            base_url=os.environ[ENV_BASE_URL],
+        )
+        if ENV_AUTH_SERVERS in os.environ:
+            return RemoteAuthProvider(
+                authorization_servers=os.environ[ENV_AUTH_SERVERS].split(","),
+                base_url=os.environ[ENV_BASE_URL],
+                token_verifier=token_verifier,
+            )
+        else:
+            oauth_proxy_kwargs = {
+                "upstream_authorization_endpoint": ENV_AUTH_ENDPOINT,
+                "upstream_token_endpoint": ENV_TOKEN_ENDPOINT,
+                "upstream_client_id": ENV_CLIENT_ID,
+                "upstream_client_secret": ENV_CLIENT_SECRET,
+            }
+            if all(v in os.environ for v in oauth_proxy_kwargs.values()):
+                # debugging
+                print(from_env(oauth_proxy_kwargs))
+                return OAuthProxy(
+                    **from_env(oauth_proxy_kwargs),
+                    base_url=os.environ[ENV_BASE_URL],
+                    token_verifier=token_verifier,
+                )
+        return token_verifier
+    return None
+
+
+def get_connection_factory(
+    auth_method: AuthenticationMethod, **kwargs
+) -> Callable[[], ExaConnection]:
+    conn_kwargs = {
+        "dsn": os.environ[ENV_DSN],
+        "user": os.environ[ENV_USER],
+        "fetch_dict": True,
+        "compression": True,
+    }
+    conn_kwargs.update(kwargs)
+    if auth_method == AuthenticationMethod.PASSWORD:
+        conn_kwargs["password"] = os.environ.get(ENV_PASSWORD)
+
+    def connection_factory() -> ExaConnection:
+        if auth_method == AuthenticationMethod.OPEN_ID:
+            conn_kwargs["access_token"] = get_access_token().token
+        return pyexasol.connect(**conn_kwargs)
+
+    return connection_factory
 
 
 def main():
     """
     Main entry point that creates and runs the MCP server.
     """
-    dsn = os.environ[ENV_DSN]
-    user = os.environ[ENV_USER]
-    password = os.environ[ENV_PASSWORD]
     mcp_settings = get_mcp_settings()
-
-    def connection_factory() -> ExaConnection:
-        return pyexasol.connect(
-            dsn=dsn, user=user, password=password, fetch_dict=True, compression=True
-        )
+    auth = get_auth_provider()
+    if auth is None:
+        auth_method = AuthenticationMethod.PASSWORD
+        auth_kwargs = {}
+    else:
+        auth_method = AuthenticationMethod.OPEN_ID
+        auth_kwargs = {"auth": auth}
+    connection_factory = get_connection_factory(auth_method)
 
     connection = DbConnection(connection_factory=connection_factory)
 
-    mcp_server = create_mcp_server(connection=connection, config=mcp_settings)
+    mcp_server = create_mcp_server(
+        connection=connection, config=mcp_settings, **auth_kwargs
+    )
     mcp_server.run()
 
 

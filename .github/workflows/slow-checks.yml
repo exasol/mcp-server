@@ -37,7 +37,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Run Tests and Collect Coverage
-        run: poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem
+        run: |
+          python -c "from test.integration.test_mcp_oidc import DOCKER_NET_GATEWAY_IP, OIDC_PORT; print(f'-oidcProviderJKU=http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks');" >> $DB_PARAM
+          poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter $DB_PARAM
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
