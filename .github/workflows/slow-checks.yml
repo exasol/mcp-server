@@ -38,7 +38,7 @@ jobs:
 
       - name: Run Tests and Collect Coverage
         run: |
-          python -c "from test.integration.test_mcp_oidc import DOCKER_NET_GATEWAY_IP, OIDC_PORT; print(f'-oidcProviderJKU=http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks');" >> $DB_PARAM
+          DB_PARAM=$(python -c "from test.integration.test_mcp_oidc import DOCKER_NET_GATEWAY_IP, OIDC_PORT; print(f'-oidcProviderJKU=http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks');")
           poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter $DB_PARAM
 
       - name: Upload Artifacts
