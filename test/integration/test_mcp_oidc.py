@@ -60,6 +60,7 @@ from collections.abc import Generator
 from contextlib import ExitStack
 from datetime import timedelta
 from test.utils.db_objects import ExaSchema
+from test.utils.mcp_oidc_constants import *
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -103,14 +104,6 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
-
-OIDC_PORT = 25432
-OIDC_USER_SUB = "test_sub"
-OIDC_USER_NAME = "oidc_test_user"
-DOCKER_NET_GATEWAY_IP = "172.25.0.1"
-DOCKER_NET_SUBNET = "172.25.0.0/16"
-DOCKER_DB_NAME = "DemoDb"
-CONTAINER_NAME = f"db_container_{DOCKER_DB_NAME}"
 
 
 @pytest.fixture(scope="session")
