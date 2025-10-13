@@ -8,10 +8,19 @@ from test.utils.db_objects import (
     ExaTable,
     ExaView,
 )
+from test.utils.mcp_oidc_constants import DOCKER_DB_NAME
 from textwrap import dedent
 from typing import Any
 
 import pytest
+
+
+@pytest.fixture(scope="session")
+def database_name():
+    """
+    Overrides the DB name fixture, making it easy to know the container name.
+    """
+    return DOCKER_DB_NAME
 
 
 def sql_text_value(text: str) -> str:
