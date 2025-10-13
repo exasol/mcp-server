@@ -34,8 +34,9 @@ rank-bm25 = "^0.2.2"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
+pytest-exasol-backend = "^1.2.0"
 pytest-exasol-extension = "^0.2.3"
-exasol-integration-test-docker-environment = "<4.3.0"
+exasol-integration-test-docker-environment = "^4.3.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"
 

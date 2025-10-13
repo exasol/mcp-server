@@ -53,7 +53,6 @@ Remains to be tested:
 import asyncio
 import json
 import multiprocessing
-import os
 import ssl
 import time
 from collections.abc import Generator
@@ -303,10 +302,11 @@ def _mcp_server_factory(env: dict[str, str]):
 
         env[ENV_BASE_URL] = f"http://{host}:{port}"
         env[ENV_USER] = OIDC_USER_NAME
-        os.environ.update(env)
-        auth = get_auth_provider()
+        auth = get_auth_provider(env)
         connection_factory = get_connection_factory(
-            AuthenticationMethod.OPEN_ID, websocket_sslopt={"cert_reqs": ssl.CERT_NONE}
+            AuthenticationMethod.OPEN_ID,
+            env,
+            websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
         )
         connection = DbConnection(connection_factory=connection_factory)
 
