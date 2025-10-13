@@ -244,7 +244,7 @@ def oidc_server() -> str:
 
 
 @pytest.fixture(scope="session")
-def setup_docker_network():
+def setup_docker_network(oidc_server):
     """
     The fixture sets up the networking for the DockerDB, allowing it to connect to the
     mock authorization server. The DB will fetch the token encryption key from it.
@@ -277,6 +277,21 @@ def setup_docker_network():
         time.sleep(2)
     else:
         print(f"✓ Container {CONTAINER_NAME} is already in {network_name}")
+
+    # Verify that JWK endpoint is accessible from the DockerDB
+    cmd = f"curl -s -o /dev/null -w '%{{http_code}}' -X GET http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks"
+    exit_code, output = container.exec_run(cmd)
+    if exit_code == 0:
+        status_code = int(output[0].decode("utf-8").strip())
+        if 200 <= status_code < 300:
+            print(f"✓ JWK endpoint is accessible from the DB: HTTP {status_code}")
+        else:
+            raise RuntimeError(
+                f"JWK endpoint returned unexpected status: HTTP {status_code}"
+            )
+    else:
+        error_msg = output[1].decode("utf-8").strip() if output[1] else "Unknown error"
+        raise RuntimeError(f"Failed to call the JWK endpoint: {error_msg}")
 
     yield
 
