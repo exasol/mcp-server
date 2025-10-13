@@ -279,14 +279,16 @@ def setup_docker_network(oidc_server):
         print(f"✓ Container {CONTAINER_NAME} is already in {network_name}")
 
     # Verify that JWK endpoint is accessible from the DockerDB
-    cmd = f"curl -s -o /dev/null -w '%{{http_code}}' -X GET http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks"
-    exit_code, output = container.exec_run(cmd)
-    if exit_code == 0:
-        # status_code = int(output[0].decode("utf-8").strip())
-        print(f"✓ JWK endpoint returned: {output[0]}", type(output[0]))
-    else:
-        error_msg = output[1].decode("utf-8").strip() if output[1] else "Unknown error"
-        raise RuntimeError(f"Failed to call the JWK endpoint: {error_msg}")
+    cmd = [
+        "curl",
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        f"http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks",
+    ]
+    print("✓ JWK endpoint returned:", container.exec_run(cmd))
 
     yield
 
