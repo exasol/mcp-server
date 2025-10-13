@@ -82,6 +82,7 @@ from oidc_provider_mock._storage import (
     Storage,
     User,
 )
+from pyexasol import ExaRequestError
 
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
@@ -243,6 +244,10 @@ def oidc_server() -> str:
         yield server_url
 
 
+def get_jwk_endpoint() -> str:
+    return f"http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks"
+
+
 @pytest.fixture(scope="session")
 def setup_docker_network(oidc_server):
     """
@@ -279,16 +284,30 @@ def setup_docker_network(oidc_server):
         print(f"✓ Container {CONTAINER_NAME} is already in {network_name}")
 
     # Verify that JWK endpoint is accessible from the DockerDB
-    cmd = [
+    command = [
         "curl",
         "-s",
         "-o",
         "/dev/null",
         "-w",
         "%{http_code}",
-        f"http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks",
+        get_jwk_endpoint(),
     ]
-    print("✓ JWK endpoint returned:", container.exec_run(cmd))
+    exec_result = container.exec_run(command)
+    if exec_result.exit_code == 0:
+        status_code = int(exec_result.output.decode("utf-8"))
+        if 200 <= status_code < 300:
+            print(
+                f"✓ JWK endpoint is accessible from the DockerDB: HTTP code {status_code}"
+            )
+        else:
+            raise RuntimeError(
+                f"JWK endpoint is inaccessible from the DockerDB: HTTP code {status_code}"
+            )
+    else:
+        raise RuntimeError(
+            f"Failed to call JWK endpoint from the DockerDB: exit code {exec_result.exit_code}"
+        )
 
     yield
 
@@ -412,6 +431,25 @@ def _run_list_schemas_test(http_server_url: str, db_schemas: list[ExaSchema]) ->
     assert schemas == expected_schemas
 
 
+@pytest.fixture(scope="session")
+def setup_and_validate_database(
+    pyexasol_connection, setup_database, create_open_id_user
+):
+    # Check that the JWK endpoint was set up in the database.
+    query = (
+        "SELECT PARAM_VALUE FROM EXA_COMMANDLINE WHERE PARAM_NAME = 'oidcProviderJKU'"
+    )
+    try:
+        value = pyexasol_connection.execute(query).fetchval()
+        if value != get_jwk_endpoint():
+            raise RuntimeError(
+                f"The expected JWK endpoint is not set up in the database. Found {value}"
+            )
+        print(f"✓ JWK endpoint is found in the database")
+    except ExaRequestError:
+        print("Unable to read the JWK endpoint from the database")
+
+
 def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
@@ -423,9 +461,8 @@ def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
 def test_remote_oauth_with_db(
     mcp_server_with_remote_oauth,
     setup_docker_network,
+    setup_and_validate_database,
     db_schemas,
-    setup_database,
-    create_open_id_user,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_remote_oauth, db_schemas)
 
@@ -433,8 +470,7 @@ def test_remote_oauth_with_db(
 def test_oauth_proxy_with_db(
     mcp_server_with_oauth_proxy,
     setup_docker_network,
+    setup_and_validate_database,
     db_schemas,
-    setup_database,
-    create_open_id_user,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
