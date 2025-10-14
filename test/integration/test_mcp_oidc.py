@@ -26,22 +26,23 @@ In order to set up the tests the following steps are performed:
 The last two steps are repeated in each test, since we are going to test different
 modes in regard to the OpenID setup.
 
-Currently, we test two FastMCP options for the OpenID setup. In both cases the server
+We test three FastMCP options for the OpenID setup. In two of them the server
 orchestrates the OpenID authentication/authorization. One - Remote OAuth - is a
 preferred choice if the authorization server supports the Dynamic Client Registration
 (DCR). Another one - OAuth Proxy - emulates the DCR for the servers that do not
 support it. Please check https://gofastmcp.com/servers/auth/authentication for details.
 
-We test two tools. One is an artificial that doesn't require the database. With this
-tool we test only the MCP Client/Server setup. Another one is a real tool that does
-require the database connection. This one allows us to run a complete test.
+Lastly, we test the case when the MCP server only verifies an externally provided
+access token - bearer token mode. In this mode the client application takes the
+responsibility of acquiring a valid access token. This is exactly how the Exasol
+database behaves in regard to the OpenID authentication.
+
+We test two tools. One, called "say_hello" is an artificial that doesn't require the
+database. With this tool we test only the MCP Client/Server setup. Another one -
+"list_schemas" - is a real tool that does require the database connection. This one
+allows us to run a complete test.
 
 Remains to be tested:
-
-- A bearer token mode. That's when the client application takes the responsibility of
-  acquiring a valid access token. The MCP server just varifies the token it has been
-  given. This is exactly how the Exasol database behaves in regard to the OpenID
-  authentication.
 
 - The mode when the authorization server issues a short-lived access token and a
   refresh token. The access token refreshing should be performed by the MCP Client.
@@ -101,6 +102,7 @@ from exasol.ai.mcp.server.main import (
     ENV_USER,
     AuthenticationMethod,
     create_mcp_server,
+    get_access_token_string,
     get_auth_provider,
     get_connection_factory,
 )
@@ -383,6 +385,9 @@ def _mcp_server_factory(env: dict[str, str]):
             auth=auth,
         )
         mcp_server.tool(say_hello, description="The tool just says Hello")
+        mcp_server.tool(
+            get_access_token_string, description="The tool returns the access token"
+        )
         mcp_server.run(transport="http", host=host, port=port)
 
     return run_server
@@ -433,6 +438,21 @@ def mcp_server_with_oauth_proxy(oidc_server, backend_aware_onprem_database_param
         yield url
 
 
+@pytest.fixture
+def mcp_server_with_token_verifier(oidc_server, backend_aware_onprem_database_params):
+    """
+    Starts the MCP server that only verifies externally provided tokens
+    https://gofastmcp.com/servers/auth/token-verification
+    """
+    env = {
+        ENV_DSN: backend_aware_onprem_database_params["dsn"],
+        ENV_JWKS_URI: f"{oidc_server}/jwks",
+    }
+    for url in _start_mcp_server(env):
+        print(f"✓ MCP server with Token Verification started at {url}")
+        yield url
+
+
 async def _run_tool_async(http_server_url: str, tool_name: str, **kwargs):
     """
     Creates an MCP client and calls the specified tool asynchronously.
@@ -442,27 +462,61 @@ async def _run_tool_async(http_server_url: str, tool_name: str, **kwargs):
         transport=StreamableHttpTransport(http_server_url), auth=oauth
     ) as client:
         assert await client.ping()
-        return await client.call_tool(tool_name, kwargs)
+        result = await client.call_tool(tool_name, kwargs)
+        return result.content[0].text
 
 
-def _run_say_hello_test(http_server_url: str) -> None:
+async def _run_tool_with_token_async(
+    http_server_url: str, token: str, tool_name: str, **kwargs
+):
+    """
+    Creates an MCP client, providing it with an access token
+    and calls the specified tool asynchronously.
+    """
+    async with Client(
+        transport=StreamableHttpTransport(http_server_url), auth=token
+    ) as client:
+        assert await client.ping()
+        result = await client.call_tool(tool_name, kwargs)
+        return result.content[0].text
+
+
+def _run_say_hello_test(http_server_url: str, token: str | None = None) -> None:
     """
     Tests the added test tool that doesn't require the database.
     """
-    result = asyncio.run(_run_tool_async(http_server_url, "say_hello"))
-    result_text = result.content[0].text
+    if token:
+        result_text = asyncio.run(
+            _run_tool_with_token_async(http_server_url, token, "say_hello")
+        )
+    else:
+        result_text = asyncio.run(_run_tool_async(http_server_url, "say_hello"))
     assert result_text == "Hello"
 
 
-def _run_list_schemas_test(http_server_url: str, db_schemas: list[ExaSchema]) -> None:
+def _run_list_schemas_test(
+    http_server_url: str, db_schemas: list[ExaSchema], token: str | None = None
+) -> None:
     """
     Tests one of the real tools that requires the database.
     """
-    result = asyncio.run(_run_tool_async(http_server_url, "list_schemas"))
-    result_json = json.loads(result.content[0].text)
+    if token:
+        result_text = asyncio.run(
+            _run_tool_with_token_async(http_server_url, token, "list_schemas")
+        )
+    else:
+        result_text = asyncio.run(_run_tool_async(http_server_url, "list_schemas"))
+    result_json = json.loads(result_text)
     schemas = {s["name"] for s in result_json["result"]}
     expected_schemas = {schema.name for schema in db_schemas}
     assert schemas == expected_schemas
+
+
+@pytest.fixture
+def bearer_token(mcp_server_with_remote_oauth) -> str:
+    return asyncio.run(
+        _run_tool_async(mcp_server_with_remote_oauth, "get_access_token_string")
+    )
 
 
 def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
@@ -471,6 +525,10 @@ def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
 
 def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
+
+
+def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> None:
+    _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 
 def test_remote_oauth_with_db(
@@ -491,3 +549,16 @@ def test_oauth_proxy_with_db(
     db_schemas,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
+
+
+def test_bearer_token_with_db(
+    create_open_id_user,
+    bearer_token,
+    mcp_server_with_token_verifier,
+    setup_docker_network,
+    setup_database,
+    db_schemas,
+) -> None:
+    _run_list_schemas_test(
+        mcp_server_with_token_verifier, db_schemas, token=bearer_token
+    )
