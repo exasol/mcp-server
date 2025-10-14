@@ -38,9 +38,8 @@ jobs:
 
       - name: Run Tests and Collect Coverage
         run: |
-          DB_PARAM=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_NET_GATEWAY_IP, OIDC_PORT; print(f'-oidcProviderJKU=http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks');")
-          # poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$DB_PARAM"
-          poetry run pytest -s --backend=onprem --itde-additional-db-parameter="-oidcProviderJKU=http://172.25.0.1:25432/jwks" test/integration
+          JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
+          poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="JWK_URL"
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:

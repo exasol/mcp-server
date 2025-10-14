@@ -69,6 +69,7 @@ import pytest
 from authlib import jose
 from authlib.integrations.flask_oauth2 import AuthorizationServer
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
+from docker.models.containers import Container
 from fastmcp import Client
 from fastmcp.client.auth.oauth import OAuth
 from fastmcp.client.transports import StreamableHttpTransport
@@ -82,7 +83,10 @@ from oidc_provider_mock._storage import (
     Storage,
     User,
 )
-from pyexasol import ExaRequestError
+from pyexasol import (
+    ExaConnection,
+    ExaRequestError,
+)
 
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
@@ -106,11 +110,33 @@ from exasol.ai.mcp.server.server_settings import (
 )
 
 
+def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
+    """
+    Validates that the JWK endpoint was set up in the database.
+    Warning! This function uses undocumented table EXA_COMMANDLINE. This table can be
+    renamed or removed in future versions of the database. In such a case the function
+    will have no effect apart from printing a warning.
+    """
+    query = (
+        "SELECT PARAM_VALUE FROM EXA_COMMANDLINE WHERE PARAM_NAME = 'oidcProviderJKU'"
+    )
+    try:
+        value = pyexasol_connection.execute(query).fetchval()
+        if value != DOCKER_JWK_URL:
+            raise RuntimeError(
+                f"The expected JWK endpoint is not set up in the database. Found {value}"
+            )
+        print(f"✓ JWK endpoint is found in the database")
+    except ExaRequestError:
+        print("Warning: unable to read JWK endpoint from the database")
+
+
 @pytest.fixture(scope="session")
 def create_open_id_user(pyexasol_connection) -> None:
     """
     The fixture creates a new user identified by an OpenID access token.
     """
+    _validate_db_oidc_setup(pyexasol_connection)
     create_query = f"""CREATE USER "{OIDC_USER_NAME}" IDENTIFIED BY OPENID SUBJECT '{OIDC_USER_SUB}'"""
     grant_query = f'GRANT CREATE SESSION TO "{OIDC_USER_NAME}"'
     drop_query = f'DROP USER IF EXISTS "{OIDC_USER_NAME}" CASCADE'
@@ -244,8 +270,41 @@ def oidc_server() -> str:
         yield server_url
 
 
-def get_jwk_endpoint() -> str:
-    return f"http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks"
+def _varify_docker_network(container: Container) -> None:
+    """
+    Verifies that JWK endpoint is accessible from the DockerDB.
+    The function relies on curl being installed in the ITDE. We will first
+    check if this is the case. If not, the verification will be skipped.
+    """
+    command = ["curl", "--version"]
+    exec_result = container.exec_run(command)
+    if exec_result.exit_code != 0:
+        print("Warning: Unable to verify the JWK endpoint access from the DockerDB")
+        return
+    command = [
+        "curl",
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        DOCKER_JWK_URL,
+    ]
+    exec_result = container.exec_run(command)
+    if exec_result.exit_code == 0:
+        status_code = int(exec_result.output.decode("utf-8"))
+        if 200 <= status_code < 300:
+            print(
+                f"✓ JWK endpoint is accessible from the DockerDB: HTTP code {status_code}"
+            )
+        else:
+            raise RuntimeError(
+                f"JWK endpoint is inaccessible from the DockerDB: HTTP code {status_code}"
+            )
+    else:
+        raise RuntimeError(
+            f"Failed to call JWK endpoint from the DockerDB: exit code {exec_result.exit_code}"
+        )
 
 
 @pytest.fixture(scope="session")
@@ -283,32 +342,7 @@ def setup_docker_network(oidc_server):
     else:
         print(f"✓ Container {CONTAINER_NAME} is already in {network_name}")
 
-    # Verify that JWK endpoint is accessible from the DockerDB
-    command = [
-        "curl",
-        "-s",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{http_code}",
-        get_jwk_endpoint(),
-    ]
-    exec_result = container.exec_run(command)
-    if exec_result.exit_code == 0:
-        status_code = int(exec_result.output.decode("utf-8"))
-        if 200 <= status_code < 300:
-            print(
-                f"✓ JWK endpoint is accessible from the DockerDB: HTTP code {status_code}"
-            )
-        else:
-            raise RuntimeError(
-                f"JWK endpoint is inaccessible from the DockerDB: HTTP code {status_code}"
-            )
-    else:
-        raise RuntimeError(
-            f"Failed to call JWK endpoint from the DockerDB: exit code {exec_result.exit_code}"
-        )
-
+    _varify_docker_network(container)
     yield
 
     # Cleanup
@@ -431,25 +465,6 @@ def _run_list_schemas_test(http_server_url: str, db_schemas: list[ExaSchema]) ->
     assert schemas == expected_schemas
 
 
-@pytest.fixture(scope="session")
-def setup_and_validate_database(
-    pyexasol_connection, setup_database, create_open_id_user
-):
-    # Check that the JWK endpoint was set up in the database.
-    query = (
-        "SELECT PARAM_VALUE FROM EXA_COMMANDLINE WHERE PARAM_NAME = 'oidcProviderJKU'"
-    )
-    try:
-        value = pyexasol_connection.execute(query).fetchval()
-        if value != get_jwk_endpoint():
-            raise RuntimeError(
-                f"The expected JWK endpoint is not set up in the database. Found {value}"
-            )
-        print(f"✓ JWK endpoint is found in the database")
-    except ExaRequestError:
-        print("Unable to read the JWK endpoint from the database")
-
-
 def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
@@ -459,18 +474,20 @@ def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
 
 
 def test_remote_oauth_with_db(
+    create_open_id_user,
     mcp_server_with_remote_oauth,
     setup_docker_network,
-    setup_and_validate_database,
+    setup_database,
     db_schemas,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_remote_oauth, db_schemas)
 
 
 def test_oauth_proxy_with_db(
+    create_open_id_user,
     mcp_server_with_oauth_proxy,
     setup_docker_network,
-    setup_and_validate_database,
+    setup_database,
     db_schemas,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
