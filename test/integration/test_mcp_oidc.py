@@ -32,9 +32,10 @@ preferred choice if the authorization server supports the Dynamic Client Registr
 (DCR). Another one - OAuth Proxy - emulates the DCR for the servers that do not
 support it. Please check https://gofastmcp.com/servers/auth/authentication for details.
 
-We test two tools. One is an artificial that doesn't require the database. With this
-tool we test only the MCP Client/Server setup. Another one is a real tool that does
-require the database connection. This one allows us to run a complete test.
+We test two tools. One, called "say_hello" is an artificial that doesn't require the
+database. With this tool we test only the MCP Client/Server setup. Another one -
+"list_schemas" - is a real tool that does require the database connection. This one
+allows us to run a complete test.
 
 Remains to be tested:
 

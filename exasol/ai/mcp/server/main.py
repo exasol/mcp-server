@@ -294,8 +294,6 @@ def get_auth_provider(env: dict[str:Any]) -> AuthProvider | None:
                 "upstream_client_secret": ENV_CLIENT_SECRET,
             }
             if all(v in env for v in oauth_proxy_kwargs.values()):
-                # debugging
-                print(from_env(oauth_proxy_kwargs))
                 return OAuthProxy(
                     **from_env(oauth_proxy_kwargs),
                     base_url=env[ENV_BASE_URL],
