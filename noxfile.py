@@ -1,18 +1,23 @@
 import os
+import sys
 
 import nox
 
 # imports all nox task provided by the toolbox
 from exasol.toolbox.nox.tasks import *
 
+if "." not in sys.path:
+    sys.path.append(".")
+from test.utils.mcp_oidc_constants import DOCKER_JWK_URL
+
 # default actions to be run if nothing is explicitly specified with the -s option
 nox.options.sessions = ["project:fix"]
 
 
-@nox.session(name="test:print_cwd", python=False)
-def print_cwd(session: nox.Session):
-    print("Current directory:", os.getcwd())
-    contents = os.listdir()
-    print("Current directory content:")
-    for item in contents:
-        print(item)
+@nox.session(name="test:integration_mcp", python=False)
+def integration_mcp(session: nox.Session):
+    extended_args = list(session.posargs) + [
+        "---itde-additional-db-parameter",
+        DOCKER_JWK_URL,
+    ]
+    session.notify("test:integration", extended_args)
