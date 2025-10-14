@@ -17,4 +17,4 @@ def integration_mcp(session: nox.Session):
     ]
 
     # Call the tests session with combined arguments
-    session.notify("tests", extended_args)
+    session.notify("test:integration", extended_args)
