@@ -514,6 +514,10 @@ def _run_list_schemas_test(
 
 @pytest.fixture
 def bearer_token(mcp_server_with_remote_oauth) -> str:
+    """
+    This feature creates an access token for the bearer token mode testing,
+    using another MCP server.
+    """
     return asyncio.run(
         _run_tool_async(mcp_server_with_remote_oauth, "get_access_token_string")
     )
