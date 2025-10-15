@@ -41,14 +41,6 @@ We test two tools. One, called "say_hello" is an artificial that doesn't require
 database. With this tool we test only the MCP Client/Server setup. Another one -
 "list_schemas" - is a real tool that does require the database connection. This one
 allows us to run a complete test.
-
-Remains to be tested:
-
-- The mode when the authorization server issues a short-lived access token and a
-  refresh token. The access token refreshing should be performed by the MCP Client.
-
-- Exasol recommends two optional token verification tests - the audience and the
-  issuer of the token. These options must be validated.
 """
 
 import asyncio
@@ -214,16 +206,18 @@ def oidc_server() -> str:
     original_init_app = AuthorizationServer.init_app
     original_storage_init = Storage.__init__
     jwk = jose.RSAKey.generate_key(is_private=True)
-    server_url = "to be provided"
 
     class MyJWTBearerTokenGenerator(JWTBearerTokenGenerator):
         def get_jwks(self):
             return jose.KeySet([jwk])
 
+        def get_audiences(self, client, user, scope):
+            return TOKEN_AUDIENCE
+
     def new_init_app(self, app, query_client=None, save_token=None):
         original_init_app(self, app, query_client, save_token)
         self.register_token_generator(
-            "default", MyJWTBearerTokenGenerator(issuer=server_url, alg=_JWS_ALG)
+            "default", MyJWTBearerTokenGenerator(issuer=TOKEN_ISSUER, alg=_JWS_ALG)
         )
 
     def new_storage_init(self):
@@ -250,7 +244,7 @@ def oidc_server() -> str:
             require_client_registration=False,
             require_nonce=False,
             issue_refresh_token=True,
-            access_token_max_age=timedelta(hours=1),
+            access_token_max_age=timedelta(seconds=TOKEN_LIFE_SECONDS),
         )
         stack.enter_context(
             _threaded_server(host="0.0.0.0", port=OIDC_PORT, app=auth_app)
@@ -453,22 +447,30 @@ def mcp_server_with_token_verifier(oidc_server, backend_aware_onprem_database_pa
         yield url
 
 
-async def _run_tool_async(http_server_url: str, tool_name: str, **kwargs):
+async def _run_tool_async(
+    http_server_url: str, tool_name: str, n_calls: int = 1, interval: int = 0, **kwargs
+) -> str:
     """
-    Creates an MCP client and calls the specified tool asynchronously.
+    Creates an MCP client and calls the specified tool asynchronously,
+    specified number of times, with given interval between the calls in seconds.
+    Verifies that each call returns the same result.
     """
     oauth = OAuthHeadless(mcp_url=http_server_url)
     async with Client(
         transport=StreamableHttpTransport(http_server_url), auth=oauth
     ) as client:
         assert await client.ping()
-        result = await client.call_tool(tool_name, kwargs)
-        return result.content[0].text
+        i = 0
+        while i := i + 1:
+            result = await client.call_tool(tool_name, kwargs)
+            if i == n_calls:
+                return result.content[0].text
+            time.sleep(interval)
 
 
 async def _run_tool_with_token_async(
     http_server_url: str, token: str, tool_name: str, **kwargs
-):
+) -> str:
     """
     Creates an MCP client, providing it with an access token
     and calls the specified tool asynchronously.
@@ -565,4 +567,27 @@ def test_bearer_token_with_db(
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_token_verifier, db_schemas, token=bearer_token
+    )
+
+
+@pytest.mark.parametrize("tool_name", ["say_hello", "list_schemas"])
+def test_refresh_token(
+    create_open_id_user,
+    mcp_server_with_remote_oauth,
+    setup_docker_network,
+    setup_database,
+    tool_name,
+) -> None:
+    """
+    This test calls a tool twice with an interval long enough for the access token
+    to expire. The MCP client is expected to use the refresh token to renew the
+    access token. The test validates that this mechanism works.
+    """
+    asyncio.run(
+        _run_tool_async(
+            mcp_server_with_remote_oauth,
+            n_calls=2,
+            interval=TOKEN_LIFE_SECONDS + 5,
+            tool_name=tool_name,
+        )
     )
