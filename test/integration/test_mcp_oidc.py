@@ -453,7 +453,7 @@ async def _run_tool_async(
     """
     Creates an MCP client and calls the specified tool asynchronously,
     specified number of times, with given interval between the calls in seconds.
-    Verifies that each call returns the same result.
+    Returns the result of the last call.
     """
     oauth = OAuthHeadless(mcp_url=http_server_url)
     async with Client(
