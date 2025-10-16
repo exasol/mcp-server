@@ -102,8 +102,10 @@ class ExasolMCPServer(FastMCP):
             The server configuration.
     """
 
-    def __init__(self, connection: DbConnection, config: McpServerSettings) -> None:
-        super().__init__(name="exasol-mcp")
+    def __init__(
+        self, connection: DbConnection, config: McpServerSettings, **kwargs
+    ) -> None:
+        super().__init__(name="exasol-mcp", **kwargs)
         self.connection = connection
         self.meta_query = ExasolMetaQuery(config)
 

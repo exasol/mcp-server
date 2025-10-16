@@ -1,7 +1,7 @@
 [project]
 name = "exasol-mcp-server"
 version = "1.0.0"
-requires-python = ">=3.10,<=3.13"   # Restriction is due to numpy
+requires-python = ">=3.10,<3.14"   # Restriction is due to numpy
 description = "Exasol MCP Server"
 authors = [
     {name = "Mikhail Beck", email = "mikhail.beck@exasol.com"},
@@ -25,7 +25,7 @@ repository = "https://github.com/exasol/mcp-server"
 homepage = "https://github.com/exasol/mcp-server"
 
 [tool.poetry.dependencies]
-fastmcp = "^2.10.4"
+fastmcp = "^2.12.0"
 pyexasol = "^0.27.0"
 sqlglot = "^27.2.0"
 numpy = ">=2,<=2.2.0"
@@ -34,8 +34,11 @@ rank-bm25 = "^0.2.2"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
+pytest-exasol-backend = "^1.2.1"
 pytest-exasol-extension = "^0.2.3"
-exasol-integration-test-docker-environment = "<4.3.0"
+exasol-integration-test-docker-environment = "^4.3.0"
+oidc-provider-mock = "^0.2.9"
+flask-oidc = "^2.4.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
