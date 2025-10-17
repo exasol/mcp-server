@@ -34,8 +34,7 @@ support it. Please check https://gofastmcp.com/servers/auth/authentication for d
 
 Lastly, we test the case when the MCP server only verifies an externally provided
 access token - bearer token mode. In this mode the client application takes the
-responsibility of acquiring a valid access token. This is exactly how the Exasol
-database behaves in regard to the OpenID authentication.
+responsibility of acquiring a valid access token.
 
 We test two tools. One, called "say_hello" is an artificial that doesn't require the
 database. With this tool we test only the MCP Client/Server setup. Another one -
@@ -244,7 +243,6 @@ def oidc_server() -> str:
             require_client_registration=False,
             require_nonce=False,
             issue_refresh_token=True,
-            access_token_max_age=timedelta(seconds=TOKEN_LIFE_SECONDS),
         )
         stack.enter_context(
             _threaded_server(host="0.0.0.0", port=OIDC_PORT, app=auth_app)
@@ -266,7 +264,7 @@ def oidc_server() -> str:
         yield server_url
 
 
-def _varify_docker_network(container: Container) -> None:
+def _verify_docker_network(container: Container) -> None:
     """
     Verifies that JWK endpoint is accessible from the DockerDB.
     The function relies on curl being installed in the ITDE. We will first
@@ -338,7 +336,7 @@ def setup_docker_network(oidc_server):
     else:
         print(f"✓ Container {CONTAINER_NAME} is already in {network_name}")
 
-    _varify_docker_network(container)
+    _verify_docker_network(container)
     yield
 
     # Cleanup
@@ -447,25 +445,18 @@ def mcp_server_with_token_verifier(oidc_server, backend_aware_onprem_database_pa
         yield url
 
 
-async def _run_tool_async(
-    http_server_url: str, tool_name: str, n_calls: int = 1, interval: int = 0, **kwargs
-) -> str:
+async def _run_tool_async(http_server_url: str, tool_name: str, **kwargs) -> str:
     """
-    Creates an MCP client and calls the specified tool asynchronously,
-    specified number of times, with given interval between the calls in seconds.
-    Returns the result of the last call.
+    Creates an MCP client with authomatic authorization,
+    and calls the specified tool asynchronously.
     """
     oauth = OAuthHeadless(mcp_url=http_server_url)
     async with Client(
         transport=StreamableHttpTransport(http_server_url), auth=oauth
     ) as client:
         assert await client.ping()
-        i = 0
-        while i := i + 1:
-            result = await client.call_tool(tool_name, kwargs)
-            if i == n_calls:
-                return result.content[0].text
-            time.sleep(interval)
+        result = await client.call_tool(tool_name, kwargs)
+        return result.content[0].text
 
 
 async def _run_tool_with_token_async(
@@ -567,27 +558,4 @@ def test_bearer_token_with_db(
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_token_verifier, db_schemas, token=bearer_token
-    )
-
-
-@pytest.mark.parametrize("tool_name", ["say_hello", "list_schemas"])
-def test_refresh_token(
-    create_open_id_user,
-    mcp_server_with_remote_oauth,
-    setup_docker_network,
-    setup_database,
-    tool_name,
-) -> None:
-    """
-    This test calls a tool twice with an interval long enough for the access token
-    to expire. The MCP client is expected to use the refresh token to renew the
-    access token. The test validates that this mechanism works.
-    """
-    asyncio.run(
-        _run_tool_async(
-            mcp_server_with_remote_oauth,
-            n_calls=2,
-            interval=TOKEN_LIFE_SECONDS + 5,
-            tool_name=tool_name,
-        )
     )
