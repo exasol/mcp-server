@@ -49,15 +49,16 @@ import ssl
 import time
 from collections.abc import Generator
 from contextlib import ExitStack
-from datetime import timedelta
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
+from typing import Type
 from unittest.mock import patch
 from urllib.parse import quote
 
 import docker
 import httpx
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from authlib import jose
 from authlib.integrations.flask_oauth2 import AuthorizationServer
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
@@ -65,6 +66,12 @@ from docker.models.containers import Container
 from fastmcp import Client
 from fastmcp.client.auth.oauth import OAuth
 from fastmcp.client.transports import StreamableHttpTransport
+from fastmcp.server.auth import (
+    AuthProvider,
+    OAuthProxy,
+    RemoteAuthProvider,
+)
+from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.utilities.tests import run_server_in_process
 from oidc_provider_mock._app import (
     _JWS_ALG,
@@ -81,20 +88,18 @@ from pyexasol import (
 )
 
 from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.generic_auth import (
+    ENV_PROVIDER_TYPE,
+    AuthParameter,
+    exa_parameter_env_name,
+    exa_provider_name,
+    get_auth_provider,
+)
 from exasol.ai.mcp.server.main import (
-    ENV_AUTH_ENDPOINT,
-    ENV_AUTH_SERVERS,
-    ENV_BASE_URL,
-    ENV_CLIENT_ID,
-    ENV_CLIENT_SECRET,
     ENV_DSN,
-    ENV_JWKS_URI,
-    ENV_TOKEN_ENDPOINT,
     ENV_USER,
-    AuthenticationMethod,
     create_mcp_server,
     get_access_token_string,
-    get_auth_provider,
     get_connection_factory,
 )
 from exasol.ai.mcp.server.server_settings import (
@@ -346,7 +351,15 @@ def setup_docker_network(oidc_server):
     print(f"✓ Deleted network: {network_name}")
 
 
-def _mcp_server_factory(env: dict[str, str]):
+def _set_auth_type(monkeypatch: MonkeyPatch, provider_type: type[AuthProvider]):
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(provider_type))
+
+
+def _set_auth_param(monkeypatch: MonkeyPatch, name: str, value: str):
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter(name)), value)
+
+
+def _mcp_server_factory(env: dict[str, str], monkeypatch: MonkeyPatch | None = None):
     """
     Returns an MCP server factory that creates the MCP server and runs it as an http
     server at the provided host and port.
@@ -359,11 +372,10 @@ def _mcp_server_factory(env: dict[str, str]):
 
     def run_server(host: str, port: int) -> None:
 
-        env[ENV_BASE_URL] = f"http://{host}:{port}"
-        env[ENV_USER] = OIDC_USER_NAME
-        auth = get_auth_provider(env)
+        if monkeypatch is not None:
+            _set_auth_param(monkeypatch, "base_url", f"http://{host}:{port}")
+        auth = get_auth_provider()
         connection_factory = get_connection_factory(
-            AuthenticationMethod.OPEN_ID,
             env,
             websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
         )
@@ -385,32 +397,41 @@ def _mcp_server_factory(env: dict[str, str]):
     return run_server
 
 
-def _start_mcp_server(env: dict[str, str]) -> Generator[None, None, str]:
+def _start_mcp_server(
+    env: dict[str, str], monkeypatch: MonkeyPatch | None = None
+) -> Generator[None, None, str]:
     """
     Starts the MCP server in a separate process and returns its url.
     """
-    with run_server_in_process(_mcp_server_factory(env)) as url:
+    with run_server_in_process(_mcp_server_factory(env, monkeypatch)) as url:
         yield f"{url}/mcp"
 
 
 @pytest.fixture
-def mcp_server_with_remote_oauth(oidc_server, backend_aware_onprem_database_params):
+def mcp_server_with_remote_oauth(
+    oidc_server, backend_aware_onprem_database_params, monkeypatch
+):
     """
     Starts the MCP server using an external identity provider that supports DCR.
     https://gofastmcp.com/servers/auth/remote-oauth
     """
     env = {
         ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_JWKS_URI: f"{oidc_server}/jwks",
-        ENV_AUTH_SERVERS: oidc_server,
+        ENV_USER: OIDC_USER_NAME,
     }
-    for url in _start_mcp_server(env):
+    _set_auth_type(monkeypatch, RemoteAuthProvider)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
+    _set_auth_param(monkeypatch, "authorization_servers", oidc_server)
+
+    for url in _start_mcp_server(env, monkeypatch):
         print(f"✓ MCP server with Remote OAuth started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_oauth_proxy(oidc_server, backend_aware_onprem_database_params):
+def mcp_server_with_oauth_proxy(
+    oidc_server, backend_aware_onprem_database_params, monkeypatch
+):
     """
     Starts the MCP server using an external identity provider that doesn't support DCR.
     https://gofastmcp.com/servers/auth/oauth-proxy
@@ -419,27 +440,40 @@ def mcp_server_with_oauth_proxy(oidc_server, backend_aware_onprem_database_param
     """
     env = {
         ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_JWKS_URI: f"{oidc_server}/jwks",
-        ENV_AUTH_ENDPOINT: f"{oidc_server}/oauth2/authorize",
-        ENV_TOKEN_ENDPOINT: f"{oidc_server}/oauth2/token",
-        ENV_CLIENT_ID: "MY_CLIENT_ID",
-        ENV_CLIENT_SECRET: "MY_CLIENT_SECRET",
+        ENV_USER: OIDC_USER_NAME,
     }
-    for url in _start_mcp_server(env):
+    _set_auth_type(monkeypatch, OAuthProxy)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
+    _set_auth_param(
+        monkeypatch,
+        "upstream_authorization_endpoint",
+        f"{oidc_server}/oauth2/authorize",
+    )
+    _set_auth_param(
+        monkeypatch, "upstream_token_endpoint", f"{oidc_server}/oauth2/token"
+    )
+    _set_auth_param(monkeypatch, "upstream_client_id", "MY_CLIENT_ID")
+    _set_auth_param(monkeypatch, "upstream_client_secret", "MY_CLIENT_SECRET")
+
+    for url in _start_mcp_server(env, monkeypatch):
         print(f"✓ MCP server with OAuth Proxy started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_token_verifier(oidc_server, backend_aware_onprem_database_params):
+def mcp_server_with_token_verifier(
+    oidc_server, backend_aware_onprem_database_params, monkeypatch
+):
     """
     Starts the MCP server that only verifies externally provided tokens
     https://gofastmcp.com/servers/auth/token-verification
     """
     env = {
         ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_JWKS_URI: f"{oidc_server}/jwks",
+        ENV_USER: OIDC_USER_NAME,
     }
+    _set_auth_type(monkeypatch, JWTVerifier)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     for url in _start_mcp_server(env):
         print(f"✓ MCP server with Token Verification started at {url}")
         yield url

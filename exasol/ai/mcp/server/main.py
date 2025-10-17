@@ -2,24 +2,15 @@ import json
 import os
 import re
 from collections.abc import Callable
-from enum import (
-    Enum,
-    auto,
-)
 from typing import Any
 
 import pyexasol
-from fastmcp.server.auth import (
-    AuthProvider,
-    OAuthProxy,
-    RemoteAuthProvider,
-)
-from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.dependencies import get_access_token
 from pydantic import ValidationError
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.generic_auth import get_auth_kwargs
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
@@ -31,27 +22,10 @@ ENV_USER = "EXA_USER"
 """ The DB user name to be used by the MCP server """
 ENV_PASSWORD = "EXA_PASSWORD"
 """ The DB password for password authentication """
-ENV_JWKS_URI = "EXA_JWKS_URI"
-""" JSON Web Key Set endpoint for remote token verification """
-ENV_AUTH_SERVERS = "EXA_AUTH_SERVERS"
-""" Comma-separated list of authorization servers that support DCR """
-ENV_BASE_URL = "EXA_BASE_URL"
-""" The base URL of the MCP server, where a callback endpoint is created """
-ENV_AUTH_ENDPOINT = "EXA_AUTH_ENDPOINT"
-""" Authorization endpoint of an OAuth provider with manual client registration """
-ENV_TOKEN_ENDPOINT = "EXA_TOKEN_ENDPOINT"
-""" Token endpoint of an OAuth provider with manual client registration """
-ENV_CLIENT_ID = "EXA_CLIENT_ID"
-""" Client ID issued by an OAuth provider with manual client registration """
-ENV_CLIENT_SECRET = "EXA_CLIENT_SECRET"
-""" Client secret issued by an OAuth provider with manual client registration """
-
-
-class AuthenticationMethod(Enum):
-    PASSWORD = auto()
-    OPEN_ID = auto()
-    LDAP = auto()
-    KERBEROS = auto()
+ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"
+""" Bearer access token  """
+ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"
+""" Bearer refresh token  """
 
 
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
@@ -264,55 +238,16 @@ def create_mcp_server(
     return mcp_server
 
 
-def get_auth_provider(env: dict[str:Any]) -> AuthProvider | None:
-    """
-    Creates one of the FastMCP OAuth2 providers, depending on content of the supplied
-    configuration dictionary. Currently, the dictionary is filled from the environment
-    variables. Going forward, configuration parameters will be kept in the NBC secret
-    store.
-    """
-
-    def from_env(params: dict[str, str]) -> dict[str, str]:
-        return {k: env[v] for k, v in params.items() if v in env}
-
-    if ENV_BASE_URL in env and ENV_JWKS_URI in env:
-        token_verifier = JWTVerifier(
-            jwks_uri=env[ENV_JWKS_URI],
-            base_url=env[ENV_BASE_URL],
-        )
-        if ENV_AUTH_SERVERS in env:
-            return RemoteAuthProvider(
-                authorization_servers=env[ENV_AUTH_SERVERS].split(","),
-                base_url=env[ENV_BASE_URL],
-                token_verifier=token_verifier,
-            )
-        else:
-            oauth_proxy_kwargs = {
-                "upstream_authorization_endpoint": ENV_AUTH_ENDPOINT,
-                "upstream_token_endpoint": ENV_TOKEN_ENDPOINT,
-                "upstream_client_id": ENV_CLIENT_ID,
-                "upstream_client_secret": ENV_CLIENT_SECRET,
-            }
-            if all(v in env for v in oauth_proxy_kwargs.values()):
-                return OAuthProxy(
-                    **from_env(oauth_proxy_kwargs),
-                    base_url=env[ENV_BASE_URL],
-                    token_verifier=token_verifier,
-                )
-        return token_verifier
-    return None
-
-
 def get_access_token_string() -> str:
     return get_access_token().token
 
 
 def get_connection_factory(
-    auth_method: AuthenticationMethod, env: dict[str:Any], **extra_kwargs
+    env: dict[str:Any], **extra_kwargs
 ) -> Callable[[], ExaConnection]:
     """
-    Returns the pyexasol connection factory required by a DBConnection object. The
-    factory will use the specified authentication method and provided configuration
+    Returns the pyexasol connection factory required by a DBConnection object.
+    Authentication method will be inferred from the provided configuration
     parameters. Currently, the parameters come from environment variables.
     Going forward, the configuration parameters will be kept in the NBC secret store.
     """
@@ -323,11 +258,27 @@ def get_connection_factory(
         "compression": True,
     }
     conn_kwargs.update(extra_kwargs)
-    if auth_method == AuthenticationMethod.PASSWORD:
-        conn_kwargs["password"] = env.get(ENV_PASSWORD)
+
+    # Infer the authentication method. If neither password nor bearer token are
+    # provided assume that the MCP server is protected with OpenID Connect and the
+    # access token can be found in the MCP server context. This token will be used
+    # to connect to the database. The database, in its turn, will have to verify the
+    # token with the same identity provider as used by the MCP server.
+    # Otherwise, use the password or a bearer token, whichever is provided. The MCP
+    # server may still be protected with the OpenID, but in this case it is irrelevant
+    # as far as the database connection is concerned.
+    use_open_id = False
+    if ENV_PASSWORD in env:
+        conn_kwargs["password"] = env[ENV_PASSWORD]
+    elif ENV_ACCESS_TOKEN in env:
+        conn_kwargs["access_token"] = env[ENV_ACCESS_TOKEN]
+    elif ENV_REFRESH_TOKEN in env:
+        conn_kwargs["refresh_token"] = env[ENV_REFRESH_TOKEN]
+    else:
+        use_open_id = True
 
     def connection_factory() -> ExaConnection:
-        if auth_method == AuthenticationMethod.OPEN_ID:
+        if use_open_id:
             conn_kwargs["access_token"] = get_access_token_string()
         return pyexasol.connect(**conn_kwargs)
 
@@ -344,14 +295,8 @@ def main():
     """
     env = get_env()
     mcp_settings = get_mcp_settings(env)
-    auth = get_auth_provider(env)
-    if auth is None:
-        auth_method = AuthenticationMethod.PASSWORD
-        auth_kwargs = {}
-    else:
-        auth_method = AuthenticationMethod.OPEN_ID
-        auth_kwargs = {"auth": auth}
-    connection_factory = get_connection_factory(auth_method, env)
+    auth_kwargs = get_auth_kwargs()
+    connection_factory = get_connection_factory(env)
 
     connection = DbConnection(connection_factory=connection_factory)
 
