@@ -1,6 +1,8 @@
 OIDC_PORT = 25432
 OIDC_USER_SUB = "test_sub"
 OIDC_USER_NAME = "oidc_test_user"
+TOKEN_AUDIENCE = "my_test_audience"
+TOKEN_ISSUER = "my_test_issuer"
 DOCKER_NET_GATEWAY_IP = "172.25.0.1"
 DOCKER_NET_SUBNET = "172.25.0.0/16"
 DOCKER_JWK_URL = f"http://{DOCKER_NET_GATEWAY_IP}:{OIDC_PORT}/jwks"
