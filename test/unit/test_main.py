@@ -6,28 +6,16 @@ from unittest.mock import (
 )
 
 import pytest
-from fastmcp.server.auth import (
-    OAuthProxy,
-    RemoteAuthProvider,
-)
-from fastmcp.server.auth.providers.jwt import JWTVerifier
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
-    ENV_AUTH_ENDPOINT,
-    ENV_AUTH_SERVERS,
-    ENV_BASE_URL,
-    ENV_CLIENT_ID,
-    ENV_CLIENT_SECRET,
+    ENV_ACCESS_TOKEN,
     ENV_DSN,
-    ENV_JWKS_URI,
     ENV_PASSWORD,
+    ENV_REFRESH_TOKEN,
     ENV_SETTINGS,
-    ENV_TOKEN_ENDPOINT,
     ENV_USER,
-    AuthenticationMethod,
-    get_auth_provider,
     get_connection_factory,
     get_mcp_settings,
     main,
@@ -87,44 +75,40 @@ def test_get_mcp_settings_no_file(tmp_path) -> None:
         get_mcp_settings(env)
 
 
-@pytest.mark.parametrize(
-    ["env_names", "expected_auth_type"],
-    [
-        ([ENV_BASE_URL], None),
-        ([ENV_BASE_URL, ENV_JWKS_URI], JWTVerifier),
-        ([ENV_BASE_URL, ENV_JWKS_URI, ENV_AUTH_SERVERS], RemoteAuthProvider),
-        (
-            [
-                ENV_BASE_URL,
-                ENV_JWKS_URI,
-                ENV_AUTH_ENDPOINT,
-                ENV_TOKEN_ENDPOINT,
-                ENV_CLIENT_ID,
-                ENV_CLIENT_SECRET,
-            ],
-            OAuthProxy,
-        ),
-    ],
-)
-def test_get_auth_provider(env_names, expected_auth_type) -> None:
-    env = {env_name: "http://some_url" for env_name in env_names}
-    provider = get_auth_provider(env)
-    if expected_auth_type is None:
-        assert provider is None
-    else:
-        assert isinstance(provider, expected_auth_type)
-
-
 @patch("pyexasol.connect")
 @patch("exasol.ai.mcp.server.main.get_access_token_string")
 def test_get_connection_factory_oauth(mock_get_token_str, mock_connect) -> None:
+    """
+    This test validates the behaviour of the connection factory in case
+    when MCP OpenID is used.
+    """
     env = {ENV_DSN: "my.db.dsn", ENV_USER: "my_user_name"}
     mock_get_token_str.return_value = "xyz"
-    factory = get_connection_factory(AuthenticationMethod.OPEN_ID, env)
+    factory = get_connection_factory(env)
     factory()
     _, connect_kwargs = mock_connect.call_args
     assert "password" not in connect_kwargs
     assert connect_kwargs["access_token"] == "xyz"
+
+
+@pytest.mark.parametrize(
+    ["token_env", "token_arg"],
+    [(ENV_ACCESS_TOKEN, "access_token"), (ENV_REFRESH_TOKEN, "refresh_token")],
+    ids=["access_token", "refresh_token"],
+)
+@patch("pyexasol.connect")
+def test_get_connection_factory_bearer_token(
+    mock_connect, token_env, token_arg
+) -> None:
+    """
+    This test validates the use of an access or refresh token instead of the password.
+    """
+    env = {ENV_DSN: "my.db.dsn", ENV_USER: "my_user_name", token_env: "my_token"}
+    factory = get_connection_factory(env)
+    factory()
+    _, connect_kwargs = mock_connect.call_args
+    assert "password" not in connect_kwargs
+    assert connect_kwargs[token_arg] == "my_token"
 
 
 @patch("pyexasol.connect")
@@ -134,7 +118,8 @@ def test_main_with_json_str(
     mock_get_env, mock_create_server, mock_connect, settings_json
 ) -> None:
     """
-    This test validates the creation of an MCP Server without authentication.
+    This test validates the creation of an MCP Server without authentication,
+    using password.
     """
     mock_connection = create_autospec(ExaConnection)
     mock_connection.options = {}
