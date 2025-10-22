@@ -51,7 +51,6 @@ from collections.abc import Generator
 from contextlib import ExitStack
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
-from typing import Type
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -98,9 +97,10 @@ from exasol.ai.mcp.server.generic_auth import (
 from exasol.ai.mcp.server.main import (
     ENV_DSN,
     ENV_USER,
+    ENV_USERNAME_CLAIM,
     create_mcp_server,
-    get_access_token_string,
     get_connection_factory,
+    get_oidc_user,
 )
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
@@ -200,12 +200,12 @@ def oidc_server() -> str:
     The patch replaces this key and uses it for the JWT token generation, which, in turn,
     replaces the default generator.
 
-    Another hack is related to the logic of JWT token generator, which I currently do not
-    fully understand. It expects the subject to come from an ID of an authorizing user.
-    https://github.com/authlib/authlib/blob/06015d20652a23eff8350b6ad71b32fe41dae4ba/authlib/oauth2/rfc9068/token.py#L142
-    We should investigate possible implications of that, however, this is beyond our
-    control. It is even outside the scope of the MCP protocol. It is actually between
-    the client app, e.g. Claude, and the identity (authorization) server, e.g. WorkOS.
+    Another hack is related to the logic of JWT token generator, in regard to the token
+    subject. The JWTBearerTokenGenerator follows the RFC 9068 recommendation, which says
+    "In cases of access tokens obtained through grants where a resource owner is involved,
+    such as the authorization code grant, the value of "sub" SHOULD correspond to the
+    subject identifier of the resource owner". Hence, we need to add a `get_user_id`
+    function to the User.
     """
     original_init_app = AuthorizationServer.init_app
     original_storage_init = Storage.__init__
@@ -218,8 +218,11 @@ def oidc_server() -> str:
         def get_audiences(self, client, user, scope):
             return TOKEN_AUDIENCE
 
-    def new_init_app(self, app, query_client=None, save_token=None):
-        original_init_app(self, app, query_client, save_token)
+        def get_extra_claims(self, client, grant_type, user, scope):
+            return user.claims
+
+    def new_init_app(self, app_, query_client=None, save_token=None):
+        original_init_app(self, app_, query_client, save_token)
         self.register_token_generator(
             "default", MyJWTBearerTokenGenerator(issuer=TOKEN_ISSUER, alg=_JWS_ALG)
         )
@@ -262,7 +265,7 @@ def oidc_server() -> str:
         # Create the MCP User credentials at the mock authorization server.
         response = httpx.put(
             f"{server_url}/users/{quote(OIDC_USER_SUB)}",
-            json={"name": "MCP_Test"},
+            json={"name": "MCP_Test", TOKEN_USERNAME: OIDC_USER_NAME},
         )
         assert response.status_code == 204
         print("✓ The user credentials are created")
@@ -368,7 +371,12 @@ def _mcp_server_factory(env: dict[str, str], monkeypatch: MonkeyPatch | None = N
     """
 
     def say_hello() -> str:
-        return "Hello"
+        user, _ = get_oidc_user(TOKEN_USERNAME)
+        return f"Hello {user}"
+
+    def get_access_token_string() -> str:
+        _, token = get_oidc_user(None)
+        return token
 
     def run_server(host: str, port: int) -> None:
 
@@ -407,41 +415,45 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
+@pytest.fixture(scope="session", params=[True, False])
+def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
+    """
+    The fixture builds a configuration for the `get_connection_factory`.
+    Here we will explore two options:
+    1. The DB username is passed in a claim.
+    2. The users are anonymous and the MCP server has to use the default DB username.
+    """
+    env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
+    if request.param:
+        env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
+    else:
+        env[ENV_USER] = OIDC_USER_NAME
+    return env
+
+
 @pytest.fixture
-def mcp_server_with_remote_oauth(
-    oidc_server, backend_aware_onprem_database_params, monkeypatch
-):
+def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that supports DCR.
     https://gofastmcp.com/servers/auth/remote-oauth
     """
-    env = {
-        ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_USER: OIDC_USER_NAME,
-    }
     _set_auth_type(monkeypatch, RemoteAuthProvider)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(monkeypatch, "authorization_servers", oidc_server)
 
-    for url in _start_mcp_server(env, monkeypatch):
+    for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with Remote OAuth started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_oauth_proxy(
-    oidc_server, backend_aware_onprem_database_params, monkeypatch
-):
+def mcp_server_with_oauth_proxy(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that doesn't support DCR.
     https://gofastmcp.com/servers/auth/oauth-proxy
     The mock authorization server does support DCR, but in this scenario we will not use
     this feature.
     """
-    env = {
-        ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_USER: OIDC_USER_NAME,
-    }
     _set_auth_type(monkeypatch, OAuthProxy)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(
@@ -455,26 +467,20 @@ def mcp_server_with_oauth_proxy(
     _set_auth_param(monkeypatch, "upstream_client_id", "MY_CLIENT_ID")
     _set_auth_param(monkeypatch, "upstream_client_secret", "MY_CLIENT_SECRET")
 
-    for url in _start_mcp_server(env, monkeypatch):
+    for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with OAuth Proxy started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_token_verifier(
-    oidc_server, backend_aware_onprem_database_params, monkeypatch
-):
+def mcp_server_with_token_verifier(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server that only verifies externally provided tokens
     https://gofastmcp.com/servers/auth/token-verification
     """
-    env = {
-        ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_USER: OIDC_USER_NAME,
-    }
     _set_auth_type(monkeypatch, JWTVerifier)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
-    for url in _start_mcp_server(env):
+    for url in _start_mcp_server(oidc_env):
         print(f"✓ MCP server with Token Verification started at {url}")
         yield url
 
@@ -518,7 +524,7 @@ def _run_say_hello_test(http_server_url: str, token: str | None = None) -> None:
         )
     else:
         result_text = asyncio.run(_run_tool_async(http_server_url, "say_hello"))
-    assert result_text == "Hello"
+    assert result_text == f"Hello {OIDC_USER_NAME}"
 
 
 def _run_list_schemas_test(
