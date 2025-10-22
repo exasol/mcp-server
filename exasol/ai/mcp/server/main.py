@@ -257,6 +257,49 @@ def get_oidc_user(username_claim: str | None) -> tuple[str | None, str]:
     return token.claims.get(username_claim), token.token
 
 
+def _create_connection_kwargs(
+    env: dict[str:Any], **extra_kwargs
+) -> tuple[dict[str, Any], bool]:
+    """
+    Creates pyexasol.connect kwargs based on the provided configuration parameters.
+    Also returns an indicator whether the OpenID authentication is used.
+    Raises a ValueError if the set of configuration parameters is incomplete.
+    """
+    common_kwargs = {
+        "dsn": env[ENV_DSN],
+        "fetch_dict": True,
+        "compression": True,
+    }
+    common_kwargs.update(extra_kwargs)
+
+    # Infer the authentication method.
+    use_open_id = False
+    if ENV_PASSWORD in env:
+        common_kwargs["password"] = env[ENV_PASSWORD]
+    elif ENV_ACCESS_TOKEN in env:
+        common_kwargs["access_token"] = env[ENV_ACCESS_TOKEN]
+    elif ENV_REFRESH_TOKEN in env:
+        common_kwargs["refresh_token"] = env[ENV_REFRESH_TOKEN]
+    else:
+        use_open_id = True
+
+    # Validate the configuration. This, however, is not a definitive test.
+    # The ENV_USERNAME_CLAIM may be set but not actually work. In that case the
+    # exception will be raised in the factory. But we prefer it to be raised here.
+    if (ENV_USER not in env) and not (use_open_id and (ENV_USERNAME_CLAIM in env)):
+        raise ValueError(
+            "The inferred authentication method requires a database username"
+        )
+    return common_kwargs, use_open_id
+
+
+def _create_connection_pool(env: dict[str:Any]) -> NamedObjectPool[ExaConnection]:
+    pool_size = (
+        int(env[ENV_POOL_SIZE]) if ENV_POOL_SIZE in env else DEFAULT_CONN_POOL_SIZE
+    )
+    return NamedObjectPool(capacity=pool_size, cleanup=lambda conn: conn.close())
+
+
 def get_connection_factory(
     env: dict[str:Any], **extra_kwargs
 ) -> Callable[[], ContextManager[ExaConnection]]:
@@ -298,38 +341,8 @@ def get_connection_factory(
       by another user. As in the first option, the permissions of the server's DB user
       must be set accordingly.
     """
-    common_kwargs = {
-        "dsn": env[ENV_DSN],
-        "fetch_dict": True,
-        "compression": True,
-    }
-    common_kwargs.update(extra_kwargs)
-
-    # Infer the authentication method.
-    use_open_id = False
-    if ENV_PASSWORD in env:
-        common_kwargs["password"] = env[ENV_PASSWORD]
-    elif ENV_ACCESS_TOKEN in env:
-        common_kwargs["access_token"] = env[ENV_ACCESS_TOKEN]
-    elif ENV_REFRESH_TOKEN in env:
-        common_kwargs["refresh_token"] = env[ENV_REFRESH_TOKEN]
-    else:
-        use_open_id = True
-
-    # Validate the configuration. This, however, is not a definitive test.
-    # The ENV_USERNAME_CLAIM may be set but not actually work. In that case the
-    # exception will be raised in the factory. But we prefer it to be raised here.
-    if (ENV_USER not in env) and not (use_open_id and (ENV_USERNAME_CLAIM in env)):
-        raise ValueError(
-            "The inferred authentication method requires a database " "username"
-        )
-
-    pool_size = (
-        int(env[ENV_POOL_SIZE]) if ENV_POOL_SIZE in env else DEFAULT_CONN_POOL_SIZE
-    )
-    connection_pool: NamedObjectPool[ExaConnection] = NamedObjectPool(
-        capacity=pool_size, cleanup=lambda conn: conn.close()
-    )
+    common_kwargs, use_open_id = _create_connection_kwargs(env, **extra_kwargs)
+    connection_pool = _create_connection_pool(env)
 
     @contextmanager
     def connection_factory() -> Generator[ExaConnection, None, None]:
