@@ -1,5 +1,7 @@
 import asyncio
 import json
+from collections.abc import Generator
+from contextlib import contextmanager
 from itertools import chain
 from test.utils.db_objects import (
     ExaColumn,
@@ -36,7 +38,11 @@ from exasol.ai.mcp.server.server_settings import (
 async def _run_tool_async(
     connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
 ):
-    db_connection = DbConnection(lambda: connection)
+    @contextmanager
+    def connection_factory() -> Generator[ExaConnection, None, None]:
+        yield connection
+
+    db_connection = DbConnection(connection_factory, num_retries=1)
 
     exa_server = create_mcp_server(db_connection, config)
     async with Client(exa_server) as client:
