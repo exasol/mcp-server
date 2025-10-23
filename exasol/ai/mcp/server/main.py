@@ -12,6 +12,7 @@ from typing import (
 )
 
 import pyexasol
+import sqlglot.expressions as exp
 from fastmcp.server.dependencies import get_access_token
 from pydantic import ValidationError
 from pyexasol import ExaConnection
@@ -257,12 +258,9 @@ def get_oidc_user(username_claim: str | None) -> tuple[str | None, str]:
     return token.claims.get(username_claim), token.token
 
 
-def _create_connection_kwargs(
-    env: dict[str:Any], **extra_kwargs
-) -> tuple[dict[str, Any], bool]:
+def _create_connection_kwargs(env: dict[str, Any], **extra_kwargs) -> dict[str, Any]:
     """
     Creates pyexasol.connect kwargs based on the provided configuration parameters.
-    Also returns an indicator whether the OpenID authentication is used.
     Raises a ValueError if the set of configuration parameters is incomplete.
     """
     common_kwargs = {
@@ -286,16 +284,22 @@ def _create_connection_kwargs(
     # Validate the configuration. This, however, is not a definitive test.
     # The ENV_USERNAME_CLAIM may be set but not actually work. In that case the
     # exception will be raised in the factory. But we prefer it to be raised here.
-    if (ENV_USER not in env) and not (use_open_id and (ENV_USERNAME_CLAIM in env)):
+    if (ENV_USER not in env) and ((not use_open_id) or (ENV_USERNAME_CLAIM not in env)):
         raise ValueError(
             "The inferred authentication method requires a database username"
         )
-    return common_kwargs, use_open_id
+    return common_kwargs
 
 
 def _create_connection_pool(env: dict[str:Any]) -> NamedObjectPool[ExaConnection]:
     pool_size = int(env.get(ENV_POOL_SIZE, DEFAULT_CONN_POOL_SIZE))
     return NamedObjectPool(capacity=pool_size, cleanup=lambda conn: conn.close())
+
+
+def _build_impersonate_query(user: str) -> str:
+    # I can't figure out how to construct this query properly in SQLGlot
+    user_id = exp.Identifier(this=user, quoted=True)
+    return f'IMPERSONATE {user_id.sql(dialect="exasol")}'
 
 
 def get_connection_factory(
@@ -318,8 +322,11 @@ def get_connection_factory(
     username. The server needs to know the name of this claim.
 
     This gives us three basic options for the database connection:
-    - The server is configured to use a specific username and either password or bearer
-      token authentication. This works for both single and multiple user modes.
+    - The server is configured to use its own database credentials (username and either
+      password or an OpenID token). No attempt is made to identify the actual user
+      accessing the server tools. This works for both single and multiple user modes.
+      The server tools may still be protected with OAuth2 authorization, but as far as
+      the database connection is concerned this is irrelevant.
       The server's DB user must have the permission that is the least common denominator
       of the permissions of the users that are allowed to access the MCP server.
 
@@ -328,56 +335,58 @@ def get_connection_factory(
       multiuser mode, when the following two conditions are met:
       1. The users' authentication with the chosen identity provider is configured to
          add their DB usernames as a claim in the access token.
-      2. The correspondent DB users are also authenticated using OpenID, with access
+      2. The correspondent DB users are also authenticated using OpenID, with an access
          token (refresh token is currently not supported). The database verifies the
-         token with the same identity provider as the MCP server.
+         token with the same identity provider as the MCP server. The subject, the DB
+         user is identified with in the database, should, according to RFC 9068, match
+         the subject field in the access token issued to this user.
 
-    - The server extracts the access token from the MCP Auth context, but uses its
-      own username. This is a workaround for the multiuser mode, when either of the
-      above conditions cannot be met. For this option we will not cache the connection,
-      otherwise a token issued for one user could be used to execute a query requested
-      by another user. As in the first option, the permissions of the server's DB user
-      must be set accordingly.
+    - The last option is a blend between the first two. It works in a multiuser mode,
+      when the first of the above conditions is met but the second is not. The connection
+      is opened using the pre-configured database credentials, as in the first option.
+      But since the actual username can be identified, the connection impersonates this
+      user. All subsequent queries are executed under this user's permissions. For this
+      to work the server's user must have the "IMPERSONATE ANY USER" or "IMPERSONATION ON
+      <user/role>" privilege.
     """
-    common_kwargs, use_open_id = _create_connection_kwargs(env, **extra_kwargs)
+    common_kwargs = _create_connection_kwargs(env, **extra_kwargs)
     connection_pool = _create_connection_pool(env)
 
     @contextmanager
     def connection_factory() -> Generator[ExaConnection, None, None]:
-        # In the OpenID mode try to get the current username, as well as the access
-        # token, from the MCP context. That failed, use the default username.
-        # Also, use the default username in all other modes.
-        use_pool = True
-        if use_open_id:
-            user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
-            if not user:
-                if ENV_USER not in env:
-                    raise RuntimeError(
-                        "Cannot extract database username from the MCP "
-                        "context, and no default username is specified"
-                    )
-                user = env[ENV_USER]
-                use_pool = False
-        else:
-            user, token = env[ENV_USER], ""
+        # Try to get the actual username and the access token from the MCP context.
+        oidc_user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
+        server_user = env.get(ENV_USER)
+        user = oidc_user or server_user
+        if not user:
+            raise RuntimeError(
+                "Cannot extract database username from the MCP context, "
+                "and default username is not specified."
+            )
 
-        # Try to get the connection for the current user from the pool,
-        # unless the pool is disabled.
-        connection = connection_pool.checkout(user) if use_pool else None
+        # Try to get the connection for the current user from the pool.
+        connection = connection_pool.checkout(user)
 
         # Open a new one if needed.
         if (connection is None) or connection.is_closed:
             conn_kwargs = dict(common_kwargs)
-            conn_kwargs["user"] = user
-            if use_open_id:
+            # Always prefer to connect with pre-configured server credentials.
+            conn_kwargs["user"] = server_user or oidc_user
+            if not server_user:
+                # If not using pre-configured server credentials then
+                # authenticate with the token extracted from the MCP context.
                 conn_kwargs["access_token"] = token
             connection = pyexasol.connect(**conn_kwargs)
+            if server_user and (user != server_user):
+                # If connected with pre-configured credentials but the actual
+                # username is known impersonate the actual user.
+                query = _build_impersonate_query(user)
+                connection.execute(query)
 
         yield connection
 
-        # Return the connection back to the pool, unless it has been closed
-        # or the pool is disabled.
-        if use_pool and not connection.is_closed:
+        # Return the connection back to the pool, unless it has been closed.
+        if not connection.is_closed:
             connection_pool.checkin(user, connection)
 
     return connection_factory

@@ -96,6 +96,7 @@ from exasol.ai.mcp.server.generic_auth import (
 )
 from exasol.ai.mcp.server.main import (
     ENV_DSN,
+    ENV_PASSWORD,
     ENV_USER,
     ENV_USERNAME_CLAIM,
     create_mcp_server,
@@ -130,18 +131,34 @@ def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
 
 
 @pytest.fixture(scope="session")
-def create_open_id_user(pyexasol_connection) -> None:
+def create_users(pyexasol_connection) -> None:
     """
-    The fixture creates a new user identified by an OpenID access token.
+    The fixture creates two new users. One is identified by an OpenID access token,
+    and another one is by password.
     """
     _validate_db_oidc_setup(pyexasol_connection)
-    create_query = f"""CREATE USER "{OIDC_USER_NAME}" IDENTIFIED BY OPENID SUBJECT '{OIDC_USER_SUB}'"""
-    grant_query = f'GRANT CREATE SESSION TO "{OIDC_USER_NAME}"'
-    drop_query = f'DROP USER IF EXISTS "{OIDC_USER_NAME}" CASCADE'
-    for query in [drop_query, create_query, grant_query]:
+    create_query1 = f"""CREATE USER "{OIDC_USER_NAME}" IDENTIFIED BY OPENID SUBJECT '{OIDC_USER_SUB}'"""
+    create_query2 = (
+        f'CREATE USER "{SERVER_USER_NAME}" IDENTIFIED BY "{SERVER_USER_PASSWORD}"'
+    )
+    grant_query1 = f'GRANT CREATE SESSION TO "{OIDC_USER_NAME}"'
+    grant_query2 = f'GRANT CREATE SESSION TO "{SERVER_USER_NAME}"'
+    grant_query3 = f'GRANT IMPERSONATE ANY USER TO "{SERVER_USER_NAME}"'
+    drop_query1 = f'DROP USER IF EXISTS "{OIDC_USER_NAME}" CASCADE'
+    drop_query2 = f'DROP USER IF EXISTS "{SERVER_USER_NAME}" CASCADE'
+    for query in [
+        drop_query1,
+        drop_query2,
+        create_query1,
+        create_query2,
+        grant_query1,
+        grant_query2,
+        grant_query3,
+    ]:
         pyexasol_connection.execute(query)
     yield
-    pyexasol_connection.execute(drop_query)
+    for query in [drop_query1, drop_query2]:
+        pyexasol_connection.execute(query)
 
 
 class OAuthHeadless(OAuth):
@@ -415,19 +432,22 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=[True, False])
+@pytest.fixture(scope="session", params=[False, True])
 def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory`.
     Here we will explore two options:
-    1. The DB username is passed in a claim.
-    2. The users are anonymous and the MCP server has to use the default DB username.
+    1. The connection is made under the actual username.
+    2. The connection is made using pre-configured credentials, and the actual user
+       is impersonated.
     """
-    env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
+    env = {
+        ENV_DSN: backend_aware_onprem_database_params["dsn"],
+        ENV_USERNAME_CLAIM: TOKEN_USERNAME,
+    }
     if request.param:
-        env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
-    else:
-        env[ENV_USER] = OIDC_USER_NAME
+        env[ENV_USER] = SERVER_USER_NAME
+        env[ENV_PASSWORD] = SERVER_USER_PASSWORD
     return env
 
 
@@ -569,7 +589,7 @@ def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> Non
 
 
 def test_remote_oauth_with_db(
-    create_open_id_user,
+    create_users,
     mcp_server_with_remote_oauth,
     setup_docker_network,
     setup_database,
@@ -579,7 +599,7 @@ def test_remote_oauth_with_db(
 
 
 def test_oauth_proxy_with_db(
-    create_open_id_user,
+    create_users,
     mcp_server_with_oauth_proxy,
     setup_docker_network,
     setup_database,
@@ -589,7 +609,7 @@ def test_oauth_proxy_with_db(
 
 
 def test_bearer_token_with_db(
-    create_open_id_user,
+    create_users,
     bearer_token,
     mcp_server_with_token_verifier,
     setup_docker_network,

@@ -40,6 +40,7 @@ def settings_json() -> dict[str, Any]:
 def mock_connect():
     with patch("pyexasol.connect") as mock_pyconn:
         mock_connection = MagicMock(spec=ExaConnection)
+        mock_connection.execute = MagicMock()
         mock_connection.configure_mock(is_closed=False)
         mock_connection.options = {}
         mock_pyconn.return_value = mock_connection
@@ -87,6 +88,13 @@ def test_get_mcp_settings_no_file(tmp_path) -> None:
         get_mcp_settings(env)
 
 
+@pytest.fixture
+def oidc_user_none() -> None:
+    with patch("exasol.ai.mcp.server.main.get_oidc_user") as mock_oidc_user:
+        mock_oidc_user.return_value = (None, None)
+        yield
+
+
 @patch("exasol.ai.mcp.server.main.get_oidc_user")
 def test_get_connection_factory_oidc_multi_user(mock_oidc_user, mock_connect) -> None:
     """
@@ -118,26 +126,35 @@ def test_get_connection_factory_oidc_multi_user(mock_oidc_user, mock_connect) ->
 @patch("exasol.ai.mcp.server.main.get_oidc_user")
 def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) -> None:
     """
-    This test validates the behaviour of the connection factory in a multi-user case
-    when the username cannot be identified from the MCP Auth context. In such case,
-    the connection factory is expected to use the default username along with the token
-    extracted from the MCP Auth context.
+    This is a variation of the previous test for the case when the server connects to
+    the database using the default credentials but impersonating the actual user.
     """
-    env = {ENV_DSN: "my.db.dsn", ENV_USER: "my_user_name"}
+    env = {
+        ENV_DSN: "my.db.dsn",
+        ENV_USER: "my_user_name",
+        ENV_PASSWORD: "my_password",
+        ENV_USERNAME_CLAIM: "username",
+    }
     factory = get_connection_factory(env)
-    mock_oidc_user.return_value = (None, "xyz")
+    num_users = 3
+    for i in range(1, num_users + 1):
+        user_name = f"my_user{i}"
+        mock_oidc_user.return_value = (user_name, "xyz")
+        with factory():
+            pass
+        assert mock_connect.call_count == i
+        _, connect_kwargs = mock_connect.call_args
+        assert "access_token" not in connect_kwargs
+        assert connect_kwargs["user"] == "my_user_name"
+        assert connect_kwargs["password"] == "my_password"
+        execute_args = mock_connect.return_value.execute.call_args.args
+        assert execute_args == (f'IMPERSONATE "{user_name}"',)
+    # Try, to get the connection for the first user again,
+    # it should be pulled from cache.
+    mock_oidc_user.return_value = ("my_user1", "xyz")
     with factory():
         pass
-    assert mock_connect.call_count == 1
-    _, connect_kwargs = mock_connect.call_args
-    assert "password" not in connect_kwargs
-    # There should be the default username and the OIDC token
-    assert connect_kwargs["user"] == "my_user_name"
-    assert connect_kwargs["access_token"] == "xyz"
-    # The connection should not be cached.
-    with factory():
-        pass
-    assert mock_connect.call_count == 2
+    assert mock_connect.call_count == num_users
 
 
 @pytest.mark.parametrize(
@@ -149,10 +166,12 @@ def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) 
     ],
     ids=["password", "access_token", "refresh_token"],
 )
-def test_get_connection_factory_single_user(mock_connect, auth_env, auth_arg) -> None:
+def test_get_connection_factory_single_user(
+    oidc_user_none, mock_connect, auth_env, auth_arg
+) -> None:
     """
     This test validates the behaviour of the connection factory in a single-user case,
-    using the default username and either a password or a bearer token.
+    using the default credentials.
     """
     env = {ENV_DSN: "my.db.dsn", ENV_USER: "my_user_name", auth_env: "secret"}
     factory = get_connection_factory(env)
@@ -174,11 +193,9 @@ def test_get_connection_factory_early_error() -> None:
         get_connection_factory(env)
 
 
-@patch("exasol.ai.mcp.server.main.get_oidc_user")
-def test_get_connection_factory_late_error(mock_oidc_user, mock_connect) -> None:
+def test_get_connection_factory_late_error(oidc_user_none, mock_connect) -> None:
     env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
     factory = get_connection_factory(env)
-    mock_oidc_user.return_value = (None, "xyz")
     with pytest.raises(RuntimeError, match="database username"):
         with factory():
             pass
@@ -187,7 +204,7 @@ def test_get_connection_factory_late_error(mock_oidc_user, mock_connect) -> None
 @patch("exasol.ai.mcp.server.main.create_mcp_server")
 @patch("exasol.ai.mcp.server.main.get_env")
 def test_main_with_json_str(
-    mock_get_env, mock_create_server, mock_connect, settings_json
+    mock_get_env, mock_create_server, oidc_user_none, mock_connect, settings_json
 ) -> None:
     """
     This test validates the creation of an MCP Server in a single-user mode,

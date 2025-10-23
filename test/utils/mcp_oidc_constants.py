@@ -1,6 +1,8 @@
 OIDC_PORT = 25432
 OIDC_USER_SUB = "test_sub"
 OIDC_USER_NAME = "oidc_test_user"
+SERVER_USER_NAME = "server_test_user"
+SERVER_USER_PASSWORD = "server_test_password"
 TOKEN_AUDIENCE = "my_test_audience"
 TOKEN_ISSUER = "my_test_issuer"
 TOKEN_USERNAME = "my_username"
