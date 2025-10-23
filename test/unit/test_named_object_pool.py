@@ -28,7 +28,7 @@ def test_named_object_pool():
     # "b" should still be there
     obj_b = pool.checkout("b")
     assert obj_b is not None
-    assert obj_b.state >= 0
+    assert obj_b.state > 0
     pool.checkin("b", obj_b)
 
     # When the next object is added, it's "c" that should be evicted, not "b" because

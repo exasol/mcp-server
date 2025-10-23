@@ -294,9 +294,7 @@ def _create_connection_kwargs(
 
 
 def _create_connection_pool(env: dict[str:Any]) -> NamedObjectPool[ExaConnection]:
-    pool_size = (
-        int(env[ENV_POOL_SIZE]) if ENV_POOL_SIZE in env else DEFAULT_CONN_POOL_SIZE
-    )
+    pool_size = int(env.get(ENV_POOL_SIZE, DEFAULT_CONN_POOL_SIZE))
     return NamedObjectPool(capacity=pool_size, cleanup=lambda conn: conn.close())
 
 
@@ -313,7 +311,7 @@ def get_connection_factory(
     these are password and an OpenID token.
 
     The MCP server can be deployed in two ways: locally or as a remote http server.
-    In the latter case the server works in the multiple user mode and its toos must be
+    In the latter case the server works in the multiple user mode and its tools must be
     protected with OAuth2 authorization. The server can identify the user by looking
     at the claims in the access token. Most identity providers allow setting a custom
     claim or offer a choice of standard claims that can be used to store the DB
@@ -329,7 +327,7 @@ def get_connection_factory(
       context and uses that to open the connection. This option is suitable for
       multiuser mode, when the following two conditions are met:
       1. The users' authentication with the chosen identity provider is configured to
-         add their DB usernames as a clim in the access token.
+         add their DB usernames as a claim in the access token.
       2. The correspondent DB users are also authenticated using OpenID, with access
          token (refresh token is currently not supported). The database verifies the
          token with the same identity provider as the MCP server.

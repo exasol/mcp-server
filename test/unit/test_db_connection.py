@@ -56,7 +56,11 @@ class FakeConnectionFactory:
         self.conn_state.append(self.connection.is_closed)
 
 
-@pytest.mark.parametrize("snapshot", [True, False])
+@pytest.fixture(params=[True, False])
+def snapshot(request) -> bool:
+    return request.param
+
+
 def test_db_connection_execute_success(snapshot):
     """
     Tests the successful execution of a query first time.
@@ -68,7 +72,6 @@ def test_db_connection_execute_success(snapshot):
     assert factory.conn_state == [False]
 
 
-@pytest.mark.parametrize("snapshot", [True, False])
 def test_db_connection_execute_failure(snapshot):
     """
     Tests the failure of a query execution first time.
@@ -80,7 +83,6 @@ def test_db_connection_execute_failure(snapshot):
         db_connection.execute_query("SELECT 1", snapshot=snapshot).fetchval()
 
 
-@pytest.mark.parametrize("snapshot", [True, False])
 def test_db_connection_execute_retry_success(snapshot):
     """
     Tests the successful execution of a query after a number of retries.
@@ -98,7 +100,6 @@ def test_db_connection_execute_retry_success(snapshot):
     assert factory.conn_state == [True, True, True, False]
 
 
-@pytest.mark.parametrize("snapshot", [True, False])
 def test_db_connection_execute_retry_failure(snapshot):
     """
     Tests the failure after a number of retries.
