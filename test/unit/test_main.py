@@ -20,7 +20,7 @@ from exasol.ai.mcp.server.main import (
     ENV_USERNAME_CLAIM,
     get_connection_factory,
     get_mcp_settings,
-    main,
+    mcp_server,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -203,7 +203,7 @@ def test_get_connection_factory_late_error(oidc_user_none, mock_connect) -> None
 
 @patch("exasol.ai.mcp.server.main.create_mcp_server")
 @patch("exasol.ai.mcp.server.main.get_env")
-def test_main_with_json_str(
+def test_mcp_server(
     mock_get_env, mock_create_server, oidc_user_none, mock_connect, settings_json
 ) -> None:
     """
@@ -218,13 +218,13 @@ def test_main_with_json_str(
         ENV_PASSWORD: "my_password",
         ENV_SETTINGS: json.dumps(settings_json),
     }
-    main()
+    server = mcp_server()
+    assert isinstance(server, ExasolMCPServer)
     _, create_server_kwargs = mock_create_server.call_args
     assert create_server_kwargs["config"] == McpServerSettings.model_validate(
         settings_json
     )
     assert isinstance(create_server_kwargs["connection"], DbConnection)
-    mock_server.run.assert_called_once()
     create_server_kwargs["connection"].execute_query("SELECT 1", snapshot=False)
     _, connect_kwargs = mock_connect.call_args
     assert connect_kwargs["dsn"] == "my.db.dsn"

@@ -432,23 +432,32 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=[False, True])
+@pytest.fixture(scope="session", params=[1, 2, 3])
 def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory`.
-    Here we will explore two options:
-    1. The connection is made under the actual username.
-    2. The connection is made using pre-configured credentials, and the actual user
-       is impersonated.
+    It provides 3 configuration options, as described in the `get_connection_factory`
+    docstring. Please refer to this documentation for more details on various
+    connection options.
     """
-    env = {
-        ENV_DSN: backend_aware_onprem_database_params["dsn"],
-        ENV_USERNAME_CLAIM: TOKEN_USERNAME,
-    }
-    if request.param:
+    env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
+    if request.param in [1, 3]:
         env[ENV_USER] = SERVER_USER_NAME
         env[ENV_PASSWORD] = SERVER_USER_PASSWORD
+    if request.param in [2, 3]:
+        env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
     return env
+
+
+@pytest.fixture(scope="session")
+def oidc_env_run_once(oidc_env) -> None:
+    """
+    The `oidc env` fixture sets different options for DB connection.
+    For the tests that do not use DB this is irrelevant. We don't want
+    these test to run multiple times unnecessarily.
+    """
+    if ENV_USERNAME_CLAIM in oidc_env:
+        pytest.skip()
 
 
 @pytest.fixture
@@ -576,15 +585,17 @@ def bearer_token(mcp_server_with_remote_oauth) -> str:
     )
 
 
-def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
+def test_remote_oauth_no_db(oidc_env_run_once, mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
 
-def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
+def test_oauth_proxy_no_db(oidc_env_run_once, mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
 
 
-def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> None:
+def test_bearer_token_no_db(
+    oidc_env_run_once, bearer_token, mcp_server_with_token_verifier
+) -> None:
     _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 

@@ -13,6 +13,7 @@ dynamic = ["dependencies"]
 
 [project.scripts]
 exasol-mcp-server = "exasol.ai.mcp.server.main:main"
+exasol-mcp-server-http = "exasol.ai.mcp.server.main:main_http"
 
 [tool.poetry]
 requires-poetry = ">=2.1.0"
@@ -31,6 +32,7 @@ sqlglot = "^27.2.0"
 numpy = ">=2,<=2.2.0"
 stopwords = "^1.0.1"
 rank-bm25 = "^0.2.2"
+click = "^8.3.0"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
