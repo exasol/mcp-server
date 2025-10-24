@@ -449,6 +449,17 @@ def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     return env
 
 
+@pytest.fixture(scope="session")
+def oidc_env_run_once(oidc_env) -> None:
+    """
+    The `oidc env` fixture sets different options for DB connection.
+    For the tests that do not use DB this is irrelevant. We don't want
+    these test to run multiple times unnecessarily.
+    """
+    if ENV_USERNAME_CLAIM in oidc_env:
+        pytest.skip()
+
+
 @pytest.fixture
 def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     """
@@ -574,15 +585,17 @@ def bearer_token(mcp_server_with_remote_oauth) -> str:
     )
 
 
-def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
+def test_remote_oauth_no_db(oidc_env_run_once, mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
 
-def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
+def test_oauth_proxy_no_db(oidc_env_run_once, mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
 
 
-def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> None:
+def test_bearer_token_no_db(
+    oidc_env_run_once, bearer_token, mcp_server_with_token_verifier
+) -> None:
     _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 
