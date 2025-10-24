@@ -11,6 +11,7 @@ from typing import (
     ContextManager,
 )
 
+import click
 import pyexasol
 import sqlglot.expressions as exp
 from fastmcp.server.dependencies import get_access_token
@@ -396,9 +397,9 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
-def main():
+def mcp_server() -> ExasolMCPServer:
     """
-    Main entry point that creates and runs the MCP server.
+    Builds the Exasol MCP server and all its components.
     """
     env = get_env()
     mcp_settings = get_mcp_settings(env)
@@ -407,10 +408,32 @@ def main():
 
     connection = DbConnection(connection_factory=connection_factory)
 
-    mcp_server = create_mcp_server(
-        connection=connection, config=mcp_settings, **auth_kwargs
-    )
-    mcp_server.run()
+    return create_mcp_server(connection=connection, config=mcp_settings, **auth_kwargs)
+
+
+def main():
+    """
+    Main entry point that creates and runs the MCP server locally.
+    """
+    server = mcp_server()
+    server.run()
+
+
+@click.command()
+@click.option("--transport", default="http", help="MCP Transport (default: http)")
+@click.option("--host", default="0.0.0.0", help="Host address (default: 0.0.0.0)")
+@click.option(
+    "--port",
+    default=8000,
+    type=click.IntRange(min=1),
+    help="Port number (default: 8000)",
+)
+def main_http(transport, host, port) -> None:
+    """
+    Runs the MCP server as a Direct HTTP Server. Suitable mostly for testing purposes.
+    """
+    server = mcp_server()
+    server.run(transport=transport, host=host, port=port)
 
 
 if __name__ == "__main__":

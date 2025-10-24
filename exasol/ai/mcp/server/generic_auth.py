@@ -26,10 +26,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from io import StringIO
-from typing import (
-    Any,
-    Type,
-)
+from typing import Any
 
 from fastmcp.server.auth import (
     AuthProvider,
@@ -159,7 +156,7 @@ def get_auth_provider() -> AuthProvider | None:
     Creates one of FastMCP generic OAuth2 providers, if the correspondent type name is
     set in the FASTMCP_SERVER_AUTH environment variable.
     """
-    provider_name = os.environ.get("FASTMCP_SERVER_AUTH")
+    provider_name = os.environ.get(ENV_PROVIDER_TYPE)
     if not provider_name:
         return None
 
