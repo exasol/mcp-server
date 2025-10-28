@@ -65,7 +65,7 @@ example.
       "command": "uvx",
       "args": ["exasol-mcp-server@latest"],
       "env": {
-        "EXA_DSN": "my-dsn, e.g. demodb.exasol.com:8563",
+        "EXA_DSN": "my-dsn",
         "EXA_USER": "my-user-name",
         "EXA_PASSWORD": "my-password"
       }
@@ -100,12 +100,35 @@ If the server is installed, the Claude configuration file should look like this:
 Please note that any changes to the Claude configuration file will only take effect
 after restarting Claude Desktop.
 
-## Configuration settings:
+## Running modes
+
+The MCP server can be deployed either locally, as described above, or as a remote HTTP
+server. To run the server as a Direct HTTP Server execute the command:
+
+```bash
+exasol-mcp-server-http --host <server-host> --port <server-port>
+```
+The `host` defaults to 0.0.0.0.
+
+This command provides a simple way to verify the setup for a remote MCP Server deployment.
+For the production environment, one might consider using an ASGI server like Unicorn. The
+most flexible approach is implementing a wrapper for the Exasol MCP server that will
+provide the desired control options. For further information and ideas, please check the
+[HTTP Deployment](https://gofastmcp.com/deployment/http) in the FastMCP documentation.
+
+Here is an example code creating the Exasol MCP server from a wrapper.
+```python
+from exasol.ai.mcp.server import mcp_server
+
+exasol_mcp = mcp_server()
+```
+
+## Configuration settings
 
 The sever is configured using environment variables and optionally a json file. In the
-above example the server is provided with the database connection parameters, all other
+above example, the server is provided with the database connection parameters, all other
 settings left to default. For the information on how to customise server settings
-please see the User Guide.
+please see the [Server Setup User Guide](doc/user_guide/server_setup.md).
 
 ## License
 

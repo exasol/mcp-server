@@ -2,7 +2,7 @@
 
 Essentially, the sever is configured using environment variables.
 
-In case the MCP Sever is running locally, under control of an MCP client application,
+In case of the MCP Sever running locally, under the control of an MCP client application,
 the latter usually provides a convenient way of creating an environment from some kind
 of configuration file. Below is an example of Claude Desktop configuration file that
 references the Exasol MCP Server.
@@ -34,14 +34,14 @@ The environment variables can be divided into three groups.
 - [Database connection settings](db_connection_setup.md)
 - [Tool settings](tool_setup.md)
 
-The settings are described in details in resective sections of the User Guide.
+All settings are described in details in respective sections of the User Guide.
 
 ## Tool settings
 
 The tool settings are stored in a single variable - `EXA_MCP_SETTINGS`. The settings
 are written in the json format. The json string can be set directly in the environment
 variable, as shown in the above example. Note that double quotes in the json string must
-be escaped, otherwise the environment variable value will be interpreted, not as a text,
+be escaped, otherwise the environment variable value will be interpreted, not as text,
 but as a part of the outer json.
 
 Alternatively, the settings can be written in a json file. In this case, the `EXA_MCP_SETTINGS`
