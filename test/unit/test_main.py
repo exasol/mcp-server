@@ -20,6 +20,7 @@ from exasol.ai.mcp.server.main import (
     ENV_USERNAME_CLAIM,
     get_connection_factory,
     get_mcp_settings,
+    get_oidc_user,
     mcp_server,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
@@ -88,11 +89,8 @@ def test_get_mcp_settings_no_file(tmp_path) -> None:
         get_mcp_settings(env)
 
 
-@pytest.fixture
-def oidc_user_none() -> None:
-    with patch("exasol.ai.mcp.server.main.get_oidc_user") as mock_oidc_user:
-        mock_oidc_user.return_value = (None, None)
-        yield
+def test_get_oidc_user_none() -> None:
+    assert get_oidc_user(None) == (None, None)
 
 
 @patch("exasol.ai.mcp.server.main.get_oidc_user")
@@ -166,9 +164,7 @@ def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) 
     ],
     ids=["password", "access_token", "refresh_token"],
 )
-def test_get_connection_factory_single_user(
-    oidc_user_none, mock_connect, auth_env, auth_arg
-) -> None:
+def test_get_connection_factory_single_user(mock_connect, auth_env, auth_arg) -> None:
     """
     This test validates the behaviour of the connection factory in a single-user case,
     using the default credentials.
@@ -193,7 +189,7 @@ def test_get_connection_factory_early_error() -> None:
         get_connection_factory(env)
 
 
-def test_get_connection_factory_late_error(oidc_user_none, mock_connect) -> None:
+def test_get_connection_factory_late_error(mock_connect) -> None:
     env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
     factory = get_connection_factory(env)
     with pytest.raises(RuntimeError, match="database username"):
@@ -204,7 +200,7 @@ def test_get_connection_factory_late_error(oidc_user_none, mock_connect) -> None
 @patch("exasol.ai.mcp.server.main.create_mcp_server")
 @patch("exasol.ai.mcp.server.main.get_env")
 def test_mcp_server(
-    mock_get_env, mock_create_server, oidc_user_none, mock_connect, settings_json
+    mock_get_env, mock_create_server, mock_connect, settings_json
 ) -> None:
     """
     This test validates the creation of an MCP Server in a single-user mode,
