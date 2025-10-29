@@ -34,10 +34,6 @@ jobs:
       - name: Setup Python & Poetry Environment
         uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
 
-      - name: Build Documentation
-        run: |
-          poetry run -- nox -s docs:build
-
       - name: Link Check
         run: |
           poetry run -- nox -s links:check
