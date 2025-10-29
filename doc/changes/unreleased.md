@@ -9,3 +9,4 @@
 * #76: Implemented extraction of the username from the MCP context, where possible. Queries are executed under the extracted username.
 * #78: Added an OIDC integration test for the basic connection option.
 * #79: Extracted the server builder into a separate function and added HTTP server CLI.
+* #70: Added User Guide.
