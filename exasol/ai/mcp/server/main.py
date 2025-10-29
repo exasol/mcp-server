@@ -254,7 +254,7 @@ def create_mcp_server(
     return mcp_server
 
 
-def get_oidc_user(username_claim: str | None) -> tuple[str | None, str]:
+def get_oidc_user(username_claim: str | None) -> tuple[str | None, str | None]:
     token = get_access_token()
     if token is None:
         return None, None
