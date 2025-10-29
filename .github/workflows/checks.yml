@@ -21,6 +21,29 @@ jobs:
       - name: Check Version(s)
         run: poetry run -- nox -s version:check
 
+  # Will be re-enabled once the User Guide is moved to sphinx
+  #
+  # Documentation:
+  #   name: Docs
+  #   needs: [ Version-Check ]
+  #   runs-on: ubuntu-24.04
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - name: SCM Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Setup Python & Poetry Environment
+  #       uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+  #
+  #     - name: Build Documentation
+  #       run: |
+  #         poetry run -- nox -s docs:build
+  #
+  #     - name: Link Check
+  #       run: |
+  #         poetry run -- nox -s links:check
+
   build-matrix:
     name: Generate Build Matrix
     uses: ./.github/workflows/matrix-python.yml

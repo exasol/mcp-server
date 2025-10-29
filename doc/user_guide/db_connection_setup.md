@@ -7,9 +7,9 @@ The MCP server can be deployed in two ways: locally or as a remote HTTP server.
 In the latter case, the server works in the multiple-user mode, and its tools must be
 protected with OAuth2 authorization. Please refer to [OpenID Setup](open_id_setup.md)
 guide for details on the OAuth configuration. The choice of the database connection
-parameters will likely depend on the MCP server deployment mode. This section of the
-User Guide explains possible deployment options in the context of the database
-connection and lists the expected environment variables in each of these cases.
+parameters depends on the MCP server deployment mode. This section of the User Guide
+explains possible deployment options in the context of the database connection and
+lists the expected environment variables in each of these cases.
 
 ## Local MCP Server
 
@@ -42,9 +42,9 @@ connection user special.
 
 ### Passthrough Access Token
 
-Under certain conditions, the access token can be extracted from the MCP Auth context
-and used to open the database connection on behalf of the user calling an MCP tool.
-This can be enabled if the following two additional requirements are met:
+Under certain conditions, the access token can be extracted from the MCP Authentication
+context and used to open the database connection on behalf of the user calling an MCP
+tool. This can be enabled if the following two additional requirements are met:
 
 - All MCP server users are identified by an access token in the Exasol database,
 - The database verifies the token with the same identity provider as the MCP server.
@@ -70,8 +70,8 @@ EXA_POOL_SIZE is the maximum size of the connection pool, defaults to 5.
 If the users are not identified by access tokens in the database, but their names can be
 made visible through a claim, it is possible to make the connection using a separate MCP
 Server credentials, with subsequent impersonation of the user. The database queries
-executed by the server tools when serving this user's requests will be subject to this
-user permissions. For this to work, the server's own credentials must have the
+executed by the server tools will be subject to permissions of the user who initiated
+the request. For this to work, the server's own credentials must have the
 "IMPERSONATE ANY USER" or "IMPERSONATION ON <user/role>" privileges.
 
 | Variable Name                          | Required |

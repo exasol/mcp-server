@@ -19,8 +19,7 @@ references the Exasol MCP Server.
         "EXA_PASSWORD": "my-password",
         "EXA_MCP_SETTINGS": "{\"schemas\": {\"like_pattern\": \"MY_SCHEMA\"}"
       }
-    },
-    "other_server": {}
+    }
   }
 }
 ```

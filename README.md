@@ -125,9 +125,9 @@ exasol_mcp = mcp_server()
 
 ## Configuration settings
 
-The sever is configured using environment variables and optionally a json file. In the
+The server is configured using environment variables and optionally a json file. In the
 above example, the server is provided with the database connection parameters, all other
-settings left to default. For the information on how to customise server settings
+settings left to default. For the information on how to customize server settings
 please see the [Server Setup User Guide](doc/user_guide/server_setup.md).
 
 ## License
