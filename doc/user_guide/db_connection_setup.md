@@ -31,11 +31,11 @@ depending on how the EXA_USER is identified.
 
 ## HTTP MCP Server
 
-This is the multiuser setup. The MCP Server may or may not be able to identify the
-user, depending on how server authorization is configured. The username can be stored
-in one of the claims in the access token. Most identity providers allow setting a custom
-claim or offer a choice of standard claims that can be used for that. The server needs
-to know the name of this claim.
+This is the multiuser setup. The MCP Server may be able to identify the user, if the
+server authorization is configured in a certain way. The username can be stored in one
+of the claims in the access token. Most identity providers allow setting a custom claim
+or offer a choice of standard claims that can be used for that. The server needs to know
+the name of this claim.
 
 Being able to identify the user gives two possibilities for making the database
 connection user special.
@@ -44,11 +44,11 @@ connection user special.
 
 Under certain conditions, the access token can be extracted from the MCP Auth context
 and used to open the database connection on behalf of the user calling an MCP tool.
-The following two additional conditions must be met:
+This can be enabled if the following two additional requirements are met:
 
 - All MCP server users are identified by an access token in the Exasol database,
 - The database verifies the token with the same identity provider as the MCP server.
-  In which case the subject, the user is identified with in the database, should
+  In that case the subject, the user is identified with in the database, should
   match the subject field in the access token issued to this user.
 
 Note that the user has to be identified in the database by an access token, not a
