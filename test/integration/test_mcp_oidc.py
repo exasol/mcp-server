@@ -86,6 +86,19 @@ from pyexasol import (
     ExaRequestError,
 )
 
+from exasol.ai.mcp.server.connection_factory import (
+    ENV_DSN,
+    ENV_PASSWORD,
+    ENV_SAAS_ACCOUNT_ID,
+    ENV_SAAS_DATABASE_NAME,
+    ENV_SAAS_HOST,
+    ENV_SAAS_PAT,
+    ENV_SAAS_PAT_HEADER,
+    ENV_USER,
+    ENV_USERNAME_CLAIM,
+    get_connection_factory,
+    get_oidc_user,
+)
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.generic_auth import (
     ENV_PROVIDER_TYPE,
@@ -94,15 +107,7 @@ from exasol.ai.mcp.server.generic_auth import (
     exa_provider_name,
     get_auth_provider,
 )
-from exasol.ai.mcp.server.main import (
-    ENV_DSN,
-    ENV_PASSWORD,
-    ENV_USER,
-    ENV_USERNAME_CLAIM,
-    create_mcp_server,
-    get_connection_factory,
-    get_oidc_user,
-)
+from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
     MetaListSettings,
@@ -432,8 +437,15 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=[1, 2, 3])
-def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
+@pytest.fixture(scope="session", params=[1, 2, 3, 4, 5])
+def oidc_env(
+    request,
+    backend_aware_onprem_database_params,
+    saas_host,
+    saas_account_id,
+    saas_pat,
+    database_name,
+) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory`.
     It provides 3 configuration options, as described in the `get_connection_factory`
@@ -446,17 +458,37 @@ def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
         env[ENV_PASSWORD] = SERVER_USER_PASSWORD
     if request.param in [2, 3]:
         env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
+    if request.param in [4, 5]:
+        env[ENV_SAAS_HOST] = saas_host
+        env[ENV_SAAS_ACCOUNT_ID] = saas_account_id
+        env[ENV_SAAS_DATABASE_NAME] = database_name
+    if request.param == 4:
+        env[ENV_SAAS_PAT] = saas_pat
+    if request.param == 5:
+        env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
     return env
 
 
 @pytest.fixture(scope="session")
-def oidc_env_run_once(oidc_env) -> None:
+def oidc_env_run_once(backend, oidc_env) -> None:
     """
     The `oidc env` fixture sets different options for DB connection.
     For the tests that do not use DB this is irrelevant. We don't want
     these test to run multiple times unnecessarily.
     """
-    if ENV_USERNAME_CLAIM in oidc_env:
+    if (backend != "onprem") or (ENV_USERNAME_CLAIM in oidc_env):
+        pytest.skip()
+
+
+@pytest.fixture(scope="session")
+def run_on_itde(backend) -> None:
+    if backend != "onprem":
+        pytest.skip()
+
+
+@pytest.fixture(scope="session")
+def run_on_saas(backend) -> None:
+    if backend != "saas":
         pytest.skip()
 
 
@@ -514,29 +546,20 @@ def mcp_server_with_token_verifier(oidc_server, oidc_env, monkeypatch):
         yield url
 
 
-async def _run_tool_async(http_server_url: str, tool_name: str, **kwargs) -> str:
+async def _run_tool_async(
+    http_server_url: str,
+    tool_name: str,
+    token: str | None = None,
+    headers: dict[str, str] | None = None,
+    **kwargs,
+) -> str:
     """
     Creates an MCP client with authomatic authorization,
     and calls the specified tool asynchronously.
     """
-    oauth = OAuthHeadless(mcp_url=http_server_url)
+    oauth = token if token else OAuthHeadless(mcp_url=http_server_url)
     async with Client(
-        transport=StreamableHttpTransport(http_server_url), auth=oauth
-    ) as client:
-        assert await client.ping()
-        result = await client.call_tool(tool_name, kwargs)
-        return result.content[0].text
-
-
-async def _run_tool_with_token_async(
-    http_server_url: str, token: str, tool_name: str, **kwargs
-) -> str:
-    """
-    Creates an MCP client, providing it with an access token
-    and calls the specified tool asynchronously.
-    """
-    async with Client(
-        transport=StreamableHttpTransport(http_server_url), auth=token
+        transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:
         assert await client.ping()
         result = await client.call_tool(tool_name, kwargs)
@@ -547,27 +570,24 @@ def _run_say_hello_test(http_server_url: str, token: str | None = None) -> None:
     """
     Tests the added test tool that doesn't require the database.
     """
-    if token:
-        result_text = asyncio.run(
-            _run_tool_with_token_async(http_server_url, token, "say_hello")
-        )
-    else:
-        result_text = asyncio.run(_run_tool_async(http_server_url, "say_hello"))
+    result_text = asyncio.run(
+        _run_tool_async(http_server_url, "say_hello", token=token)
+    )
     assert result_text == f"Hello {OIDC_USER_NAME}"
 
 
 def _run_list_schemas_test(
-    http_server_url: str, db_schemas: list[ExaSchema], token: str | None = None
+    http_server_url: str,
+    db_schemas: list[ExaSchema],
+    token: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> None:
     """
     Tests one of the real tools that requires the database.
     """
-    if token:
-        result_text = asyncio.run(
-            _run_tool_with_token_async(http_server_url, token, "list_schemas")
-        )
-    else:
-        result_text = asyncio.run(_run_tool_async(http_server_url, "list_schemas"))
+    result_text = asyncio.run(
+        _run_tool_async(http_server_url, "list_schemas", token=token, headers=headers)
+    )
     result_json = json.loads(result_text)
     schemas = {s["name"] for s in result_json["result"]}
     expected_schemas = {schema.name for schema in db_schemas}
@@ -599,7 +619,8 @@ def test_bearer_token_no_db(
     _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 
-def test_remote_oauth_with_db(
+def test_remote_oauth_with_itde(
+    run_on_itde,
     create_users,
     mcp_server_with_remote_oauth,
     setup_docker_network,
@@ -609,7 +630,8 @@ def test_remote_oauth_with_db(
     _run_list_schemas_test(mcp_server_with_remote_oauth, db_schemas)
 
 
-def test_oauth_proxy_with_db(
+def test_oauth_proxy_with_itde(
+    run_on_itde,
     create_users,
     mcp_server_with_oauth_proxy,
     setup_docker_network,
@@ -619,7 +641,8 @@ def test_oauth_proxy_with_db(
     _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
 
 
-def test_bearer_token_with_db(
+def test_bearer_token_with_itde(
+    run_on_itde,
     create_users,
     bearer_token,
     mcp_server_with_token_verifier,
@@ -629,4 +652,12 @@ def test_bearer_token_with_db(
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_token_verifier, db_schemas, token=bearer_token
+    )
+
+
+def test_remote_oauth_with_saas(
+    run_on_saas, mcp_server_with_remote_oauth, setup_database, db_schemas, saas_pat
+) -> None:
+    _run_list_schemas_test(
+        mcp_server_with_remote_oauth, db_schemas, headers={PAT_HEADER: saas_pat}
     )

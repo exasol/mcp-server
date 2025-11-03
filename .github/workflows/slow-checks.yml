@@ -41,7 +41,7 @@ jobs:
           JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
           TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
           TOK_ISS=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_ISSUER; print(f'-oidcProviderISS={TOKEN_ISSUER}');")
-          poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
+          poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=all --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
