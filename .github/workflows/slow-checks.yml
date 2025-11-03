@@ -42,6 +42,10 @@ jobs:
           TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
           TOK_ISS=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_ISSUER; print(f'-oidcProviderISS={TOKEN_ISSUER}');")
           poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=all --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
+        env:
+          SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
+          SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
+          SAAS_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
