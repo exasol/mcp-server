@@ -437,15 +437,8 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=[1, 2, 3, 4, 5])
-def oidc_env(
-    request,
-    backend_aware_onprem_database_params,
-    saas_host,
-    saas_account_id,
-    saas_pat,
-    database_name,
-) -> dict[str, str]:
+@pytest.fixture(scope="session", params=[1, 2, 3])
+def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory`.
     It provides 3 configuration options, as described in the `get_connection_factory`
@@ -458,26 +451,43 @@ def oidc_env(
         env[ENV_PASSWORD] = SERVER_USER_PASSWORD
     if request.param in [2, 3]:
         env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
-    if request.param in [4, 5]:
-        env[ENV_SAAS_HOST] = saas_host
-        env[ENV_SAAS_ACCOUNT_ID] = saas_account_id
-        env[ENV_SAAS_DATABASE_NAME] = database_name
-    if request.param == 4:
-        env[ENV_SAAS_PAT] = saas_pat
-    if request.param == 5:
-        env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
     return env
 
 
 @pytest.fixture(scope="session")
-def oidc_env_run_once(backend, oidc_env) -> None:
+def oidc_env_run_once(oidc_env) -> None:
     """
     The `oidc env` fixture sets different options for DB connection.
     For the tests that do not use DB this is irrelevant. We don't want
     these test to run multiple times unnecessarily.
     """
-    if (backend != "onprem") or (ENV_USERNAME_CLAIM in oidc_env):
+    if ENV_USERNAME_CLAIM in oidc_env:
         pytest.skip()
+
+
+@pytest.fixture(scope="session", params=[4, 5])
+def saas_env(
+    request,
+    saas_host,
+    saas_account_id,
+    saas_pat,
+    database_name,
+) -> dict[str, str]:
+    """
+    The fixture builds a configuration for the `get_connection_factory` for the SaaS
+    backend. It provides 2 configuration options - pre-configured PAT and the PAT
+    passed in a header.
+    """
+    env = {
+        ENV_SAAS_HOST: saas_host,
+        ENV_SAAS_ACCOUNT_ID: saas_account_id,
+        ENV_SAAS_DATABASE_NAME: database_name,
+    }
+    if request.param == 4:
+        env[ENV_SAAS_PAT] = saas_pat
+    if request.param == 5:
+        env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
+    return env
 
 
 @pytest.fixture(scope="session")
@@ -546,6 +556,16 @@ def mcp_server_with_token_verifier(oidc_server, oidc_env, monkeypatch):
         yield url
 
 
+@pytest.fixture
+def mcp_server_with_saas(saas_env, monkeypatch):
+    """
+    Starts the MCP server with no authorization.
+    """
+    for url in _start_mcp_server(saas_env, monkeypatch):
+        print(f"✓ MCP server with No OAuth started at {url}")
+        yield url
+
+
 async def _run_tool_async(
     http_server_url: str,
     tool_name: str,
@@ -554,10 +574,18 @@ async def _run_tool_async(
     **kwargs,
 ) -> str:
     """
-    Creates an MCP client with authomatic authorization,
-    and calls the specified tool asynchronously.
+    Creates an MCP client with auth set to
+    a. the token, if the one is provided,
+    b. None, if the headers are provided (SaaS case),
+    c. authomatic authorization, otherwise.
+    Then calls the specified tool asynchronously.
     """
-    oauth = token if token else OAuthHeadless(mcp_url=http_server_url)
+    if token:
+        oauth = token
+    elif headers:
+        oauth = None
+    else:
+        oauth = OAuthHeadless(mcp_url=http_server_url)
     async with Client(
         transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:
@@ -656,8 +684,8 @@ def test_bearer_token_with_itde(
 
 
 def test_remote_oauth_with_saas(
-    run_on_saas, mcp_server_with_remote_oauth, setup_database, db_schemas, saas_pat
+    run_on_saas, mcp_server_with_saas, setup_database, db_schemas, saas_pat
 ) -> None:
     _run_list_schemas_test(
-        mcp_server_with_remote_oauth, db_schemas, headers={PAT_HEADER: saas_pat}
+        mcp_server_with_saas, db_schemas, headers={PAT_HEADER: saas_pat}
     )

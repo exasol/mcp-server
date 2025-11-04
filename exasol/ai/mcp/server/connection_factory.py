@@ -136,14 +136,25 @@ def get_connection_factory(
     these are password and an OpenID token.
 
     The MCP server can be deployed in two ways: locally or as a remote http server.
-    In the latter case the server works in the multiple user mode and its tools must be
-    protected with OAuth2 authorization. The server can identify the user by looking
-    at the claims in the access token. Most identity providers allow setting a custom
-    claim or offer a choice of standard claims that can be used to store the DB
-    username. The server needs to know the name of this claim.
+    In the latter case the server works in the multiple user mode and its tools would
+    normally be protected with OAuth2 authorization. The way to identify the user
+    depends on the used backend.
 
-    This gives us three basic options for the database connection:
-    - The server is configured to use its own database credentials (username and either
+    With an OnPrem database the MCP server can identify the user by looking at the
+    claims in the access token. Most identity providers allow setting a custom claim
+    or offer a choice of standard claims that can be used to store the DB username.
+    The server needs to know the name of this claim.
+
+    With a SaaS database, the Personal Access Token (PAT) can be put in the call
+    headers. The server needs to know the name of the head. In a way, the authentication
+    is delegated to the SaaS database, the PAT itself being an access token. Therefore,
+    a separate authorization of the MCP tools is optional.
+
+    This gives us five different options for the database connection:
+    *** On-Prem ***
+
+    - A.
+      The server is configured to use its own database credentials (username and either
       password or an OpenID token). No attempt is made to identify the actual user
       accessing the server tools. This works for both single and multiple user modes.
       The server tools may still be protected with OAuth2 authorization, but as far as
@@ -151,7 +162,8 @@ def get_connection_factory(
       The server's DB user must have the permission that is the least common denominator
       of the permissions of the users that are allowed to access the MCP server.
 
-    - The server extracts the DB username, along with the token, from the MCP Auth
+    - B.
+      The server extracts the DB username, along with the token, from the MCP Auth
       context and uses that to open the connection. This option is suitable for
       multiuser mode, when the following two conditions are met:
       1. The users' authentication with the chosen identity provider is configured to
@@ -162,13 +174,23 @@ def get_connection_factory(
          user is identified with in the database, should, according to RFC 9068, match
          the subject field in the access token issued to this user.
 
-    - The last option is a blend between the first two. It works in a multiuser mode,
+    - C.
+      The last option is a blend between the first two. It works in a multiuser mode,
       when the first of the above conditions is met but the second is not. The connection
       is opened using the pre-configured database credentials, as in the first option.
       But since the actual username can be identified, the connection impersonates this
       user. All subsequent queries are executed under this user's permissions. For this
       to work the server's user must have the "IMPERSONATE ANY USER" or "IMPERSONATION ON
       <user/role>" privilege.
+
+      *** SaaS ***
+
+      - D.
+        This is the SaaS analogue of the option A. The server's database connection
+        parameters include the SaaS host, account id, PAT and the database name or id.
+
+      - E.
+
     """
 
     # Validate the configuration. Here we only check the presence of a sufficient set
