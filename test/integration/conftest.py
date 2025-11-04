@@ -15,35 +15,6 @@ from typing import Any
 import pytest
 from exasol.saas.client.api_access import timestamp_name
 
-# <debugging>
-from pyexasol import (
-    ExaConnection,
-    connect,
-)
-
-
-@pytest.fixture(scope="session")
-def db_schema_name() -> str:
-    return "EXASOL_MIBE"
-
-
-@pytest.fixture(scope="session")
-def pyexasol_connection(db_schema_name) -> ExaConnection:
-    return connect(
-        dsn="demodb.exasol.com:8563",
-        user="EXASOL_MIBE",
-        password="l6Cx60e3",
-        schema=db_schema_name,
-    )
-
-
-@pytest.fixture(scope="session")
-def backend() -> str:
-    return "onprem"
-
-
-# </debugging>
-
 
 @pytest.fixture(scope="session")
 def database_name(request, backend, project_short_tag):
@@ -78,12 +49,12 @@ def db_schemas(db_schema_name) -> list[ExaSchema]:
         ExaSchema(
             name=db_schema_name, comment=None, is_new=False, keywords=[db_schema_name]
         ),
-        # ExaSchema(
-        #     name="new_schema",
-        #     comment="new schema for the MCP integration tests",
-        #     is_new=True,
-        #     keywords=["new_schema", "MCP integration tests"],
-        # ),
+        ExaSchema(
+            name="new_schema",
+            comment="new schema for the MCP integration tests",
+            is_new=True,
+            keywords=["new_schema", "MCP integration tests"],
+        ),
     ]
 
 
@@ -386,7 +357,7 @@ def setup_database(
         for schema in db_schemas:
             if schema.is_new:
                 query = f'DROP SCHEMA IF EXISTS "{schema.name}" CASCADE'
-                # pyexasol_connection.execute(query=query)
+                pyexasol_connection.execute(query=query)
             else:
                 for table in db_tables[::-1]:
                     query = f'DROP TABLE IF EXISTS "{schema.name}"."{table.name}"'
