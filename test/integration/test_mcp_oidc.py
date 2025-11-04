@@ -444,13 +444,16 @@ def _start_mcp_server(
 
 
 @pytest.fixture(scope="session", params=["A", "B", "C"])
-def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
+def oidc_env(request, backend, backend_aware_onprem_database_params) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory` for the OnPrem.
     backend. It provides 3 configuration options - A, B and C - as described in the
     `get_connection_factory` docstring. Please refer to this documentation for more
     details on various connection options.
     """
+    if backend != "onprem":
+        pytest.skip()
+        return {}
     env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
     if request.param in ["A", "C"]:
         env[ENV_USER] = SERVER_USER_NAME
@@ -461,19 +464,20 @@ def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
 
 
 @pytest.fixture(scope="session")
-def oidc_env_run_once(backend, oidc_env) -> None:
+def oidc_env_run_once(oidc_env) -> None:
     """
-    The `oidc env` and `saas_env` fixtures sets different options for DB connection.
-    For the tests that do not use DB this is irrelevant. We don't want these test to
-    run multiple times unnecessarily.
+    The `oidc env` fixture sets different options for DB connection.
+    For the tests that do not use DB this is irrelevant. We don't want
+    these test to run multiple times unnecessarily.
     """
-    if (backend != "onprem") or (ENV_USERNAME_CLAIM in oidc_env):
+    if ENV_USERNAME_CLAIM in oidc_env:
         pytest.skip()
 
 
 @pytest.fixture(scope="session", params=["D", "E"])
 def saas_env(
     request,
+    backend,
     saas_host,
     saas_account_id,
     saas_pat,
@@ -484,6 +488,9 @@ def saas_env(
     backend. It provides 2 configuration options - D and E (pre-configured PAT and the PAT
     passed in a header).
     """
+    if backend != "saas":
+        pytest.skip()
+        return {}
     env = {
         ENV_SAAS_HOST: saas_host,
         ENV_SAAS_ACCOUNT_ID: saas_account_id,
@@ -494,18 +501,6 @@ def saas_env(
     if request.param == "E":
         env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
     return env
-
-
-@pytest.fixture(scope="session")
-def run_on_itde(backend) -> None:
-    if backend != "onprem":
-        pytest.skip()
-
-
-@pytest.fixture(scope="session")
-def run_on_saas(backend) -> None:
-    if backend != "saas":
-        pytest.skip()
 
 
 @pytest.fixture
@@ -654,7 +649,6 @@ def test_bearer_token_no_db(
 
 
 def test_remote_oauth_with_itde(
-    run_on_itde,
     create_users,
     mcp_server_with_remote_oauth,
     setup_docker_network,
@@ -665,7 +659,6 @@ def test_remote_oauth_with_itde(
 
 
 def test_oauth_proxy_with_itde(
-    run_on_itde,
     create_users,
     mcp_server_with_oauth_proxy,
     setup_docker_network,
@@ -676,7 +669,6 @@ def test_oauth_proxy_with_itde(
 
 
 def test_bearer_token_with_itde(
-    run_on_itde,
     create_users,
     bearer_token,
     mcp_server_with_token_verifier,
@@ -690,7 +682,7 @@ def test_bearer_token_with_itde(
 
 
 def test_remote_oauth_with_saas(
-    run_on_saas, mcp_server_with_saas, setup_database, db_schemas, saas_pat
+    mcp_server_with_saas, setup_database, db_schemas, saas_pat
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_saas, db_schemas, headers={PAT_HEADER: saas_pat}
