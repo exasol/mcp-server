@@ -32,9 +32,12 @@ preferred choice if the authorization server supports the Dynamic Client Registr
 (DCR). Another one - OAuth Proxy - emulates the DCR for the servers that do not
 support it. Please check https://gofastmcp.com/servers/auth/authentication for details.
 
-Lastly, we test the case when the MCP server only verifies an externally provided
+We also test the case when the MCP server only verifies an externally provided
 access token - bearer token mode. In this mode the client application takes the
 responsibility of acquiring a valid access token.
+
+Lastly we test the MCP Server with the SaaS backend. With these backend the server tools
+themselves are not protected with OAuth.
 
 We test two tools. One, called "say_hello" is an artificial that doesn't require the
 database. With this tool we test only the MCP Client/Server setup. Another one -
@@ -437,13 +440,13 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=[1, 2, 3])
+@pytest.fixture(scope="session", params=["A", "B", "C"])
 def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     """
-    The fixture builds a configuration for the `get_connection_factory`.
-    It provides 3 configuration options, as described in the `get_connection_factory`
-    docstring. Please refer to this documentation for more details on various
-    connection options.
+    The fixture builds a configuration for the `get_connection_factory` for the OnPrem.
+    backend. It provides 3 configuration options - A, B and C - as described in the
+    `get_connection_factory` docstring. Please refer to this documentation for more
+    details on various connection options.
     """
     env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
     if request.param in [1, 3]:
@@ -465,7 +468,7 @@ def oidc_env_run_once(oidc_env) -> None:
         pytest.skip()
 
 
-@pytest.fixture(scope="session", params=[4, 5])
+@pytest.fixture(scope="session", params=["D", "E"])
 def saas_env(
     request,
     saas_host,
@@ -475,17 +478,17 @@ def saas_env(
 ) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory` for the SaaS
-    backend. It provides 2 configuration options - pre-configured PAT and the PAT
-    passed in a header.
+    backend. It provides 2 configuration options - D and E (pre-configured PAT and the PAT
+    passed in a header).
     """
     env = {
         ENV_SAAS_HOST: saas_host,
         ENV_SAAS_ACCOUNT_ID: saas_account_id,
         ENV_SAAS_DATABASE_NAME: database_name,
     }
-    if request.param == 4:
+    if request.param == "D":
         env[ENV_SAAS_PAT] = saas_pat
-    if request.param == 5:
+    if request.param == "E":
         env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
     return env
 

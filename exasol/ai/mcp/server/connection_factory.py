@@ -186,11 +186,12 @@ def get_connection_factory(
       *** SaaS ***
 
       - D.
-        This is the SaaS analogue of the option A. The server's database connection
-        parameters include the SaaS host, account id, PAT and the database name or id.
+        The SaaS analogue of the option A. The server's database connection parameters
+        include the SaaS host, account id, PAT and the database name or id.
 
       - E.
-
+        The SaaS analogue of the option B, but much simpler. The PAT gets extracted from
+        the headers and then used as in D.
     """
 
     # Validate the configuration. Here we only check the presence of a sufficient set
