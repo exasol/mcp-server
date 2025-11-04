@@ -458,13 +458,13 @@ def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
 
 
 @pytest.fixture(scope="session")
-def oidc_env_run_once(oidc_env) -> None:
+def oidc_env_run_once(backend, oidc_env) -> None:
     """
-    The `oidc env` fixture sets different options for DB connection.
-    For the tests that do not use DB this is irrelevant. We don't want
-    these test to run multiple times unnecessarily.
+    The `oidc env` and `saas_env` fixtures sets different options for DB connection.
+    For the tests that do not use DB this is irrelevant. We don't want these test to
+    run multiple times unnecessarily.
     """
-    if ENV_USERNAME_CLAIM in oidc_env:
+    if (backend != "onprem") or (ENV_USERNAME_CLAIM in oidc_env):
         pytest.skip()
 
 

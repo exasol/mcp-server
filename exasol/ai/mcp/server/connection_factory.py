@@ -30,11 +30,17 @@ ENV_USERNAME_CLAIM = "EXA_USERNAME_CLAIM"
 ENV_POOL_SIZE = "EXA_POOL_SIZE"
 """The capacity of the connection pool"""
 ENV_SAAS_HOST = "EXA_SAAS_HOST"
+""" SaaS host, e.g. https://cloud.exasol.com/ """
 ENV_SAAS_ACCOUNT_ID = "EXA_SAAS_ACCOUNT_ID"
+""" SaaS account id """
 ENV_SAAS_PAT = "EXA_SAAS_PAT"
+""" SaaS PAT in case the server's own credentials are used to connect to SaaS DB """
 ENV_SAAS_PAT_HEADER = "EXA_SAAS_PAT_HEADER"
+""" Name of the header where the SaaS user's PAT is passed, e.g. x-api-key """
 ENV_SAAS_DATABASE_ID = "EXA_SAAS_DATABASE_ID"
+""" Name of the SaaS database id, if known """
 ENV_SAAS_DATABASE_NAME = "EXA_SAAS_DATABASE_NAME"
+""" Name of the SaaS database, if the id is unknown """
 
 DEFAULT_CONN_POOL_SIZE = 5
 
@@ -62,6 +68,10 @@ def _copy_kwargs(env: dict[str, Any], name_map: dict[str, str]) -> dict[str, Any
 
 
 def get_local_kwargs(env: dict[str, Any]) -> dict[str, Any]:
+    """
+    Returns pyexasol.connect(...) arguments in case of On-Prem pre-configured
+    server's credentials.
+    """
     return _copy_kwargs(
         env,
         {
@@ -75,6 +85,13 @@ def get_local_kwargs(env: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
+    """
+    Returns pyexasol.connect(...) arguments in case of SaaS backend.
+    If PAT is not pre-configured, the function will attempt to extract it from the
+    headers. The returned arguments is the result of an OpenAPI call that resolves
+    the SaaS username and password from the provided account id and the database id
+    or name.
+    """
     saas_params = _copy_kwargs(
         env,
         {
