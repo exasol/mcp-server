@@ -449,10 +449,10 @@ def oidc_env(request, backend_aware_onprem_database_params) -> dict[str, str]:
     details on various connection options.
     """
     env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
-    if request.param in [1, 3]:
+    if request.param in ["A", "C"]:
         env[ENV_USER] = SERVER_USER_NAME
         env[ENV_PASSWORD] = SERVER_USER_PASSWORD
-    if request.param in [2, 3]:
+    if request.param in ["B", "C"]:
         env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
     return env
 
