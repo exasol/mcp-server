@@ -234,6 +234,7 @@ def get_connection_factory(
         # Open a new one if needed.
         if (connection is None) or connection.is_closed:
             conn_kwargs.update(get_common_kwargs(env))
+            conn_kwargs.update(extra_kwargs)
             connection = pyexasol.connect(**conn_kwargs)
             if user != conn_kwargs["user"]:
                 # If the actual username is known, and it's different from the
