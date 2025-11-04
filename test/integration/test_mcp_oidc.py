@@ -373,10 +373,13 @@ def setup_docker_network(oidc_server):
     yield
 
     # Cleanup
-    network.disconnect(container)
-    print(f"✓ Disconnected {CONTAINER_NAME} from {network_name}")
-    network.remove()
-    print(f"✓ Deleted network: {network_name}")
+    try:
+        network.disconnect(container)
+        print(f"✓ Disconnected {CONTAINER_NAME} from {network_name}")
+        network.remove()
+        print(f"✓ Deleted network: {network_name}")
+    except Exception as e:
+        print(f"❌ Unable to remove docker network: {e}")
 
 
 def _set_auth_type(monkeypatch: MonkeyPatch, provider_type: type[AuthProvider]):
