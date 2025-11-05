@@ -29,7 +29,7 @@ def run_on_saas(backend) -> None:
 
 
 @pytest.fixture(scope="session")
-def database_name(request, backend, project_short_tag):
+def database_name(backend, project_short_tag):
     """
     Overrides the DB name fixture, making it easy to know the container name.
     """
@@ -312,7 +312,6 @@ def db_scripts() -> list[ExaFunction]:
 @pytest.fixture(scope="session")
 def setup_database(
     pyexasol_connection,
-    db_schema_name,
     db_schemas,
     db_tables,
     db_views,

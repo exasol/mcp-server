@@ -473,13 +473,12 @@ def oidc_env_run_once(oidc_env) -> None:
         pytest.skip()
 
 
-@pytest.fixture(scope="session", params=["D", "E"])
+# Experiment
+@pytest.fixture(scope="session")
 def saas_env(
-    request,
     run_on_saas,
     saas_host,
     saas_account_id,
-    saas_pat,
     database_name,
 ) -> dict[str, str]:
     """
@@ -487,16 +486,12 @@ def saas_env(
     backend. It provides 2 configuration options - D and E (pre-configured PAT and the PAT
     passed in a header).
     """
-    env = {
+    return {
         ENV_SAAS_HOST: saas_host,
         ENV_SAAS_ACCOUNT_ID: saas_account_id,
         ENV_SAAS_DATABASE_NAME: database_name,
+        ENV_SAAS_PAT_HEADER: PAT_HEADER,
     }
-    if request.param == "D":
-        env[ENV_SAAS_PAT] = saas_pat
-    if request.param == "E":
-        env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
-    return env
 
 
 @pytest.fixture
