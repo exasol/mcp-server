@@ -139,7 +139,7 @@ def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
 
 
 @pytest.fixture(scope="session")
-def create_users(pyexasol_connection) -> None:
+def create_users(run_on_itde, pyexasol_connection) -> None:
     """
     The fixture creates two new users. One is identified by an OpenID access token,
     and another one is by password.
@@ -207,7 +207,7 @@ class OAuthHeadless(OAuth):
 
 
 @pytest.fixture(scope="session")
-def oidc_server() -> str:
+def oidc_server(run_on_itde) -> str:
     """
     The fixture starts the mock authorization server.
 
@@ -335,7 +335,7 @@ def _verify_docker_network(container: Container) -> None:
 
 
 @pytest.fixture(scope="session")
-def setup_docker_network(oidc_server):
+def setup_docker_network(run_on_itde, oidc_server):
     """
     The fixture sets up the networking for the DockerDB, allowing it to connect to the
     mock authorization server. The DB will fetch the token encryption key from it.
@@ -444,16 +444,15 @@ def _start_mcp_server(
 
 
 @pytest.fixture(scope="session", params=["A", "B", "C"])
-def oidc_env(request, backend, backend_aware_onprem_database_params) -> dict[str, str]:
+def oidc_env(
+    request, run_on_itde, backend_aware_onprem_database_params
+) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory` for the OnPrem.
     backend. It provides 3 configuration options - A, B and C - as described in the
     `get_connection_factory` docstring. Please refer to this documentation for more
     details on various connection options.
     """
-    if backend != "onprem":
-        pytest.skip()
-        return {}
     env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
     if request.param in ["A", "C"]:
         env[ENV_USER] = SERVER_USER_NAME
@@ -477,7 +476,7 @@ def oidc_env_run_once(oidc_env) -> None:
 @pytest.fixture(scope="session", params=["D", "E"])
 def saas_env(
     request,
-    backend,
+    run_on_saas,
     saas_host,
     saas_account_id,
     saas_pat,
@@ -488,9 +487,6 @@ def saas_env(
     backend. It provides 2 configuration options - D and E (pre-configured PAT and the PAT
     passed in a header).
     """
-    if backend != "saas":
-        pytest.skip()
-        return {}
     env = {
         ENV_SAAS_HOST: saas_host,
         ENV_SAAS_ACCOUNT_ID: saas_account_id,
