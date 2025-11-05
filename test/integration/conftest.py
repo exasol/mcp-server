@@ -28,14 +28,15 @@ def run_on_saas(backend) -> None:
         pytest.skip()
 
 
-@pytest.fixture(scope="session")
-def database_name(backend, project_short_tag):
-    """
-    Overrides the DB name fixture, making it easy to know the container name.
-    """
-    if backend == "saas":
-        return timestamp_name(project_short_tag)
-    return DOCKER_DB_NAME
+# Experiment
+# @pytest.fixture(scope="session")
+# def database_name(backend, project_short_tag):
+#     """
+#     Overrides the DB name fixture, making it easy to know the container name.
+#     """
+#     if backend == "saas":
+#         return timestamp_name(project_short_tag)
+#     return DOCKER_DB_NAME
 
 
 def sql_text_value(text: str) -> str:

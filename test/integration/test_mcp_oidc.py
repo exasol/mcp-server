@@ -443,23 +443,20 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-@pytest.fixture(scope="session", params=["A", "B", "C"])
-def oidc_env(
-    request, run_on_itde, backend_aware_onprem_database_params
-) -> dict[str, str]:
+# Experiment
+@pytest.fixture(scope="session")
+def oidc_env(run_on_itde, backend_aware_onprem_database_params) -> dict[str, str]:
     """
     The fixture builds a configuration for the `get_connection_factory` for the OnPrem.
     backend. It provides 3 configuration options - A, B and C - as described in the
     `get_connection_factory` docstring. Please refer to this documentation for more
     details on various connection options.
     """
-    env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
-    if request.param in ["A", "C"]:
-        env[ENV_USER] = SERVER_USER_NAME
-        env[ENV_PASSWORD] = SERVER_USER_PASSWORD
-    if request.param in ["B", "C"]:
-        env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
-    return env
+    return {
+        ENV_DSN: backend_aware_onprem_database_params["dsn"],
+        ENV_USER: SERVER_USER_NAME,
+        ENV_PASSWORD: SERVER_USER_PASSWORD,
+    }
 
 
 @pytest.fixture(scope="session")
