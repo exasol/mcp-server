@@ -14,9 +14,7 @@ class Config:
         Path(__file__).parent / "exasol" / "ai" / "mcp" / "server" / "version.py"
     )
     path_filters: Iterable[str] = ()
-    # python_versions: Iterable[str] = ("3.10", "3.11", "3.12", "3.13")
-    # Experiment
-    python_versions: Iterable[str] = ("3.12",)
+    python_versions: Iterable[str] = ("3.10", "3.11", "3.12", "3.13")
     pyupgrade_args: Iterable[str] = ("--py310-plus",)
     plugins = []
 

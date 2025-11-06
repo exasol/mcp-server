@@ -54,7 +54,6 @@ from collections.abc import Generator
 from contextlib import ExitStack
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
-from typing import Any
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -374,13 +373,10 @@ def setup_docker_network(run_on_itde, oidc_server):
     yield
 
     # Cleanup
-    try:
-        network.disconnect(container)
-        print(f"✓ Disconnected {CONTAINER_NAME} from {network_name}")
-        network.remove()
-        print(f"✓ Deleted network: {network_name}")
-    except Exception as e:
-        print(f"❌ Unable to remove docker network: {e}")
+    network.disconnect(container)
+    print(f"✓ Disconnected {CONTAINER_NAME} from {network_name}")
+    network.remove()
+    print(f"✓ Deleted network: {network_name}")
 
 
 def _set_auth_type(monkeypatch: MonkeyPatch, provider_type: type[AuthProvider]):
@@ -461,6 +457,17 @@ def oidc_env(
     if request.param in ["B", "C"]:
         env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
     return env
+
+
+@pytest.fixture(scope="session")
+def oidc_env_run_once(oidc_env) -> None:
+    """
+    The `oidc env` fixture sets different options for DB connection.
+    For the tests that do not use DB this is irrelevant. We don't want
+    these test to run multiple times unnecessarily.
+    """
+    if ENV_USERNAME_CLAIM in oidc_env:
+        pytest.skip()
 
 
 @pytest.fixture(params=["D", "E"])
@@ -620,15 +627,17 @@ def bearer_token(mcp_server_with_remote_oauth) -> str:
     )
 
 
-def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
+def test_remote_oauth_no_db(oidc_env_run_once, mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
 
-def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
+def test_oauth_proxy_no_db(oidc_env_run_once, mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
 
 
-def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> None:
+def test_bearer_token_no_db(
+    oidc_env_run_once, bearer_token, mcp_server_with_token_verifier
+) -> None:
     _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 
