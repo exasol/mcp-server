@@ -716,7 +716,7 @@ def test_bearer_token_with_itde(
     "conn_opt", (co := ConnectionOptions("D", "E")).params, ids=co.options
 )
 def test_remote_oauth_with_saas(
-    mcp_server_with_saas, setup_database, db_schemas, saas_pat
+    mcp_server_with_saas, setup_database, db_schemas, saas_pat, conn_opt
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_saas, db_schemas, headers={PAT_HEADER: saas_pat}
