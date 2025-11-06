@@ -459,7 +459,7 @@ def oidc_env(
     return env
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def oidc_env_run_once(oidc_env) -> None:
     """
     The `oidc env` fixture sets different options for DB connection.
