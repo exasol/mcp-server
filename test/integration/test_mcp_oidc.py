@@ -466,7 +466,7 @@ class ConnectionOptions:
         raise RuntimeError(f"Unable to get the connection option")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def oidc_env(
     request, run_on_itde, backend_aware_onprem_database_params
 ) -> dict[str, str]:
@@ -486,7 +486,7 @@ def oidc_env(
     return env
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def saas_env(
     request,
     run_on_saas,
