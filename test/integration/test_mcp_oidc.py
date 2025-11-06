@@ -444,29 +444,7 @@ def _start_mcp_server(
         yield f"{url}/mcp"
 
 
-class ConnectionOptions:
-    def __init__(self, *args) -> None:
-        self._options = args
-
-    @property
-    def options(self):
-        return self._options
-
-    @property
-    def params(self):
-        return [
-            pytest.param(opt, marks=pytest.mark.conn_opt(opt)) for opt in self._options
-        ]
-
-    @staticmethod
-    def get(request) -> Any:
-        conn_opt = request.node.get_closest_marker("conn_opt")
-        if isinstance(conn_opt, pytest.Mark):
-            return conn_opt.args[0]
-        raise RuntimeError(f"Unable to get the connection option")
-
-
-@pytest.fixture
+@pytest.fixture(params=["A", "B", "C"])
 def oidc_env(
     request, run_on_itde, backend_aware_onprem_database_params
 ) -> dict[str, str]:
@@ -476,17 +454,16 @@ def oidc_env(
     `get_connection_factory` docstring. Please refer to this documentation for more
     details on various connection options.
     """
-    conn_opt = ConnectionOptions.get(request)
     env = {ENV_DSN: backend_aware_onprem_database_params["dsn"]}
-    if conn_opt in ["A", "C"]:
+    if request.param in ["A", "C"]:
         env[ENV_USER] = SERVER_USER_NAME
         env[ENV_PASSWORD] = SERVER_USER_PASSWORD
-    if conn_opt in ["B", "C"]:
+    if request.param in ["B", "C"]:
         env[ENV_USERNAME_CLAIM] = TOKEN_USERNAME
     return env
 
 
-@pytest.fixture
+@pytest.fixture(params=["D", "E"])
 def saas_env(
     request,
     run_on_saas,
@@ -500,15 +477,14 @@ def saas_env(
     backend. It provides 2 configuration options - D and E (pre-configured PAT and the PAT
     passed in a header).
     """
-    conn_opt = ConnectionOptions.get(request)
     env = {
         ENV_SAAS_HOST: saas_host,
         ENV_SAAS_ACCOUNT_ID: saas_account_id,
         ENV_SAAS_DATABASE_NAME: database_name,
     }
-    if conn_opt == "D":
+    if request.param == "D":
         env[ENV_SAAS_PAT] = saas_pat
-    if conn_opt == "E":
+    if request.param == "E":
         env[ENV_SAAS_PAT_HEADER] = PAT_HEADER
     return env
 
@@ -644,60 +620,38 @@ def bearer_token(mcp_server_with_remote_oauth) -> str:
     )
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A")).params, ids=co.options
-)
-def test_remote_oauth_no_db(mcp_server_with_remote_oauth, conn_opt) -> None:
+def test_remote_oauth_no_db(mcp_server_with_remote_oauth) -> None:
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A")).params, ids=co.options
-)
-def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy, conn_opt) -> None:
+def test_oauth_proxy_no_db(mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A")).params, ids=co.options
-)
-def test_bearer_token_no_db(
-    bearer_token, mcp_server_with_token_verifier, conn_opt
-) -> None:
+def test_bearer_token_no_db(bearer_token, mcp_server_with_token_verifier) -> None:
     _run_say_hello_test(mcp_server_with_token_verifier, token=bearer_token)
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A", "B", "C")).params, ids=co.options
-)
 def test_remote_oauth_with_itde(
     create_users,
     mcp_server_with_remote_oauth,
     setup_docker_network,
     setup_database,
     db_schemas,
-    conn_opt,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_remote_oauth, db_schemas)
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A", "B", "C")).params, ids=co.options
-)
 def test_oauth_proxy_with_itde(
     create_users,
     mcp_server_with_oauth_proxy,
     setup_docker_network,
     setup_database,
     db_schemas,
-    conn_opt,
 ) -> None:
     _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("A", "B", "C")).params, ids=co.options
-)
 def test_bearer_token_with_itde(
     create_users,
     bearer_token,
@@ -705,18 +659,14 @@ def test_bearer_token_with_itde(
     setup_docker_network,
     setup_database,
     db_schemas,
-    conn_opt,
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_token_verifier, db_schemas, token=bearer_token
     )
 
 
-@pytest.mark.parametrize(
-    "conn_opt", (co := ConnectionOptions("D", "E")).params, ids=co.options
-)
 def test_remote_oauth_with_saas(
-    mcp_server_with_saas, setup_database, db_schemas, saas_pat, conn_opt
+    mcp_server_with_saas, setup_database, db_schemas, saas_pat
 ) -> None:
     _run_list_schemas_test(
         mcp_server_with_saas, db_schemas, headers={PAT_HEADER: saas_pat}
