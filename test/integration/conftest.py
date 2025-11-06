@@ -16,6 +16,12 @@ import pytest
 from exasol.saas.client.api_access import timestamp_name
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "conn_opt: connection option, as described in connection_factory.py"
+    )
+
+
 @pytest.fixture(scope="session")
 def run_on_itde(backend) -> None:
     if backend != "onprem":
