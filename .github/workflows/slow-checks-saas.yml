@@ -1,4 +1,4 @@
-name: Slow-Checks
+name: Slow-Checks-SaaS
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ jobs:
       contents: read
 
   Tests:
-    name: Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
     needs: [ build-matrix ]
     runs-on: ubuntu-24.04
     permissions:
@@ -36,15 +36,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Experiment
-      # - name: Run On-Prem Tests and Collect Coverage
-      #   run: |
-      #     JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
-      #     TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
-      #     TOK_ISS=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_ISSUER; print(f'-oidcProviderISS={TOKEN_ISSUER}');")
-      #     poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
-
-      - name: Run SaaS Tests and Collect Coverage
+      - name: Run Tests and Collect Coverage
         env:
           SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
           SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
@@ -54,6 +46,6 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: coverage-python${{ matrix.python-version }}-slow
+          name: coverage-python${{ matrix.python-version }}-saas
           path: .coverage
           include-hidden-files: true
