@@ -30,7 +30,7 @@ ENV_USERNAME_CLAIM = "EXA_USERNAME_CLAIM"
 ENV_POOL_SIZE = "EXA_POOL_SIZE"
 """The capacity of the connection pool"""
 ENV_SAAS_HOST = "EXA_SAAS_HOST"
-""" SaaS host, e.g. https://cloud.exasol.com/ """
+""" SaaS host, defaults to https://cloud.exasol.com/ """
 ENV_SAAS_ACCOUNT_ID = "EXA_SAAS_ACCOUNT_ID"
 """ SaaS account id """
 ENV_SAAS_PAT = "EXA_SAAS_PAT"
@@ -43,6 +43,7 @@ ENV_SAAS_DATABASE_NAME = "EXA_SAAS_DATABASE_NAME"
 """ Name of the SaaS database, if the id is unknown """
 
 DEFAULT_CONN_POOL_SIZE = 5
+DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
 
 
 def local_env_complete(env: dict[str, Any]) -> bool:
@@ -57,7 +58,7 @@ def oidc_env_complete(env: dict[str, Any]) -> bool:
 
 def saas_env_complete(env: dict[str, Any]) -> bool:
     return (
-        all(v in env for v in [ENV_SAAS_HOST, ENV_SAAS_ACCOUNT_ID])
+        (ENV_SAAS_ACCOUNT_ID in env)
         and any(v in env for v in [ENV_SAAS_PAT, ENV_SAAS_PAT_HEADER])
         and any(v in env for v in [ENV_SAAS_DATABASE_ID, ENV_SAAS_DATABASE_NAME])
     )
@@ -102,6 +103,8 @@ def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
             ENV_SAAS_DATABASE_NAME: "database_name",
         },
     )
+    if "host" not in saas_params:
+        saas_params["host"] = DEFAULT_SAAS_HOST
     if "pat" not in saas_params:
         headers = fmcp_api.get_http_headers()
         if env[ENV_SAAS_PAT_HEADER] not in headers:
@@ -114,6 +117,7 @@ def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
 
 def get_common_kwargs(env: dict[str, Any]) -> dict[str, Any]:
     # TODO: Add SSL parameters.
+    # https://github.com/exasol/mcp-server/issues/86
     return {
         "fetch_dict": True,
         "compression": True,
@@ -128,7 +132,7 @@ def _create_connection_pool(
 
 
 def _build_impersonate_query(user: str) -> str:
-    # I can't figure out how to construct this query properly in SQLGlot
+    # Currently, the IMPERSONATE query is not supported by SQLGlot.
     user_id = exp.Identifier(this=user, quoted=True)
     return f'IMPERSONATE {user_id.sql(dialect="exasol")}'
 
@@ -149,8 +153,9 @@ def get_connection_factory(
     parameters. Currently, the parameters come from environment variables.
     Going forward, the configuration parameters will be kept in the NBC secret store.
 
-    The MCP server supports the same authentication methods as pyexasol. Currently,
-    these are password and an OpenID token.
+    For the On-Prem backend, the MCP server supports the same authentication methods as
+    pyexasol. Currently, these are password and an OpenID token. To authenticate with
+    the SaaS backend, the MCP server uses the Personal Access Token (PAT).
 
     The MCP server can be deployed in two ways: locally or as a remote http server.
     In the latter case the server works in the multiple user mode and its tools would
@@ -162,10 +167,10 @@ def get_connection_factory(
     or offer a choice of standard claims that can be used to store the DB username.
     The server needs to know the name of this claim.
 
-    With a SaaS database, the Personal Access Token (PAT) can be put in the call
-    headers. The server needs to know the name of the head. In a way, the authentication
-    is delegated to the SaaS database, the PAT itself being an access token. Therefore,
-    a separate authorization of the MCP tools is optional.
+    With a SaaS database, the PAT can be put in the call headers. The server needs to
+    know the name of the head. In a way, the authentication is delegated to the SaaS
+    database, the PAT itself being an access token. Therefore, a separate authorization
+    of the MCP tools is optional.
 
     This gives us five different options for the database connection:
     *** On-Prem ***

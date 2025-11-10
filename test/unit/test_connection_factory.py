@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from exasol.ai.mcp.server.connection_factory import (
+    DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_DSN,
     ENV_PASSWORD,
@@ -69,7 +70,7 @@ def test_oidc_env_complete(keys, is_complete) -> None:
 @pytest.mark.parametrize(
     ["keys", "is_complete"],
     [
-        ([ENV_SAAS_ACCOUNT_ID, ENV_SAAS_PAT, ENV_SAAS_DATABASE_ID], False),
+        ([ENV_SAAS_ACCOUNT_ID, ENV_SAAS_PAT, ENV_SAAS_DATABASE_ID], True),
         ([ENV_SAAS_HOST, ENV_SAAS_PAT, ENV_SAAS_DATABASE_ID], False),
         ([ENV_SAAS_HOST, ENV_SAAS_ACCOUNT_ID, ENV_SAAS_DATABASE_ID], False),
         ([ENV_SAAS_HOST, ENV_SAAS_ACCOUNT_ID, ENV_SAAS_PAT], False),
@@ -138,6 +139,19 @@ def test_get_local_kwargs():
         ),
         (
             {
+                ENV_SAAS_ACCOUNT_ID: "my_saas_account_id",
+                ENV_SAAS_PAT: "my_pat",
+                ENV_SAAS_DATABASE_ID: "my_saas_database_id",
+            },
+            {
+                "host": DEFAULT_SAAS_HOST,
+                "account_id": "my_saas_account_id",
+                "pat": "my_pat",
+                "database_id": "my_saas_database_id",
+            },
+        ),
+        (
+            {
                 ENV_SAAS_HOST: "my_saas_host",
                 ENV_SAAS_ACCOUNT_ID: "my_saas_account_id",
                 ENV_SAAS_PAT_HEADER: "pat_header",
@@ -151,7 +165,7 @@ def test_get_local_kwargs():
             },
         ),
     ],
-    ids=["pre-configured-pat, db-id", "pat-in-header, db-name"],
+    ids=["pre-configured-pat, db-id", "default-saas-host", "pat-in-header, db-name"],
 )
 @patch("fastmcp.server.dependencies.get_http_headers")
 @patch("exasol.saas.client.api_access.get_connection_params")
@@ -198,8 +212,9 @@ def test_get_connection_factory_oidc_multi_user(mock_oidc_user, mock_connect) ->
 @patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
 def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) -> None:
     """
-    This is a variation of the previous test for the case when the server connects to
-    the database using the default credentials but impersonating the actual user.
+    This is a variation of the `test_get_connection_factory_oidc_multi_user` test for
+    the case when the server connects to the database using the default credentials but
+    impersonating the actual user.
     """
     env = {
         ENV_DSN: "my.db.dsn",

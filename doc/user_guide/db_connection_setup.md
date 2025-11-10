@@ -33,13 +33,13 @@ depending on how the EXA_USER is identified.
 
 ### SaaS Backend
 
-| Variable Name                                 | Required |
-|-----------------------------------------------|:--------:|
-| EXA_SAAS_HOST (e.g. https://cloud.exasol.com) |   yes    |
-| EXA_SAAS_ACCOUNT_ID                           |   yes    |
-| EXA_SAAS_PAT (Personal Access Token)          |   yes    |
-| EXA_SAAS_DATABASE_ID                          |    no    |
-| EXA_SAAS_DATABASE_NAME                        |    no    |
+| Variable Name                                        | Required |
+|------------------------------------------------------|:--------:|
+| EXA_SAAS_HOST (defaults to https://cloud.exasol.com) |    no    |
+| EXA_SAAS_ACCOUNT_ID                                  |   yes    |
+| EXA_SAAS_PAT (Personal Access Token)                 |   yes    |
+| EXA_SAAS_DATABASE_ID                                 |    no    |
+| EXA_SAAS_DATABASE_NAME                               |    no    |
 
 Either EXA_SAAS_DATABASE_ID or EXA_SAAS_DATABASE_NAME must be provided,
 
@@ -108,13 +108,13 @@ headers, e.g. as X-API-KEY. The exact name of the header doesn't matter, so long
 MCP Server knows it. Apart from that, the configuration of the SaaS backend connection
 is similar to the local deployment case.
 
-| Variable Name                                 | Required |
-|-----------------------------------------------|:--------:|
-| EXA_SAAS_HOST (e.g. https://cloud.exasol.com) |   yes    |
-| EXA_SAAS_ACCOUNT_ID                           |   yes    |
-| EXA_SAAS_PAT_HEADER                           |   yes    |
-| EXA_SAAS_DATABASE_ID                          |    no    |
-| EXA_SAAS_DATABASE_NAME                        |    no    |
+| Variable Name                                        | Required |
+|------------------------------------------------------|:--------:|
+| EXA_SAAS_HOST (defaults to https://cloud.exasol.com) |    no    |
+| EXA_SAAS_ACCOUNT_ID                                  |   yes    |
+| EXA_SAAS_PAT_HEADER                                  |   yes    |
+| EXA_SAAS_DATABASE_ID                                 |    no    |
+| EXA_SAAS_DATABASE_NAME                               |    no    |
 
 Either EXA_SAAS_DATABASE_ID or EXA_SAAS_DATABASE_NAME must be provided,
 
