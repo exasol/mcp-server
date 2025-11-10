@@ -11,9 +11,17 @@ jobs:
     permissions:
       contents: read
 
-  slow-checks:
+  slow-checks-itde:
     name: Slow
-    uses: ./.github/workflows/slow-checks.yml
+    uses: ./.github/workflows/slow-checks-itde.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
+  slow-checks-saas:
+    name: Slow
+    uses: ./.github/workflows/slow-checks-saas.yml
+    secrets: inherit
     permissions:
       contents: read
 
@@ -24,7 +32,7 @@ jobs:
     permissions:
       contents: read
     # If you need additional jobs to be part of the merge gate, add them below
-    needs: [ fast-checks, slow-checks ]
+    needs: [ fast-checks, slow-checks-itde, slow-checks-saas ]
 
     # Each job requires a step, so we added this dummy step.
     steps:

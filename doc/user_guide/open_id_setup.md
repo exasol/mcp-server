@@ -152,3 +152,18 @@ Either of `EXA_AUTH_PUBLIC_KEY` or `EXA_AUTH_JWKS_URI` must be set.
 | EXA_AUTH_TOKEN_ENDPOINT_AUTH_METHOD      |    no    | Token endpoint authentication method for upstream server. <br/>Common values: "client_secret_basic","client_secret_post", "none". <br/>If not set, the provider will use default (typically "client_secret_basic").                                                                                          |
 | EXA_AUTH_EXTRA_AUTHORIZE_PARAMS          |    no    | Additional parameters to forward to the upstream authorization <br/>endpoint. Useful for provider-specific parameters like Auth0's "audience". <br/>Example: {"audience": "https://api.example.com"}                                                                                                         |
 | EXA_AUTH_EXTRA_TOKEN_PARAMS              |    no    | Additional parameters to forward to the upstream token endpoint. <br/>Useful for provider-specific parameters during token exchange.                                                                                                                                                                         |
+
+## OpenID with SaaS Backend
+
+The information in this guide is mostly relevant to the On-Prem backend. The
+authentication in SaaS backend is based on OpenID Connect (OIDC), which is an
+authentication layer built on top of OAuth. For details please refer to the Exasol
+SaaS [Access Management](https://docs.exasol.com/saas/administration/access_mngt/access_management.htm)
+documentation, and in particular to the [Personal Access Token (PAT)](https://docs.exasol.com/saas/administration/access_mngt/access_token.htm)
+section.
+
+Essentially, an Exasol SaaS user is issued a PAT. They need to pass this token to the
+MCP Server. This can be done using an HTTP header, as described in the [Database Connection Setup](db_connection_setup.md) guide.
+
+Besides that, the MCP server tools can also be protected using one of the authorization
+schemas described earlier in this guide, but in case of SaaS backend this is optional.

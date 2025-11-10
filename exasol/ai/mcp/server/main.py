@@ -1,47 +1,19 @@
 import json
 import os
 import re
-from collections.abc import (
-    Callable,
-    Generator,
-)
-from contextlib import contextmanager
-from typing import (
-    Any,
-    ContextManager,
-)
+from typing import Any
 
 import click
-import pyexasol
-import sqlglot.expressions as exp
-from fastmcp.server.dependencies import get_access_token
 from pydantic import ValidationError
-from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.connection_factory import get_connection_factory
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.generic_auth import get_auth_kwargs
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
-from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
-ENV_DSN = "EXA_DSN"
-""" Exasol DB server DSN """
-ENV_USER = "EXA_USER"
-""" The DB user name to be used by the MCP server """
-ENV_PASSWORD = "EXA_PASSWORD"
-""" The DB password for password authentication """
-ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"
-""" Bearer access token  """
-ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"
-""" Bearer refresh token  """
-ENV_USERNAME_CLAIM = "EXA_USERNAME_CLAIM"
-"""The name of the claim in the access token containing the DB username"""
-ENV_POOL_SIZE = "EXA_POOL_SIZE"
-"""The capacity of the connection pool"""
-
-DEFAULT_CONN_POOL_SIZE = 5
 
 
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
@@ -252,147 +224,6 @@ def create_mcp_server(
     mcp_server = ExasolMCPServer(connection=connection, config=config, **kwargs)
     register_tools(mcp_server, config)
     return mcp_server
-
-
-def get_oidc_user(username_claim: str | None) -> tuple[str | None, str | None]:
-    token = get_access_token()
-    if token is None:
-        return None, None
-    return token.claims.get(username_claim), token.token
-
-
-def _create_connection_kwargs(env: dict[str, Any], **extra_kwargs) -> dict[str, Any]:
-    """
-    Creates pyexasol.connect kwargs based on the provided configuration parameters.
-    Raises a ValueError if the set of configuration parameters is incomplete.
-    """
-    common_kwargs = {
-        "dsn": env[ENV_DSN],
-        "fetch_dict": True,
-        "compression": True,
-    }
-    common_kwargs.update(extra_kwargs)
-
-    # Infer the authentication method.
-    use_open_id = False
-    if ENV_PASSWORD in env:
-        common_kwargs["password"] = env[ENV_PASSWORD]
-    elif ENV_ACCESS_TOKEN in env:
-        common_kwargs["access_token"] = env[ENV_ACCESS_TOKEN]
-    elif ENV_REFRESH_TOKEN in env:
-        common_kwargs["refresh_token"] = env[ENV_REFRESH_TOKEN]
-    else:
-        use_open_id = True
-
-    # Validate the configuration. This, however, is not a definitive test.
-    # The ENV_USERNAME_CLAIM may be set but not actually work. In that case the
-    # exception will be raised in the factory. But we prefer it to be raised here.
-    if (ENV_USER not in env) and ((not use_open_id) or (ENV_USERNAME_CLAIM not in env)):
-        raise ValueError(
-            "The inferred authentication method requires a database username"
-        )
-    return common_kwargs
-
-
-def _create_connection_pool(env: dict[str:Any]) -> NamedObjectPool[ExaConnection]:
-    pool_size = int(env.get(ENV_POOL_SIZE, DEFAULT_CONN_POOL_SIZE))
-    return NamedObjectPool(capacity=pool_size, cleanup=lambda conn: conn.close())
-
-
-def _build_impersonate_query(user: str) -> str:
-    # I can't figure out how to construct this query properly in SQLGlot
-    user_id = exp.Identifier(this=user, quoted=True)
-    return f'IMPERSONATE {user_id.sql(dialect="exasol")}'
-
-
-def get_connection_factory(
-    env: dict[str:Any], **extra_kwargs
-) -> Callable[[], ContextManager[ExaConnection]]:
-    """
-    Returns the pyexasol connection factory required by a DBConnection object.
-    Authentication method will be inferred from the provided configuration
-    parameters. Currently, the parameters come from environment variables.
-    Going forward, the configuration parameters will be kept in the NBC secret store.
-
-    The MCP server supports the same authentication methods as pyexasol. Currently,
-    these are password and an OpenID token.
-
-    The MCP server can be deployed in two ways: locally or as a remote http server.
-    In the latter case the server works in the multiple user mode and its tools must be
-    protected with OAuth2 authorization. The server can identify the user by looking
-    at the claims in the access token. Most identity providers allow setting a custom
-    claim or offer a choice of standard claims that can be used to store the DB
-    username. The server needs to know the name of this claim.
-
-    This gives us three basic options for the database connection:
-    - The server is configured to use its own database credentials (username and either
-      password or an OpenID token). No attempt is made to identify the actual user
-      accessing the server tools. This works for both single and multiple user modes.
-      The server tools may still be protected with OAuth2 authorization, but as far as
-      the database connection is concerned this is irrelevant.
-      The server's DB user must have the permission that is the least common denominator
-      of the permissions of the users that are allowed to access the MCP server.
-
-    - The server extracts the DB username, along with the token, from the MCP Auth
-      context and uses that to open the connection. This option is suitable for
-      multiuser mode, when the following two conditions are met:
-      1. The users' authentication with the chosen identity provider is configured to
-         add their DB usernames as a claim in the access token.
-      2. The correspondent DB users are also authenticated using OpenID, with an access
-         token (refresh token is currently not supported). The database verifies the
-         token with the same identity provider as the MCP server. The subject, the DB
-         user is identified with in the database, should, according to RFC 9068, match
-         the subject field in the access token issued to this user.
-
-    - The last option is a blend between the first two. It works in a multiuser mode,
-      when the first of the above conditions is met but the second is not. The connection
-      is opened using the pre-configured database credentials, as in the first option.
-      But since the actual username can be identified, the connection impersonates this
-      user. All subsequent queries are executed under this user's permissions. For this
-      to work the server's user must have the "IMPERSONATE ANY USER" or "IMPERSONATION ON
-      <user/role>" privilege.
-    """
-    common_kwargs = _create_connection_kwargs(env, **extra_kwargs)
-    connection_pool = _create_connection_pool(env)
-
-    @contextmanager
-    def connection_factory() -> Generator[ExaConnection, None, None]:
-        # Try to get the actual username and the access token from the MCP context.
-        oidc_user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
-        server_user = env.get(ENV_USER)
-        user = oidc_user or server_user
-        if not user:
-            raise RuntimeError(
-                "Cannot extract database username from the MCP context, "
-                "and default username is not specified."
-            )
-
-        # Try to get the connection for the current user from the pool.
-        connection = connection_pool.checkout(user)
-
-        # Open a new one if needed.
-        if (connection is None) or connection.is_closed:
-            conn_kwargs = dict(common_kwargs)
-            # Always prefer to connect with pre-configured server credentials.
-            conn_kwargs["user"] = server_user or oidc_user
-            if not server_user:
-                # If not using pre-configured server credentials then
-                # authenticate with the token extracted from the MCP context.
-                conn_kwargs["access_token"] = token
-            connection = pyexasol.connect(**conn_kwargs)
-            if server_user and (user != server_user):
-                # If connected with pre-configured credentials but the actual
-                # username is known impersonate the actual user.
-                query = _build_impersonate_query(user)
-                connection.execute(query)
-
-        yield connection
-
-        # Return the connection back to the pool, unless it has been closed.
-        if not connection.is_closed:
-            connection_pool.checkin(user, connection)
-
-    return connection_factory
 
 
 def get_env() -> dict[str:Any]:
