@@ -5,7 +5,10 @@ from typing import (
     Any,
 )
 
-from fastmcp import FastMCP
+from fastmcp import (
+    Context,
+    FastMCP,
+)
 from pydantic import Field
 from sqlglot import (
     exp,
@@ -271,3 +274,24 @@ class ExasolMCPServer(FastMCP):
             result = self.connection.execute_query(query, snapshot=False).fetchall()
             return ExaDbResult(result)
         raise ValueError("The query is invalid or not a SELECT statement.")
+
+    async def execute_write_query(
+        self, query: Annotated[str, Field(description="DML or DDL query")], ctx: Context
+    ) -> None:
+        if not self.config.enable_write_query:
+            raise RuntimeError(
+                "The execution of Data Definition and "
+                "Data Manipulation queries is disabled."
+            )
+        confirmation = await ctx.elicit(
+            message=(
+                "The following Data Definition or Data Manipulation query will be executed "
+                f"if permitted. Please accept or decline the query execution.\n\n{query}"
+            )
+        )
+        if confirmation.action == "accept":
+            self.connection.execute_query(query, snapshot=False)
+        elif confirmation.action == "reject":
+            raise InterruptedError("The query execution is declined by the user.")
+        else:  # cancel
+            raise InterruptedError("The query execution is cancelled by the user.")
