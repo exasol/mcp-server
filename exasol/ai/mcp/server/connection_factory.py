@@ -168,7 +168,7 @@ def get_connection_factory(
     The server needs to know the name of this claim.
 
     With a SaaS database, the PAT can be put in the call headers. The server needs to
-    know the name of the head. In a way, the authentication is delegated to the SaaS
+    know the name of the header. In a way, the authentication is delegated to the SaaS
     database, the PAT itself being an access token. Therefore, a separate authorization
     of the MCP tools is optional.
 
