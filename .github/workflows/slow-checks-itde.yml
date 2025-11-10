@@ -1,4 +1,4 @@
-name: Slow-Checks
+name: Slow-Checks-ITDE
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ jobs:
       contents: read
 
   Tests:
-    name: Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    name: ITDE-Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
     needs: [ build-matrix ]
     runs-on: ubuntu-24.04
     permissions:
@@ -41,10 +41,11 @@ jobs:
           JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
           TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
           TOK_ISS=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_ISSUER; print(f'-oidcProviderISS={TOKEN_ISSUER}');")
-          poetry run -- nox -s test:integration -- --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
+          poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: coverage-python${{ matrix.python-version }}-slow
+          name: coverage-python${{ matrix.python-version }}-itde
           path: .coverage
           include-hidden-files: true

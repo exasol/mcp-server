@@ -13,13 +13,28 @@ from textwrap import dedent
 from typing import Any
 
 import pytest
+from exasol.saas.client.api_access import timestamp_name
 
 
 @pytest.fixture(scope="session")
-def database_name():
+def run_on_itde(backend) -> None:
+    if backend != "onprem":
+        pytest.skip()
+
+
+@pytest.fixture(scope="session")
+def run_on_saas(backend) -> None:
+    if backend != "saas":
+        pytest.skip()
+
+
+@pytest.fixture(scope="session")
+def database_name(backend, project_short_tag):
     """
     Overrides the DB name fixture, making it easy to know the container name.
     """
+    if backend == "saas":
+        return timestamp_name(project_short_tag)
     return DOCKER_DB_NAME
 
 
@@ -297,7 +312,6 @@ def db_scripts() -> list[ExaFunction]:
 @pytest.fixture(scope="session")
 def setup_database(
     pyexasol_connection,
-    db_schema_name,
     db_schemas,
     db_tables,
     db_views,

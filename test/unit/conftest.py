@@ -42,3 +42,14 @@ def script_parameter_parser(parameter_config) -> ScriptParameterParser:
     return ScriptParameterParser(
         connection=mock.create_autospec(ExaConnection), settings=parameter_config
     )
+
+
+@pytest.fixture
+def mock_connect():
+    with mock.patch("pyexasol.connect") as mock_pyconn:
+        mock_connection = mock.MagicMock(spec=ExaConnection)
+        mock_connection.execute = mock.MagicMock()
+        mock_connection.configure_mock(is_closed=False)
+        mock_connection.options = {}
+        mock_pyconn.return_value = mock_connection
+        yield mock_pyconn
