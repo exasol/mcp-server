@@ -180,22 +180,26 @@ class OAuthHeadless(OAuth):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _is_oidc_server_url(self, url: str) -> bool:
+        return url.startswith(f"http://localhost:{OIDC_PORT}") or url.startswith(
+            f"http://127.0.0.1:{OIDC_PORT}"
+        )
+
     async def redirect_handler(self, authorization_url: str) -> None:
         # The code below is a replacement for
         # webbrowser.open(authorization_url)
         def send_authorization_request():
             with httpx.Client() as client:
                 time.sleep(1)
-                if not (
-                    authorization_url.startswith(f"http://localhost:{OIDC_PORT}")
-                    or authorization_url.startswith(f"http://127.0.0.1:{OIDC_PORT}")
-                ):
+                if not self._is_oidc_server_url(authorization_url):
                     # Here authorization url is a URL of a proxy. We need to get to its
                     # redirection URL before submitting the "user authorization".
                     response = client.get(authorization_url)
                     assert 300 <= response.status_code < 400
                     assert response.has_redirect_location
                     server_auth_url = response.headers["location"]
+                    assert self._is_oidc_server_url(server_auth_url)
                 else:
                     server_auth_url = authorization_url
                 client.post(
@@ -631,6 +635,12 @@ def test_remote_oauth_no_db(oidc_env_run_once, mcp_server_with_remote_oauth) -> 
     _run_say_hello_test(mcp_server_with_remote_oauth)
 
 
+@pytest.mark.skip(
+    "Starting from FastMCP 2.13, it is no longer possible to shortcut the User "
+    "Authorization UI, when working with OAuth Proxy. The redirection to the "
+    "authorization endpoint of the OIDC server cannot be extracted from the url "
+    "passed to the OAuth.redirect_handler."
+)
 def test_oauth_proxy_no_db(oidc_env_run_once, mcp_server_with_oauth_proxy) -> None:
     _run_say_hello_test(mcp_server_with_oauth_proxy)
 
@@ -651,6 +661,12 @@ def test_remote_oauth_with_itde(
     _run_list_schemas_test(mcp_server_with_remote_oauth, db_schemas)
 
 
+@pytest.mark.skip(
+    "Starting from FastMCP 2.13, it is no longer possible to shortcut the User "
+    "Authorization UI, when working with OAuth Proxy. The redirection to the "
+    "authorization endpoint of the OIDC server cannot be extracted from the url "
+    "passed to the OAuth.redirect_handler."
+)
 def test_oauth_proxy_with_itde(
     create_users,
     mcp_server_with_oauth_proxy,
