@@ -6,7 +6,7 @@ to address the requirements of a specific use case.
 ## Enable SQL queries
 
 Most importantly, the server configuration specifies if reading and/or writing the data
-using SQL queries is enabled. Note that both options is disabled by default. To enable
+using SQL queries is enabled. Note that both options are disabled by default. To enable
 the data reading, set the `enable_read_query` property to true, as shown below.
 
 To enable Data Modification and Data Definition queries set `enable_write_query` property

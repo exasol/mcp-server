@@ -285,8 +285,10 @@ class ExasolMCPServer(FastMCP):
             )
         confirmation = await ctx.elicit(
             message=(
-                "The following Data Definition or Data Manipulation query will be executed "
-                f"if permitted. Please accept or decline the query execution.\n\n{query}"
+                "The following Data Definition or Data Manipulation query will be "
+                "executed if permitted. Please review the query carefully to ensure "
+                "it will not cause unintended changes in the data, and then accept "
+                f"or decline the query execution.\n\n{query}"
             )
         )
         if confirmation.action == "accept":
