@@ -134,10 +134,9 @@ Exasol MCP Server supports configuration of the Transport Layer Security (TLS) o
 Secure Sockets Layer (SSL) protocols. Below is a list of TLS/SSL options that can be
 specified. These options are applicable to all connection modes described above.
 
-| Variable Name                     | Description                                                                    |
-|-----------------------------------|--------------------------------------------------------------------------------|
-| EXA_ENCRYPTION (defaults to true) | Enables the encryption, i.e. use https comm, (true/false).                     |
-| EXA_SSL_CERT_VALIDATION           | Other peers’ certificates must be verified (true/false).                       |
-| EXA_SSL_TRUSTED_CA                | Directory with Certification Authority (CA) certificates, or a single CA file. |
-| EXA_SSL_CLIENT_CERT               | Own certificate file in PEM format.                                            |
-| EXA_SSL_PRIVATE_KEY               | Private key file, if separate from the certificate.                            |
+| Variable Name                              | Description                                                                                                                              |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| EXA_SSL_CERT_VALIDATION (defaults to true) | Other peers’ certificate verification (true/false). <br/>Can be set to false for s testing purpose, but never in production.             |
+| EXA_SSL_TRUSTED_CA                         | Custom path to a directory with Certification Authority (CA) certificates, <br/>or a single CA file.                                     |
+| EXA_SSL_CLIENT_CERT                        | Custom path to the own certificate file in PEM format.                                                                                   |
+| EXA_SSL_PRIVATE_KEY                        | Path to the private key file, if separate from the certificate. <br/>This SSL feature is currently not supported by the Exasol database. |

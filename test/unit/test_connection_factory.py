@@ -1,7 +1,10 @@
 import ssl
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import (
+    Any,
+    Optional,
+)
 from unittest.mock import patch
 
 import pytest
@@ -10,7 +13,6 @@ from exasol.ai.mcp.server.connection_factory import (
     DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_DSN,
-    ENV_ENCRYPTION,
     ENV_PASSWORD,
     ENV_REFRESH_TOKEN,
     ENV_SAAS_ACCOUNT_ID,
@@ -210,157 +212,142 @@ def test_optional_bool_from_env_error() -> None:
 
 @dataclass
 class SslTestOpt:
+    """
+    A setup for testing one SSL option.
+    """
+
     env_name: str
+    """ Name of the environment variable to pass the SSL option in. """
     ssl_name: str | None = None
+    """ Name of the SSL option in a dictionary returned by `get_ssl_options`. """
     env_value: str | None = None
+    """ Value of the environment variable, or a part of it. Will not be set if None. """
     ssl_value: Any | None = None
+    """ Expected value of the SSL option, or a part of it. """
     is_file: bool = False
+    """ The option is a path to a file, that must exist. """
     is_dir: bool = False
+    """ The option is a path to a directory, that must exist. """
+    requires: Optional["SslTestOpt"] = None
+    """ Another option that must be provided in order to test this one. """
 
-    def get_test_values(self, tmp_path: Path) -> tuple[str | None, Any | None]:
+    def get_test_case(self, tmp_path: Path) -> tuple[dict[str, str], Any | None]:
+        """
+        Returns the dictionary with environment variables and the expected value
+        of the SSL option. The test will verify that this value is present in the
+        dictionary returned by `get_ssl_options`.
+        In case the env value is a path to a file or directory, the full path is
+        constructed using the provided temporary path. The file or directory is created.
+        """
         if not (self.is_file or self.is_dir):
-            return self.env_value, self.ssl_value
-        pth = tmp_path / self.env_value
-        if self.is_dir:
-            pth.mkdir()
+            env_value, ssl_value = self.env_value, self.ssl_value
         else:
-            pth.write_text("content", encoding="utf-8")
-        str_pth = str(pth)
-        return str_pth, str_pth
+            pth = tmp_path / self.env_value
+            if self.is_dir:
+                pth.mkdir()
+            else:
+                pth.write_text("content", encoding="utf-8")
+            env_value = str(pth)
+            ssl_value = env_value
+        env = {} if env_value is None else {self.env_name: env_value}
+        if self.requires is not None:
+            required_env, _ = self.requires.get_test_case(tmp_path)
+            env.update(required_env)
+        return env, ssl_value
 
 
 @pytest.mark.parametrize(
-    "test_opts",
+    "test_opt",
     [
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_CERT_VALIDATION,
-                env_value="true",
-                ssl_name="cert_reqs",
-                ssl_value=ssl.CERT_REQUIRED,
-            )
-        ],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_CERT_VALIDATION,
-                env_value="false",
-                ssl_name="cert_reqs",
-                ssl_value=ssl.CERT_NONE,
-            )
-        ],
-        [SslTestOpt(env_name=ENV_SSL_CERT_VALIDATION, ssl_name="cert_reqs")],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_TRUSTED_CA,
-                env_value="my_ca_dir",
-                is_dir=True,
-                ssl_name="ca_cert_path",
-            )
-        ],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_TRUSTED_CA,
-                env_value="my_ca_file.cert",
-                is_file=True,
-                ssl_name="ca_certs",
-            )
-        ],
-        [
-            SslTestOpt(
+        SslTestOpt(
+            env_name=ENV_SSL_CERT_VALIDATION,
+            env_value="true",
+            ssl_name="cert_reqs",
+            ssl_value=ssl.CERT_REQUIRED,
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_CERT_VALIDATION,
+            env_value="false",
+            ssl_name="cert_reqs",
+            ssl_value=ssl.CERT_NONE,
+        ),
+        SslTestOpt(env_name=ENV_SSL_CERT_VALIDATION, ssl_name="cert_reqs"),
+        SslTestOpt(
+            env_name=ENV_SSL_TRUSTED_CA,
+            env_value="my_ca_dir",
+            is_dir=True,
+            ssl_name="ca_cert_path",
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_TRUSTED_CA,
+            env_value="my_ca_file.cert",
+            is_file=True,
+            ssl_name="ca_certs",
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_CLIENT_CERT,
+            env_value="my_cli_file.cert",
+            is_file=True,
+            ssl_name="certfile",
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_PRIVATE_KEY,
+            env_value="my_private.key",
+            is_file=True,
+            ssl_name="keyfile",
+            requires=SslTestOpt(
                 env_name=ENV_SSL_CLIENT_CERT,
                 env_value="my_cli_file.cert",
                 is_file=True,
-                ssl_name="certfile",
-            )
-        ],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_CLIENT_CERT,
-                env_value="my_cli_file.cert",
-                is_file=True,
-                ssl_name="certfile",
             ),
-            SslTestOpt(
-                env_name=ENV_SSL_PRIVATE_KEY,
-                env_value="my_private.key",
-                is_file=True,
-                ssl_name="keyfile",
-            ),
-        ],
+        ),
     ],
-    ids=[
-        "cert_reqs_required",
-        "cert_reqs_none",
-        "cert_reqs_unknown",
-        "ca_cert_path",
-        "ca_certs",
-        "certfile",
-        "keyfile",
-    ],
+    ids=lambda opt: f"{opt.env_name}={opt.env_value}",
 )
-def test_get_ssl_options(test_opts, tmp_path) -> None:
-    env: dict[str, str] = {}
-    expected: dict[str, Any] = {}
-    for test_opt in test_opts:
-        env_value, ssl_value = test_opt.get_test_values(tmp_path)
-        if env_value is not None:
-            env[test_opt.env_name] = env_value
-        expected[test_opt.ssl_name] = ssl_value
+def test_get_ssl_options(test_opt, tmp_path) -> None:
+    """Tests all SSL options individually, one by one."""
+    env, ssl_value = test_opt.get_test_case(tmp_path)
     ssl_opt = get_ssl_options(env)
-    for key, val in expected.items():
-        assert ssl_opt.get(key) == val
+    assert ssl_opt.get(test_opt.ssl_name) == ssl_value
 
 
 @pytest.mark.parametrize(
-    "test_opts",
+    "test_opt",
     [
-        [SslTestOpt(env_name=ENV_SSL_TRUSTED_CA, env_value="my_ca_dir", is_dir=True)],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_TRUSTED_CA, env_value="my_ca_file.cert", is_file=True
-            )
-        ],
-        [
-            SslTestOpt(
-                env_name=ENV_SSL_CLIENT_CERT, env_value="my_cli_file.cert", is_file=True
-            )
-        ],
-        [
-            SslTestOpt(
+        SslTestOpt(env_name=ENV_SSL_TRUSTED_CA, env_value="my_ca_dir", is_dir=True),
+        SslTestOpt(
+            env_name=ENV_SSL_TRUSTED_CA, env_value="my_ca_file.cert", is_file=True
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_CLIENT_CERT, env_value="my_cli_file.cert", is_file=True
+        ),
+        SslTestOpt(
+            env_name=ENV_SSL_PRIVATE_KEY,
+            env_value="my_private.key",
+            is_file=True,
+            requires=SslTestOpt(
                 env_name=ENV_SSL_CLIENT_CERT, env_value="my_cli_file.cert", is_file=True
             ),
-            SslTestOpt(
-                env_name=ENV_SSL_PRIVATE_KEY, env_value="my_private.key", is_file=True
-            ),
-        ],
+        ),
     ],
-    ids=["ca_cert_path", "ca_certs", "certfile", "keyfile"],
+    ids=lambda opt: f"{opt.env_name}={opt.env_value}",
 )
-def test_get_ssl_options_invalid(test_opts, tmp_path) -> None:
-    env: dict[str, str] = {}
-    last_env_name = ""
-    for test_opt in test_opts:
-        env_value, _ = test_opt.get_test_values(tmp_path)
-        last_env_name = test_opt.env_name
-        env[last_env_name] = env_value
-    env[last_env_name] = str(tmp_path / "non-existent")
+def test_get_ssl_options_invalid(test_opt, tmp_path) -> None:
+    """
+    Verifies that get_ssl_options checks that specified files and directories actually
+    exist, and raises a ValueError if they aren't.
+    """
+    env, _ = test_opt.get_test_case(tmp_path)
+    env[test_opt.env_name] = str(tmp_path / "non-existent")
     with pytest.raises(ValueError, match="doesn't exist"):
         get_ssl_options(env)
 
 
-@pytest.mark.parametrize(
-    ["env", "encryption", "ssl_set"],
-    [
-        ({ENV_ENCRYPTION: "true"}, True, False),
-        ({ENV_ENCRYPTION: "false"}, False, False),
-        ({ENV_SSL_CERT_VALIDATION: "true"}, None, True),
-    ],
-    ids=["encryption-true", "encryption-false", "ssl-cert-validation"],
-)
-def test_get_common_kwargs(env, encryption, ssl_set) -> None:
-    common_args = get_common_kwargs(env)
-    assert common_args.get("encryption") == encryption
-    assert ("websocket_sslopt" in common_args) == ssl_set
+def test_get_common_kwargs_sslopt() -> None:
+    common_args = get_common_kwargs({})
+    assert "websocket_sslopt" not in common_args
+    common_args = get_common_kwargs({ENV_SSL_CERT_VALIDATION: "false"})
+    assert "websocket_sslopt" in common_args
 
 
 def test_get_oidc_user_none() -> None:

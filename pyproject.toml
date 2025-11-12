@@ -27,7 +27,7 @@ homepage = "https://github.com/exasol/mcp-server"
 
 [tool.poetry.dependencies]
 fastmcp = "^2.12.0"
-pyexasol = "^0.27.0"
+pyexasol = "^1.0.0"
 sqlglot = "^27.2.0"
 numpy = ">=2,<=2.2.0"
 stopwords = "^1.0.1"
@@ -38,7 +38,7 @@ exasol-saas-api = "^2.4.0"
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^1.6.1"
 pytest-exasol-backend = "^1.2.1"
-pytest-exasol-extension = "^0.2.3"
+pytest-exasol-extension = "^0.2.4"
 exasol-integration-test-docker-environment = "^4.3.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"

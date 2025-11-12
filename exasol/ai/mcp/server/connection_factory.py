@@ -43,8 +43,6 @@ ENV_SAAS_DATABASE_ID = "EXA_SAAS_DATABASE_ID"
 """ Name of the SaaS database id, if known """
 ENV_SAAS_DATABASE_NAME = "EXA_SAAS_DATABASE_NAME"
 """ Name of the SaaS database, if the id is unknown """
-ENV_ENCRYPTION = "EXA_ENCRYPTION"
-""" Encrypted comm (yes/no) """
 ENV_SSL_CERT_VALIDATION = "EXA_SSL_CERT_VALIDATION"
 """ Verify other peers’ certificates (yes/no) """
 ENV_SSL_TRUSTED_CA = "EXA_SSL_TRUSTED_CA"
@@ -142,7 +140,7 @@ def optional_bool_from_env(env: dict[str, Any], var_name: str) -> bool | None:
 def get_ssl_options(env: dict[str, Any]) -> dict[str, Any]:
     """
     Extracts SSL parameters from the provided configuration.
-    Returns a dictionary in the winsocket-client format
+    Returns a dictionary in the websocket-client format
     (see https://websocket-client.readthedocs.io/en/latest/faq.html#what-else-can-i-do-with-sslopts)
     """
     sslopt: dict[str, object] = {}
@@ -185,9 +183,6 @@ def get_common_kwargs(env: dict[str, Any]) -> dict[str, Any]:
         "fetch_dict": True,
         "compression": True,
     }
-    encryption = optional_bool_from_env(env, ENV_ENCRYPTION)
-    if encryption is not None:
-        common_kwargs["encryption"] = encryption
     ssl_opt = get_ssl_options(env)
     if ssl_opt:
         common_kwargs["websocket_sslopt"] = ssl_opt
