@@ -169,6 +169,15 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.execute_write_query,
+        description=(
+            "The tool executes the specified DML or DDL query in the Exasol Database."
+        ),
+    )
+
+
 def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> None:
     if config.schemas.enable:
         _register_list_schemas(mcp_server)
@@ -189,6 +198,8 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_describe_script(mcp_server)
     if config.enable_read_query:
         _register_execute_query(mcp_server)
+    if config.enable_write_query:
+        _register_execute_write_query(mcp_server)
 
 
 def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
