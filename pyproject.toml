@@ -39,7 +39,7 @@ exasol-saas-api = "^2.4.0"
 exasol-toolbox = "^1.6.1"
 pytest-exasol-backend = "^1.2.1"
 pytest-exasol-extension = "^0.2.4"
-exasol-integration-test-docker-environment = "^4.3.0"
+exasol-integration-test-docker-environment = "4.3.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"
 
