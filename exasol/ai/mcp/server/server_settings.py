@@ -194,6 +194,7 @@ class McpServerSettings(BaseModel):
     )
 
     enable_read_query: bool = False
+    enable_write_query: bool = False
 
     language: str = ""
     """
