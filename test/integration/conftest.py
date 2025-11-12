@@ -9,8 +9,8 @@ from test.utils.db_objects import (
     ExaView,
 )
 from test.utils.mcp_oidc_constants import DOCKER_DB_NAME
+from test.utils.sql_utils import format_table_rows
 from textwrap import dedent
-from typing import Any
 
 import pytest
 from exasol.saas.client.api_access import timestamp_name
@@ -36,23 +36,6 @@ def database_name(backend, project_short_tag):
     if backend == "saas":
         return timestamp_name(project_short_tag)
     return DOCKER_DB_NAME
-
-
-def sql_text_value(text: str) -> str:
-    return f"""'{text.replace("'", "''")}'"""
-
-
-def format_table_rows(rows: list[tuple[Any, ...]]) -> str:
-    def format_value(val: Any) -> str:
-        if isinstance(val, str):
-            return sql_text_value(val)
-        return str(val)
-
-    def format_row(row: tuple[Any, ...]) -> str:
-        column_list = ", ".join(map(format_value, row))
-        return f"({column_list})"
-
-    return ", ".join(map(format_row, rows))
 
 
 @pytest.fixture(scope="session")
