@@ -1,8 +1,10 @@
+import ssl
 from collections.abc import (
     Callable,
     Generator,
 )
 from contextlib import contextmanager
+from pathlib import Path
 from typing import (
     Any,
     ContextManager,
@@ -41,6 +43,14 @@ ENV_SAAS_DATABASE_ID = "EXA_SAAS_DATABASE_ID"
 """ Name of the SaaS database id, if known """
 ENV_SAAS_DATABASE_NAME = "EXA_SAAS_DATABASE_NAME"
 """ Name of the SaaS database, if the id is unknown """
+ENV_SSL_CERT_VALIDATION = "EXA_SSL_CERT_VALIDATION"
+""" Verify other peers’ certificates (yes/no) """
+ENV_SSL_TRUSTED_CA = "EXA_SSL_TRUSTED_CA"
+""" Directory where Certification Authority (CA) certificates are stored, or a single CA file """
+ENV_SSL_CLIENT_CERT = "EXA_SSL_CLIENT_CERT"
+""" Own certificate file in PEM format """
+ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"
+""" Certificate's private key file """
 
 DEFAULT_CONN_POOL_SIZE = 5
 DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
@@ -115,13 +125,68 @@ def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
     return saas_api.get_connection_params(**saas_params)
 
 
+def optional_bool_from_env(env: dict[str, Any], var_name: str) -> bool | None:
+    if var_name not in env:
+        return None
+    v = env[var_name].lower()
+    if v in ["true", "yes", "y"]:
+        return True
+    elif v in ["false", "no", "n"]:
+        return False
+    else:
+        raise ValueError(f"Unable to interpret {var_name} as a boolean value.")
+
+
+def get_ssl_options(env: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extracts SSL parameters from the provided configuration.
+    Returns a dictionary in the websocket-client format
+    (see https://websocket-client.readthedocs.io/en/latest/faq.html#what-else-can-i-do-with-sslopts)
+    """
+    sslopt: dict[str, object] = {}
+
+    # Is server certificate validation required?
+    certificate_validation = optional_bool_from_env(env, ENV_SSL_CERT_VALIDATION)
+    if certificate_validation is not None:
+        sslopt["cert_reqs"] = (
+            ssl.CERT_REQUIRED if certificate_validation else ssl.CERT_NONE
+        )
+
+    # Is a bundle with trusted CAs provided?
+    trusted_ca = env.get(ENV_SSL_TRUSTED_CA)
+    if trusted_ca:
+        trusted_ca_path = Path(trusted_ca)
+        if trusted_ca_path.is_dir():
+            sslopt["ca_cert_path"] = trusted_ca
+        elif trusted_ca_path.is_file():
+            sslopt["ca_certs"] = trusted_ca
+        else:
+            raise ValueError(f"Trusted CA location {trusted_ca} doesn't exist.")
+
+    # Is client's own certificate provided?
+    client_certificate = env.get(ENV_SSL_CLIENT_CERT)
+    if client_certificate:
+        if not Path(client_certificate).is_file():
+            raise ValueError(f"Certificate file {client_certificate} doesn't exist.")
+        sslopt["certfile"] = client_certificate
+        private_key = env.get(ENV_SSL_PRIVATE_KEY)
+        if private_key:
+            if not Path(private_key).is_file():
+                raise ValueError(f"Private key file {private_key} doesn't exist.")
+            sslopt["keyfile"] = private_key
+
+    return sslopt
+
+
 def get_common_kwargs(env: dict[str, Any]) -> dict[str, Any]:
-    # TODO: Add SSL parameters.
-    # https://github.com/exasol/mcp-server/issues/86
-    return {
+    common_kwargs = {
         "fetch_dict": True,
         "compression": True,
     }
+    ssl_opt = get_ssl_options(env)
+    if ssl_opt:
+        common_kwargs["websocket_sslopt"] = ssl_opt
+    return common_kwargs
 
 
 def _create_connection_pool(

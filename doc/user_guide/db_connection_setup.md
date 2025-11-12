@@ -127,3 +127,16 @@ authorization, at least with the On-Prem backend, but as far as the database con
 is concerned, this is irrelevant. To keep the database access integrity, the server's
 username must have the permission that is the least common denominator of the permissions
 of the users allowed to access the MCP server.
+
+## SSL Options
+
+Exasol MCP Server supports configuration of the Transport Layer Security (TLS) or
+Secure Sockets Layer (SSL) protocols. Below is a list of TLS/SSL options that can be
+specified. These options are applicable to all connection modes described above.
+
+| Variable Name                              | Description                                                                                                                              |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| EXA_SSL_CERT_VALIDATION (defaults to true) | Other peers’ certificate verification (true/false). <br/>Can be set to false for testing purpose, but never in production.             |
+| EXA_SSL_TRUSTED_CA                         | Custom path to a directory with Certification Authority (CA) certificates, <br/>or a single CA file.                                     |
+| EXA_SSL_CLIENT_CERT                        | Custom path to the own certificate file in PEM format.                                                                                   |
+| EXA_SSL_PRIVATE_KEY                        | Path to the private key file, if separate from the certificate. <br/>This SSL feature is currently not supported by the Exasol database. |
