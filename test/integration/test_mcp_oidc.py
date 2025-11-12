@@ -181,7 +181,7 @@ class OAuthHeadless(OAuth):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def _is_oidc_server_url(self, url: str) -> bool:
+    def _is_oidc_server_url(url: str) -> bool:
         return url.startswith(f"http://localhost:{OIDC_PORT}") or url.startswith(
             f"http://127.0.0.1:{OIDC_PORT}"
         )
