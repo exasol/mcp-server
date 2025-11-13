@@ -359,6 +359,7 @@ def setup_database(
                     )
                     pyexasol_connection.execute(query=query)
 
+        pyexasol_connection.execute(query="COMMIT")
         yield
 
     finally:
