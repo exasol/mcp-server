@@ -43,6 +43,13 @@ We test two tools. One, called "say_hello" is an artificial that doesn't require
 database. With this tool we test only the MCP Client/Server setup. Another one -
 "list_schemas" - is a real tool that does require the database connection. This one
 allows us to run a complete test.
+
+Update on 13-Nov-2025:
+The tests running MCP server with OAuth Proxy now can only run manually, from a CLI.
+These tests have to be excluded from CI. Starting from FastMCP 2.13, it is no longer
+possible to shortcut the User Authorization UI, when working with OAuth Proxy. The
+redirection to the authorization endpoint of the OIDC server cannot be extracted from
+the url passed to the OAuth.redirect_handler.
 """
 
 import asyncio
@@ -180,22 +187,27 @@ class OAuthHeadless(OAuth):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _is_oidc_server_url(url: str) -> bool:
+        return url.startswith(f"http://localhost:{OIDC_PORT}") or url.startswith(
+            f"http://127.0.0.1:{OIDC_PORT}"
+        )
+
     async def redirect_handler(self, authorization_url: str) -> None:
         # The code below is a replacement for
         # webbrowser.open(authorization_url)
         def send_authorization_request():
             with httpx.Client() as client:
                 time.sleep(1)
-                if not (
-                    authorization_url.startswith(f"http://localhost:{OIDC_PORT}")
-                    or authorization_url.startswith(f"http://127.0.0.1:{OIDC_PORT}")
-                ):
+                if not self._is_oidc_server_url(authorization_url):
                     # Here authorization url is a URL of a proxy. We need to get to its
                     # redirection URL before submitting the "user authorization".
+                    # Starting from FastMCP 2.13, this trick no longer works!
                     response = client.get(authorization_url)
                     assert 300 <= response.status_code < 400
                     assert response.has_redirect_location
                     server_auth_url = response.headers["location"]
+                    assert self._is_oidc_server_url(server_auth_url)
                 else:
                     server_auth_url = authorization_url
                 client.post(
@@ -512,13 +524,17 @@ def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
 
 
 @pytest.fixture
-def mcp_server_with_oauth_proxy(oidc_server, oidc_env, monkeypatch):
+def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that doesn't support DCR.
     https://gofastmcp.com/servers/auth/oauth-proxy
     The mock authorization server does support DCR, but in this scenario we will not use
     this feature.
+    Tests using this fixture can only run in a manual mode, i.e. not from a CI.
     """
+    if not started_manually:
+        pytest.skip("OAuth Proxy tests can only be run manually")
+
     _set_auth_type(monkeypatch, OAuthProxy)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(
@@ -563,6 +579,7 @@ def mcp_server_with_saas(saas_env, monkeypatch):
 async def _run_tool_async(
     http_server_url: str,
     tool_name: str,
+    auto_auth: bool = True,
     token: str | None = None,
     headers: dict[str, str] | None = None,
     **kwargs,
@@ -571,15 +588,18 @@ async def _run_tool_async(
     Creates an MCP client with auth set to
     a. the token, if the one is provided,
     b. None, if the headers are provided (SaaS case),
-    c. authomatic authorization, otherwise.
+    c. authomatic authorization, if `auto_auth` is True,
+    d. UI based authorization, otherwise (for manual tests).
     Then calls the specified tool asynchronously.
     """
     if token:
         oauth = token
     elif headers:
         oauth = None
-    else:
+    elif auto_auth:
         oauth = OAuthHeadless(mcp_url=http_server_url)
+    else:
+        oauth = OAuth(mcp_url=http_server_url)
     async with Client(
         transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:
@@ -588,12 +608,14 @@ async def _run_tool_async(
         return result.content[0].text
 
 
-def _run_say_hello_test(http_server_url: str, token: str | None = None) -> None:
+def _run_say_hello_test(
+    http_server_url: str, auto_auth: bool = True, token: str | None = None
+) -> None:
     """
     Tests the added test tool that doesn't require the database.
     """
     result_text = asyncio.run(
-        _run_tool_async(http_server_url, "say_hello", token=token)
+        _run_tool_async(http_server_url, "say_hello", auto_auth=auto_auth, token=token)
     )
     assert result_text == f"Hello {OIDC_USER_NAME}"
 
@@ -601,6 +623,7 @@ def _run_say_hello_test(http_server_url: str, token: str | None = None) -> None:
 def _run_list_schemas_test(
     http_server_url: str,
     db_schemas: list[ExaSchema],
+    auto_auth: bool = True,
     token: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> None:
@@ -608,7 +631,13 @@ def _run_list_schemas_test(
     Tests one of the real tools that requires the database.
     """
     result_text = asyncio.run(
-        _run_tool_async(http_server_url, "list_schemas", token=token, headers=headers)
+        _run_tool_async(
+            http_server_url,
+            "list_schemas",
+            token=token,
+            auto_auth=auto_auth,
+            headers=headers,
+        )
     )
     result_json = json.loads(result_text)
     schemas = {s["name"] for s in result_json["result"]}
@@ -632,7 +661,7 @@ def test_remote_oauth_no_db(oidc_env_run_once, mcp_server_with_remote_oauth) -> 
 
 
 def test_oauth_proxy_no_db(oidc_env_run_once, mcp_server_with_oauth_proxy) -> None:
-    _run_say_hello_test(mcp_server_with_oauth_proxy)
+    _run_say_hello_test(mcp_server_with_oauth_proxy, auto_auth=False)
 
 
 def test_bearer_token_no_db(
@@ -658,7 +687,7 @@ def test_oauth_proxy_with_itde(
     setup_database,
     db_schemas,
 ) -> None:
-    _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas)
+    _run_list_schemas_test(mcp_server_with_oauth_proxy, db_schemas, auto_auth=False)
 
 
 def test_bearer_token_with_itde(

@@ -16,6 +16,20 @@ import pytest
 from exasol.saas.client.api_access import timestamp_name
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--manual",
+        action="store_true",
+        default=False,
+        help="Indicate that pytest is started manually, i.e. not from a CI workflow",
+    )
+
+
+@pytest.fixture(scope="session")
+def started_manually(request):
+    return request.config.getoption("--manual")
+
+
 @pytest.fixture(scope="session")
 def run_on_itde(backend) -> None:
     if backend != "onprem":
