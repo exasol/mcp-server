@@ -25,6 +25,7 @@ import csv
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache
 from io import StringIO
 from typing import Any
 
@@ -33,6 +34,8 @@ from fastmcp.server.auth import (
     OAuthProxy,
     RemoteAuthProvider,
 )
+from fastmcp.server.auth.auth import TokenVerifier
+from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
@@ -59,6 +62,10 @@ def str_to_bool(s) -> bool:
     if s_lower == "false":
         return False
     raise ValueError(f"Invalid boolean parameter: {s}")
+
+
+def str_to_int(s: str) -> int:
+    return int(str_to_str(s))
 
 
 def str_to_dict(s) -> dict[str, str]:
@@ -92,6 +99,17 @@ _generic_providers = [
             AuthParameter("issuer"),
             AuthParameter("audience", str_to_list),
             AuthParameter("algorithm"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("base_url"),
+        ],
+    ),
+    AuthProviderInfo(
+        provider_type=IntrospectionTokenVerifier,
+        parameters=[
+            AuthParameter("introspection_url"),
+            AuthParameter("client_id"),
+            AuthParameter("client_secret"),
+            AuthParameter("timeout_seconds", str_to_int),
             AuthParameter("required_scopes", str_to_list),
             AuthParameter("base_url"),
         ],
@@ -140,6 +158,29 @@ def exa_parameter_env_name(param: AuthParameter) -> str:
     return f"EXA_AUTH_{param.name.upper()}"
 
 
+@cache
+def _get_provider_map() -> dict[str, AuthProviderInfo]:
+    """
+    Indexes all known providers by their names as they would apper in the
+    FASTMCP_SERVER_AUTH envar.
+    """
+    return {
+        exa_provider_name(provider.provider_type): provider
+        for provider in _generic_providers
+    }
+
+
+@cache
+def _get_verifier_map() -> dict[str, AuthProviderInfo]:
+    """
+    Indexes all known Token Verifiers by their names.
+    """
+    return {
+        exa_provider_name(ver_type): ver_type
+        for ver_type in [JWTVerifier, IntrospectionTokenVerifier]
+    }
+
+
 def create_auth_provider(
     provider_info: AuthProviderInfo, **extra_kwargs
 ) -> AuthProvider:
@@ -151,24 +192,54 @@ def create_auth_provider(
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
 
+def get_token_verifier(provider_name: str) -> tuple[TokenVerifier, str]:
+    """
+    Creates one of the known types of a Token Verifier. This can be either
+    the requested Auth Provider itself, or a part of the requested Auth Provider.
+    In the latter case, the function will create whatever Verifier it can create
+    with the information given in the environment variables. Will raise ValueError
+    if it can create none.
+    Args:
+        provider_name: requested Auth Provider.
+    """
+
+    # First check if the requested Auth provider is one of the Token Verifier types:
+    provider_map = _get_provider_map()
+    verifier_map = _get_verifier_map()
+    provider_type = verifier_map.get(provider_name)
+    if provider_type is not None:
+        provider = create_auth_provider(provider_map[provider_name])
+        return provider, provider_name
+
+    # If the requested provider is not a Token Verifier than create a Token Verifier
+    # that sufficient parameters are provided for.
+    for ver_name, ver_type in verifier_map.items():
+        try:
+            verifier = create_auth_provider(provider_map[ver_name])
+            return verifier, ver_name
+        except ValueError:
+            pass
+    raise ValueError(
+        "Insufficient parameters to create any of the supported "
+        f"Token Verifier types: {verifier_map.keys()}"
+    )
+
+
 def get_auth_provider() -> AuthProvider | None:
     """
     Creates one of FastMCP generic OAuth2 providers, if the correspondent type name is
-    set in the FASTMCP_SERVER_AUTH environment variable.
+    set in the FASTMCP_SERVER_AUTH environment variable. Will raise ValueError if the
+    requested provider type is unknown or no Token Verifier can be created.
     """
     provider_name = os.environ.get(ENV_PROVIDER_TYPE)
     if not provider_name:
         return None
 
-    provider_map = {
-        exa_provider_name(provider.provider_type): provider
-        for provider in _generic_providers
-    }
+    provider_map = _get_provider_map()
     if provider_name not in provider_map:
-        return None
+        raise ValueError(f"Generic OAuth provider {provider_name} is not supported ")
 
-    verifier_name = exa_provider_name(JWTVerifier)
-    verifier = create_auth_provider(provider_map[verifier_name])
+    verifier, verifier_name = get_token_verifier(provider_name)
     if provider_name == verifier_name:
         return verifier
     return create_auth_provider(provider_map[provider_name], token_verifier=verifier)

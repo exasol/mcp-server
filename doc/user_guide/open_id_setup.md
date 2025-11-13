@@ -100,8 +100,10 @@ Both `Remote OAuth` and `OAuthProxy` require a [Token Verifier](https://gofastmc
 The choice of the token verifier depends on the token verification model supported by a
 particular identity provider.
 
-At the time of writing, the latest release of the FastMCP - 2.12.5 - only offers the
-JWT Token Verification. The Opaque Token Verification should be added soon.
+At the time of writing, the latest release of the FastMCP - 2.13.0 - offers two types of
+verification - [JWT Token Verification](https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification)
+and [Opaque Token Verification](https://gofastmcp.com/servers/auth/token-verification#opaque-token-verification).
+The variation of the former is [Static Public Key Verification](https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification)
 
 A token verifier provider may be the only module needed if the MCP Authentication uses
 an externally supplied bearer token. However, this guide doesn't give any details on how
@@ -118,9 +120,20 @@ such a system could be configured. Also, in this scenario, we recommend using Fa
 | EXA_AUTH_AUDIENCE        |    no    | Expected audience claim(s).                                                                                                                                          |
 | EXA_AUTH_ALGORITHM       |    no    | JWT signing algorithm. Supported algorithms: <br/>- Asymmetric: RS256/384/512, ES256/384/512, PS256/384/512 (default: RS256). <br/>- Symmetric: HS256, HS384, HS512. |
 | EXA_AUTH_REQUIRED_SCOPES |    no    | Required scopes for all tokens.                                                                                                                                      |
-| EXA_AUTH_BASE_URL        |    no    | Base URL for TokenVerifier protocol.                                                                                                                                 |
+| EXA_AUTH_BASE_URL        |   yes    | Base URL for TokenVerifier protocol.                                                                                                                                 |
 
 Either of `EXA_AUTH_PUBLIC_KEY` or `EXA_AUTH_JWKS_URI` must be set.
+
+#### Opaque Token Verification (Token Introspection)
+
+| Variable Name              | Required | Value                                                                 |
+|----------------------------|:--------:|-----------------------------------------------------------------------|
+| EXA_AUTH_INTROSPECTION_URL |   yes    | URL of the OAuth token introspection endpoint.                        |
+| EXA_AUTH_CLIENT_ID         |   yes    | OAuth client ID for authenticating to the introspection endpoint.     |
+| EXA_AUTH_CLIENT_SECRET     |   yes    | OAuth client secret for authenticating to the introspection endpoint. |
+| EXA_AUTH_TIMEOUT_SECONDS   |    no    | HTTP request timeout in seconds (default: 10).                        |
+| EXA_AUTH_REQUIRED_SCOPES   |    no    | Required scopes for all tokens.                                       |
+| EXA_AUTH_BASE_URL          |   yes    | Base URL for TokenVerifier protocol.                                  |
 
 ### Remote OAuth
 
