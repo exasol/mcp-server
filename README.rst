@@ -28,8 +28,9 @@ tools for reading the database metadata and executing data reading queries.
   * Enumerates the existing database objects, including schemas, tables, views, functions and UDF scripts.
   * Provides a filtering mechanisms to use with object enumeration.
   * Describes the database objects: for tables returns the list of columns and constraints; for functions and scripts - the list of input and output parameters.
+  * Enables keyword search of database objects.
 
-* Executes provided data reading SQL query. Disallows any other type of query.
+* Executes provided SQL query.
 
 🔌️ Prerequisites
 -----------------
@@ -55,7 +56,7 @@ To install *uv* on macOS please use *brew*, i.e.
 For other operating systems, please follow `the instructions <https://docs.astral.sh/uv/getting-started/installation/>`__
 in the *uv* official documentation.
 
-📝 Using the server with the Claude Desktop
+🧠 Using the server with the Claude Desktop
 -------------------------------------------
 
 To enable the Claude Desktop using the Exasol MCP server, the latter must be listed
