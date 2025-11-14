@@ -1,4 +1,5 @@
-# Database Connection Setup
+Database Connection Setup
+=========================
 
 The MCP server supports two user authentication methods available in Exasol database -
 password and an OpenID token.
@@ -11,39 +12,55 @@ parameters depends on the MCP server deployment mode. This section of the User G
 explains possible deployment options in the context of the database connection and
 lists the expected environment variables in each of these cases.
 
-## Local MCP Server
+Local MCP Server
+----------------
 
 In this mode, the server should be configured to use particular database credentials,
 e.g. username and password (On-Prem). Presumably, these will be Exasol credentials given
 to the user of an AI Application hosting the MCP server. The application is running on
 the user's machine.
 
-### On-Prem Backend
+On-Prem Backend
+^^^^^^^^^^^^^^^
 
++----------------------------------------+----------+
 | Variable Name                          | Required |
-|----------------------------------------|:--------:|
++========================================+==========+
 | EXA_DSN (e.g. demodb.exasol.com:8563") |   yes    |
++----------------------------------------+----------+
 | EXA_USER                               |   yes    |
++----------------------------------------+----------+
 | EXA_PASSWORD                           |    no    |
++----------------------------------------+----------+
 | EXA_ACCESS_TOKEN                       |    no    |
++----------------------------------------+----------+
 | EXA_REFRESH_TOKEN                      |    no    |
++----------------------------------------+----------+
 
 One of the EXA_PASSWORD, EXA_ACCESS_TOKEN, EXA_REFRESH_TOKEN must be provided,
 depending on how the EXA_USER is identified.
 
-### SaaS Backend
+SaaS Backend
+^^^^^^^^^^^^
 
++------------------------------------------------------+----------+
 | Variable Name                                        | Required |
-|------------------------------------------------------|:--------:|
++======================================================+==========+
 | EXA_SAAS_HOST (defaults to https://cloud.exasol.com) |    no    |
++------------------------------------------------------+----------+
 | EXA_SAAS_ACCOUNT_ID                                  |   yes    |
++------------------------------------------------------+----------+
 | EXA_SAAS_PAT (Personal Access Token)                 |   yes    |
++------------------------------------------------------+----------+
 | EXA_SAAS_DATABASE_ID                                 |    no    |
++------------------------------------------------------+----------+
 | EXA_SAAS_DATABASE_NAME                               |    no    |
++------------------------------------------------------+----------+
 
 Either EXA_SAAS_DATABASE_ID or EXA_SAAS_DATABASE_NAME must be provided,
 
-## HTTP MCP Server
+HTTP MCP Server
+---------------
 
 This is the multiuser setup. The MCP Server may be able to identify the user, if the
 server authorization is configured in a certain way. The username can be stored in one
@@ -54,7 +71,8 @@ the name of this claim.
 Being able to identify the user gives two possibilities for making the database
 connection user special.
 
-### Passthrough Access Token (On-Prem)
+Passthrough Access Token (On-Prem)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Under certain conditions, the access token can be extracted from the MCP Authentication
 context and used to open the database connection on behalf of the user calling an MCP
@@ -70,16 +88,21 @@ refresh token. Currently, the refresh token identification is not supported. Thi
 doesn't mean the identity provider cannot use a refresh token. If it does, the MCP client
 will request access token regeneration when its validity period expires.
 
++----------------------------------------+----------+
 | Variable Name                          | Required |
-|----------------------------------------|:--------:|
++========================================+==========+
 | EXA_DSN (e.g. demodb.exasol.com:8563") |   yes    |
++----------------------------------------+----------+
 | EXA_USERNAME_CLAIM                     |   yes    |
++----------------------------------------+----------+
 | EXA_POOL_SIZE                          |    no    |
++----------------------------------------+----------+
 
 EXA_USERNAME_CLAIM is where the name of the username claim should be provided.
 EXA_POOL_SIZE is the maximum size of the connection pool, defaults to 5.
 
-### User Impersonation (On-Prem)
+User Impersonation (On-Prem)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If the users are not identified by access tokens in the database, but their names can be
 made visible through a claim, it is possible to make the connection using a separate MCP
@@ -88,37 +111,53 @@ executed by the server tools will be subject to permissions of the user who init
 the request. For this to work, the server's own credentials must have the
 "IMPERSONATE ANY USER" or "IMPERSONATION ON <user/role>" privileges.
 
++----------------------------------------+----------+
 | Variable Name                          | Required |
-|----------------------------------------|:--------:|
++========================================+==========+
 | EXA_DSN (e.g. demodb.exasol.com:8563") |   yes    |
++----------------------------------------+----------+
 | EXA_USER                               |   yes    |
++----------------------------------------+----------+
 | EXA_PASSWORD                           |    no    |
++----------------------------------------+----------+
 | EXA_ACCESS_TOKEN                       |    no    |
++----------------------------------------+----------+
 | EXA_REFRESH_TOKEN                      |    no    |
++----------------------------------------+----------+
 | EXA_USERNAME_CLAIM                     |   yes    |
++----------------------------------------+----------+
 | EXA_POOL_SIZE                          |    no    |
++----------------------------------------+----------+
 
 Here, EXA_USER is the server's own username. One of the EXA_PASSWORD, EXA_ACCESS_TOKEN,
 EXA_REFRESH_TOKEN must be provided, depending on how the server's username is identified.
 
-### Passthrough PAT (SaaS)
+Passthrough PAT (SaaS)
+^^^^^^^^^^^^^^^^^^^^^^
 
 For this option, the MCP Client should be configured to pass the user's PAT in the HTTP
 headers, e.g. as X-API-KEY. The exact name of the header doesn't matter, so long as the
 MCP Server knows it. Apart from that, the configuration of the SaaS backend connection
 is similar to the local deployment case.
 
++------------------------------------------------------+----------+
 | Variable Name                                        | Required |
-|------------------------------------------------------|:--------:|
++======================================================+==========+
 | EXA_SAAS_HOST (defaults to https://cloud.exasol.com) |    no    |
++------------------------------------------------------+----------+
 | EXA_SAAS_ACCOUNT_ID                                  |   yes    |
++------------------------------------------------------+----------+
 | EXA_SAAS_PAT_HEADER                                  |   yes    |
++------------------------------------------------------+----------+
 | EXA_SAAS_DATABASE_ID                                 |    no    |
++------------------------------------------------------+----------+
 | EXA_SAAS_DATABASE_NAME                               |    no    |
++------------------------------------------------------+----------+
 
 Either EXA_SAAS_DATABASE_ID or EXA_SAAS_DATABASE_NAME must be provided,
 
-### Delegated database access
+Delegated database access
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is a backup option for the case when the user cannot be identified or the server's
 username cannot be granted the impersonation privilege. In principle, it is identical to
@@ -128,15 +167,24 @@ is concerned, this is irrelevant. To keep the database access integrity, the ser
 username must have the permission that is the least common denominator of the permissions
 of the users allowed to access the MCP server.
 
-## SSL Options
+SSL Options
+-----------
 
 Exasol MCP Server supports configuration of the Transport Layer Security (TLS) or
 Secure Sockets Layer (SSL) protocols. Below is a list of TLS/SSL options that can be
 specified. These options are applicable to all connection modes described above.
 
-| Variable Name                              | Description                                                                                                                              |
-|--------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| EXA_SSL_CERT_VALIDATION (defaults to true) | Other peers’ certificate verification (true/false). <br/>Can be set to false for testing purpose, but never in production.             |
-| EXA_SSL_TRUSTED_CA                         | Custom path to a directory with Certification Authority (CA) certificates, <br/>or a single CA file.                                     |
-| EXA_SSL_CLIENT_CERT                        | Custom path to the own certificate file in PEM format.                                                                                   |
-| EXA_SSL_PRIVATE_KEY                        | Path to the private key file, if separate from the certificate. <br/>This SSL feature is currently not supported by the Exasol database. |
++--------------------------------------------+---------------------------------------------------------------------+
+| Variable Name                              | Description                                                         |
++============================================+=====================================================================+
+| EXA_SSL_CERT_VALIDATION (defaults to true) | Other peers’ certificate verification (true/false).                 |
+|                                            | Can be set to false for testing purpose, but never in production.   |
++--------------------------------------------+---------------------------------------------------------------------+
+| EXA_SSL_TRUSTED_CA                         | Custom path to a directory with Certification Authority (CA)        |
+|                                            | certificates, or a single CA file.                                  |
++--------------------------------------------+---------------------------------------------------------------------+
+| EXA_SSL_CLIENT_CERT                        | Custom path to the own certificate file in PEM format.              |
++--------------------------------------------+---------------------------------------------------------------------+
+| EXA_SSL_PRIVATE_KEY                        | Path to the private key file, if separate from the certificate.     |
+|                                            | This SSL feature is currently not supported by the Exasol database. |
++--------------------------------------------+---------------------------------------------------------------------+
