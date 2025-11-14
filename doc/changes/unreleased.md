@@ -9,3 +9,7 @@
 ## Refactoring
 
 * #90: Disabled OIDC tests with OAuthProxy.
+
+## Documentation
+
+* # 94: Moved the documentation for md to rst
