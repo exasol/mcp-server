@@ -12,4 +12,4 @@
 
 ## Documentation
 
-* # 94: Moved the documentation for md to rst
+* #94: Moved the documentation from md to rst
