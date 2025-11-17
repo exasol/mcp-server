@@ -6,7 +6,7 @@ password and an OpenID token.
 
 The MCP server can be deployed in two ways: locally or as a remote HTTP server.
 In the latter case, the server works in the multiple-user mode, and its tools must be
-protected with OAuth2 authorization. Please refer to [OpenID Setup](open_id_setup.md)
+protected with OAuth2 authorization. Please refer to :doc:`open_id_setup`
 guide for details on the OAuth configuration. The choice of the database connection
 parameters depends on the MCP server deployment mode. This section of the User Guide
 explains possible deployment options in the context of the database connection and
