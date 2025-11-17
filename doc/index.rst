@@ -1,4 +1,4 @@
-Documentation of  Exasol MCP Server
+Documentation of Exasol MCP Server
 -----------------------------------
 
 .. grid:: 1 1 3 2

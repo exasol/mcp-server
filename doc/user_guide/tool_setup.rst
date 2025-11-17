@@ -1,4 +1,4 @@
-Tool setup
+Tool Setup
 ==========
 
 This guide provides detailed information on how to configure Exasol MCP Server tools

@@ -30,9 +30,9 @@ the environment where the MCP Server is going to run.
 
 The environment variables can be divided into three groups.
 
-* `OpenID settings <open_id_setup.rst>`__
-* `Database connection settings <db_connection_setup.rst>`__
-* `Tool settings <tool_setup.rst>`__
+* :doc:`open_id_setup`
+* :doc:`db_connection_setup`
+* :doc:`tool_setup`
 
 All settings are described in details in respective sections of the User Guide.
 
@@ -57,5 +57,5 @@ should contain the path to this file, e.g.
         }
     }
 
-Please see the `Tool Setup <tool_setup.rst>`__ for details on how the MCP Server tools
+Please see the :doc:`tool_setup` for details on how the MCP Server tools
 can be customised.

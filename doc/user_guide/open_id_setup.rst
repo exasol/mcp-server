@@ -12,7 +12,7 @@ the tools and resources from unauthorized access. OAuth2 and OpenID Connect are 
 and widely used specifications for resource protection. Exasol MCP server supports
 OAuth2-based authorization to control access to its own tools, as well as the Exasol
 database. The authentication options for the database connection are described in
-the `Database Connection Setup <db_connection_setup.rst>`__ guide. This section focuses
+the :doc:`db_connection_setup` guide. This section focuses
 on the configuration of the MCP Server authorization.
 
 It is assumed that the reader has some familiarity with the basic concepts of OAuth2.
@@ -248,7 +248,7 @@ documentation, and in particular to the `Personal Access Token (PAT) <https://do
 section.
 
 Essentially, an Exasol SaaS user is issued a PAT. They need to pass this token to the
-MCP Server. This can be done using an HTTP header, as described in the [Database Connection Setup](db_connection_setup.md) guide.
+MCP Server. This can be done using an HTTP header, as described in the :doc:`db_connection_setup` guide.
 
 Besides that, the MCP server tools can also be protected using one of the authorization
 schemas described earlier in this guide, but in case of SaaS backend this is optional.
