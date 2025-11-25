@@ -171,7 +171,7 @@ Remote OAuth
 +---------------------------------+----------+---------------------------------------------------+
 | Variable Name                   | Required | Value                                             |
 +=================================+==========+===================================================+
-| FASTMCP_SERVER_AUTH             |   yes    | fastmcp.server.auth.auth.RemoteAuthProvider.      |
+| FASTMCP_SERVER_AUTH             |   yes    | exa.fastmcp.server.auth.auth.RemoteAuthProvider   |
 +---------------------------------+----------+---------------------------------------------------+
 | EXA_AUTH_AUTHORIZATION_SERVERS  |   yes    | List of identity servers that issue valid tokens. |
 +---------------------------------+----------+---------------------------------------------------+
@@ -188,7 +188,7 @@ OAuth Proxy
 +------------------------------------------+----------+------------------------------------------------------------------------------+
 | Variable Name                            | Required | Value                                                                        |
 +==========================================+==========+==============================================================================+
-| FASTMCP_SERVER_AUTH                      |   yes    | fastmcp.server.auth.oauth_proxy.OAuthProxy                                   |
+| FASTMCP_SERVER_AUTH                      |   yes    | exa.fastmcp.server.auth.oauth_proxy.OAuthProxy                               |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
 | EXA_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT |   yes    | URL of upstream authorization endpoint.                                      |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
