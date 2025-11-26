@@ -11,8 +11,12 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock README.rst ./
 COPY exasol/ ./exasol/
 
-# Configure Poetry to not create virtual env and install dependencies
-RUN poetry install --without dev --no-interaction --no-ansi
+# Build and install the wheel
+RUN poetry build
+RUN pip install dist/*.whl
+
+# Remove Poetry
+RUN pip uninstall --yes poetry
 
 # Set entrypoint
-ENTRYPOINT ["poetry", "run", "exasol-mcp-server-http"]
+ENTRYPOINT ["exasol-mcp-server-http"]
