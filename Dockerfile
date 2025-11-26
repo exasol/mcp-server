@@ -20,8 +20,6 @@ COPY --from=build dist dist
 WORKDIR /app
 RUN pip install dist/*.whl
 
-# Remove Poetry
-RUN pip uninstall --yes poetry
 
 # Set entrypoint
 ENTRYPOINT ["exasol-mcp-server-http"]
