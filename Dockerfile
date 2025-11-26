@@ -1,5 +1,5 @@
 # Use Python base image
-FROM python:3.13-slim as build
+FROM python:3.13-slim AS build
 
 # Install Poetry
 RUN pip install poetry
@@ -15,9 +15,10 @@ COPY exasol/ ./exasol/
 RUN poetry build
 
 FROM python:3.13-slim
-COPY --from=build dist dist
 
 WORKDIR /app
+COPY --from=build app/dist dist
+
 RUN pip install dist/*.whl
 
 
