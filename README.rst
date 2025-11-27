@@ -149,7 +149,7 @@ Here is an example code creating the Exasol MCP server from a wrapper.
 The server is configured using environment variables and optionally a json file. In the
 above example, the server is provided with the database connection parameters, all other
 settings left to default. For the information on how to customize server settings
-please see the `Server Setup <https://exasol.github.io/mcp-server/user_guide/server_setup.html>`_
+please see the `Server Setup <https://exasol.github.io/mcp-server/main/user_guide/server_setup.html>`_
 in the User Guide.
 
 📜 License

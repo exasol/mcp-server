@@ -58,7 +58,10 @@ import multiprocessing
 import ssl
 import time
 from collections.abc import Generator
-from contextlib import ExitStack
+from contextlib import (
+    ExitStack,
+    contextmanager,
+)
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
 from unittest.mock import patch
@@ -218,8 +221,8 @@ class OAuthHeadless(OAuth):
         process.start()
 
 
-@pytest.fixture(scope="session")
-def oidc_server(run_on_itde) -> str:
+@contextmanager
+def start_oidc_server() -> Generator[None, None, str]:
     """
     The fixture starts the mock authorization server.
 
@@ -306,6 +309,12 @@ def oidc_server(run_on_itde) -> str:
         )
         assert response.status_code == 204
         print("✓ The user credentials are created")
+        yield server_url
+
+
+@pytest.fixture(scope="session")
+def oidc_server(run_on_itde) -> str:
+    with start_oidc_server() as server_url:
         yield server_url
 
 
