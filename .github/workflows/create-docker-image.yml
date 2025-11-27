@@ -1,8 +1,18 @@
 name: Create Docker Image
 
 on:
-  workflow_dispatch:
   workflow_call:
+    secrets:
+      CI4_DOCKERHUB_USERNAME:
+        required: true
+      CI4_DOCKERHUB_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: 'Name to tag the image with'
+        required: true
+        type: string
 
 jobs:
   build-and-push:
@@ -21,8 +31,8 @@ jobs:
         username: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
         password: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
 
-
-    - name: Build and push Docker Image
+    - name: Build and push Release Docker Image
+      if: ${{ github.event_name == 'workflow_call' }}
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -30,3 +40,11 @@ jobs:
         tags: |
           ${{ secrets.CI4_DOCKERHUB_USERNAME }}/exasol-mcp-server:latest
           ${{ secrets.CI4_DOCKERHUB_USERNAME }}/exasol-mcp-server:${{ github.ref_name }}
+
+    - name: Build and push Docker Image on request
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.CI4_DOCKERHUB_USERNAME }}/exasol-mcp-server:${{ inputs.image_name }}

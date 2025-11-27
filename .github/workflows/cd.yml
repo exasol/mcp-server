@@ -31,3 +31,13 @@ jobs:
       contents: read
       pages: write
       id-token: write
+
+  create-docker-image:
+    needs: [ check-tag-version-job ]
+    name: Docker Deployment
+    uses: ./.github/workflows/create-docker-image.yml
+    permissions:
+      contents: write
+    secrets:
+      CI4_DOCKERHUB_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
+      CI4_DOCKERHUB_TOKEN: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
