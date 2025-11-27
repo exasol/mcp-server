@@ -21,14 +21,6 @@ jobs:
         username: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
         password: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
 
-    - name: Generate version tag
-      id: version
-      run: |
-        DATE=$(date +'%Y%m%d')
-        SHORT_SHA=${GITHUB_SHA:0:8}
-        VERSION="$DATE-$SHORT_SHA"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Generated version: $VERSION"
 
     - name: Build and push Docker Image
       uses: docker/build-push-action@v5
