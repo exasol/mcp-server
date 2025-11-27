@@ -6,7 +6,7 @@ description = "Exasol MCP Server"
 authors = [
     {name = "Mikhail Beck", email = "mikhail.beck@exasol.com"},
 ]
-readme = "README.md"
+readme = "README.rst"
 license = "MIT"
 keywords = ['exasol', 'MCP server']
 dynamic = ["dependencies"]

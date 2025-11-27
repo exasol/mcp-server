@@ -11,38 +11,36 @@ jobs:
       contents: read
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
 
       - name: Check Version(s)
         run: poetry run -- nox -s version:check
 
-  # Will be re-enabled once the User Guide is moved to sphinx
-  #
-  # Documentation:
-  #   name: Docs
-  #   needs: [ Version-Check ]
-  #   runs-on: ubuntu-24.04
-  #   permissions:
-  #     contents: read
-  #   steps:
-  #     - name: SCM Checkout
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Setup Python & Poetry Environment
-  #       uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
-  #
-  #     - name: Build Documentation
-  #       run: |
-  #         poetry run -- nox -s docs:build
-  #
-  #     - name: Link Check
-  #       run: |
-  #         poetry run -- nox -s links:check
+  Documentation:
+    name: Docs
+    needs: [ Version-Check ]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: SCM Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python & Poetry Environment
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
+
+      - name: Build Documentation
+        run: |
+          poetry run -- nox -s docs:build
+
+      - name: Link Check
+        run: |
+          poetry run -- nox -s links:check
 
   build-matrix:
     name: Generate Build Matrix
@@ -58,10 +56,10 @@ jobs:
     if: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
 
       - name: Run changelog update check
         run: poetry run -- nox -s changelog:updated
@@ -77,10 +75,10 @@ jobs:
       matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -88,7 +86,7 @@ jobs:
         run: poetry run -- nox -s lint:code
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v5
         with:
           name: lint-python${{ matrix.python-version }}
           path: |
@@ -108,10 +106,10 @@ jobs:
 
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -130,10 +128,10 @@ jobs:
 
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -141,7 +139,7 @@ jobs:
         run: poetry run -- nox -s lint:security
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v5
         with:
           name: security-python${{ matrix.python-version }}
           path: .security.json
@@ -154,32 +152,46 @@ jobs:
       contents: read
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
 
       - name: Run format check
         run: poetry run -- nox -s project:format
 
-  Tests:
-    name: Unit-Tests (Python-${{ matrix.python-version }})
-    needs: [ Lint, Type-Check, Security, Format, build-matrix ]
+  Build-Packages:
+    name: Build Package Check
+    needs: [ Documentation, Lint, Type-Check, Security, Format ]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: SCM Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python & Poetry Environment
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
+
+      - name: Run Distribution Check
+        run: poetry run -- nox -s package:check
+
+  Tests:
+    name: Unit-Tests (Python-${{ matrix.python-version }})
+    needs: [ Build-Packages, build-matrix ]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
 
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@1.6.1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v1
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -187,7 +199,7 @@ jobs:
         run: poetry run -- nox -s test:unit -- --coverage
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-python${{ matrix.python-version }}-fast
           path: .coverage

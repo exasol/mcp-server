@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '**'
+      - '!v*'
 
 jobs:
 
@@ -14,6 +15,7 @@ jobs:
       contents: read
 
   cd-job:
+    needs: [ check-tag-version-job ]
     name: Continuous Delivery
     uses: ./.github/workflows/build-and-publish.yml
     permissions:
@@ -30,3 +32,12 @@ jobs:
       pages: write
       id-token: write
 
+  create-docker-image:
+    needs: [ check-tag-version-job ]
+    name: Docker Deployment
+    uses: ./.github/workflows/create-docker-image.yml
+    permissions:
+      contents: write
+    secrets:
+      CI4_DOCKERHUB_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
+      CI4_DOCKERHUB_TOKEN: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
