@@ -192,9 +192,7 @@ class OAuthHeadless(OAuth):
 
     @staticmethod
     def _is_oidc_server_url(url: str) -> bool:
-        return url.startswith(f"http://localhost:{OIDC_PORT}") or url.startswith(
-            f"http://127.0.0.1:{OIDC_PORT}"
-        )
+        return f":{OIDC_PORT}" in url
 
     async def redirect_handler(self, authorization_url: str) -> None:
         # The code below is a replacement for
