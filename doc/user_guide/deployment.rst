@@ -65,9 +65,9 @@ Now create and run the Docker container.
 In this example, the server is configured to use the generic OAuth Proxy provider.
 The server starts at the Docker container's port 4896, which is published to the
 host port 7766. Normally, the base URL of the MCP server will be a secure address
-of the server, e.g. "https://the_server_address", as described in the next section.
-For example, if the server is deployed in an AWS EC2 instance, the EXA_AUTH_BASE_URL
-can be set to "https://ec2-xx-xxx-xx-xx.my-region.compute.amazonaws.com".
+of the server, as described in the next section. For example, if the server is
+deployed in an AWS EC2 instance, the EXA_AUTH_BASE_URL can be set to
+"https://ec2-xx-xxx-xx-xx.my-region.compute.amazonaws.com".
 
 Note that the path to the settings.json file must be an absolute path.
 
