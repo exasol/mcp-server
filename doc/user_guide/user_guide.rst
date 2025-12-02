@@ -10,3 +10,4 @@
     tool_setup
     db_connection_setup
     open_id_setup
+    deployment
