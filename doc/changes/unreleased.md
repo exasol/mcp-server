@@ -14,4 +14,5 @@
 
 ## Documentation
 
-* #94: Moved the documentation from md to rst
+* #94: Moved the documentation from md to rst.
+* #98: Added deployment section to the User Guide.

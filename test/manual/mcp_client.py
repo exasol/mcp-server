@@ -43,9 +43,8 @@ def _run_tool(http_server_url: str, tool_name: str, auto_auth: bool, **kwargs) -
     default="localhost",
     help="The host where the MCP container is running (default: localhost).",
 )
-@click.option(
-    "--port", required=True, type=click.IntRange(min=1), help="The MCP server port."
-)
+@click.option("--port", type=click.IntRange(min=1), help="The MCP server port.")
+@click.option("--https", is_flag=True, help="Use secure connection, i.e. HTTPS.")
 @click.option("--tool", required=True, help="Name of the MCP tool to run.")
 @click.option(
     "--auto-auth", is_flag=True, help="Automatically authorize the MCP tool to run."
@@ -55,8 +54,10 @@ def _run_tool(http_server_url: str, tool_name: str, auto_auth: bool, **kwargs) -
     multiple=True,
     help="Named argument to call the tool will. Can be passed multiple times.",
 )
-def call_mcp(host, port, tool, auto_auth, kwarg) -> None:
-    server_url = f"http://{host}:{port}/mcp"
+def call_mcp(host, port, https, tool, auto_auth, kwarg) -> None:
+    protocol = "https" if https else "http"
+    server = f"{host}:{port}" if port else host
+    server_url = f"{protocol}://{server}/mcp"
     kwargs = {kw[0]: kw[1] for kw in [item.split("=") for item in kwarg]}
     result = _run_tool(server_url, tool, auto_auth, **kwargs)
     print(result)

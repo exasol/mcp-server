@@ -28,13 +28,14 @@ references the Exasol MCP Server.
 The ``env`` section of this file lists the environment variables that will be created in
 the environment where the MCP Server is going to run.
 
-The environment variables can be divided into three groups.
+The environment variables can be divided into three groups. These groups are described in
+separate sections of the User Guide. The last section is concerned about deployment
+of the MCP Server as an HTTP Server.
 
 * :doc:`open_id_setup`
 * :doc:`db_connection_setup`
 * :doc:`tool_setup`
-
-All settings are described in details in respective sections of the User Guide.
+* :doc:`deployment`
 
 Tool settings
 -------------
