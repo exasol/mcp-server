@@ -6,7 +6,7 @@ on:
 jobs:
   create-docker-image:
     name: Docker Deployment Mock
-    uses: ./.github/workflows/create-docker-image_debug.yml
+    uses: ./.github/workflows/create-docker-image-debug.yml
     permissions:
       contents: write
     secrets:
