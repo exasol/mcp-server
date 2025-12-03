@@ -32,7 +32,7 @@ jobs:
         password: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
 
     - name: Build and push Release Docker Image
-      if: ${{ github.event_name == 'workflow_call' }}
+      if: ${{ github.event_name != 'workflow_dispatch' }}
       uses: docker/build-push-action@v5
       with:
         context: .
