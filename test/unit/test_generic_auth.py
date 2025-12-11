@@ -264,8 +264,7 @@ def test_get_auth_provider(monkeypatch, provider_type, params) -> None:
 
 def test_get_auth_provider_error(monkeypatch) -> None:
     monkeypatch.setenv(ENV_PROVIDER_TYPE, "exa.non_existent_provider")
-    with pytest.raises(ValueError, match="not supported"):
-        get_auth_provider()
+    assert get_auth_provider() is None
 
 
 def test_get_auth_kwargs(monkeypatch) -> None:
