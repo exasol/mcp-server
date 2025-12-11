@@ -715,14 +715,14 @@ files = [
 
 [[package]]
 name = "click"
-version = "8.3.1"
+version = "8.2.1"
 description = "Composable command line interface toolkit"
 optional = false
 python-versions = ">=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6"},
-    {file = "click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a"},
+    {file = "click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b"},
+    {file = "click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202"},
 ]
 
 [package.dependencies]
@@ -1271,14 +1271,14 @@ files = [
 
 [[package]]
 name = "exasol-integration-test-docker-environment"
-version = "4.4.1"
+version = "5.0.0"
 description = "Integration Test Docker Environment for Exasol"
 optional = false
 python-versions = "<3.15,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "exasol_integration_test_docker_environment-4.4.1-py3-none-any.whl", hash = "sha256:1aaaac92ca0165435e617394d3ad2192b629a459356f227ac8ef6cf22bdd9863"},
-    {file = "exasol_integration_test_docker_environment-4.4.1.tar.gz", hash = "sha256:0f2cd9247189fdacfd54ab43653d97496b103a03fc7431499c80a38b7b4b315c"},
+    {file = "exasol_integration_test_docker_environment-5.0.0-py3-none-any.whl", hash = "sha256:b5d35ad409155f7705ec8c3f261f519295061c82b7ccd56cab39bb5097863b7c"},
+    {file = "exasol_integration_test_docker_environment-5.0.0.tar.gz", hash = "sha256:66dc7cbe628bdaabdd6924a428e56bfdd817ea226eed7663fb33c378427282c4"},
 ]
 
 [package.dependencies]
@@ -1345,19 +1345,20 @@ types-requests = ">=2.31.0.6,<3.0.0.0"
 
 [[package]]
 name = "exasol-script-languages-container-tool"
-version = "3.4.1"
+version = "3.5.0"
 description = "Script Languages Container Tool"
 optional = false
-python-versions = "<4,>=3.10"
+python-versions = "<3.14,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "exasol_script_languages_container_tool-3.4.1-py3-none-any.whl", hash = "sha256:d0fabc5a8bfab38c2ad6e13309ebce813051f5e4a13ecfd6e50775bffb733af4"},
-    {file = "exasol_script_languages_container_tool-3.4.1.tar.gz", hash = "sha256:43264a85f2dbc6455993923583a0b73a58c5fb7e987852779fd83d89e3c63e2b"},
+    {file = "exasol_script_languages_container_tool-3.5.0-py3-none-any.whl", hash = "sha256:d111af355e6bb47001da5b270921001075320f33dafa7ddad1877a9d6ed3abe1"},
+    {file = "exasol_script_languages_container_tool-3.5.0.tar.gz", hash = "sha256:a2dc164498a811914da33bac17c69a08571cd0ffbb3948cc655ab832c81f9ec6"},
 ]
 
 [package.dependencies]
+click = ">=8.2.1,<8.3.0"
 exasol-bucketfs = ">=1,<3"
-exasol-integration-test-docker-environment = ">=4.1.0,<5.0.0"
+exasol-integration-test-docker-environment = ">=4.4.1,<6.0.0"
 importlib_metadata = ">=4.6.0"
 importlib-resources = ">=6.4.0"
 jsonschema = ">=4.23.0,<5.0.0"
@@ -5439,14 +5440,14 @@ typing-extensions = ">=4.12.0"
 
 [[package]]
 name = "urllib3"
-version = "2.6.1"
+version = "2.6.2"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.9"
 groups = ["main", "dev"]
 files = [
-    {file = "urllib3-2.6.1-py3-none-any.whl", hash = "sha256:e67d06fe947c36a7ca39f4994b08d73922d40e6cca949907be05efa6fd75110b"},
-    {file = "urllib3-2.6.1.tar.gz", hash = "sha256:5379eb6e1aba4088bae84f8242960017ec8d8e3decf30480b3a1abdaa9671a3f"},
+    {file = "urllib3-2.6.2-py3-none-any.whl", hash = "sha256:ec21cddfe7724fc7cb4ba4bea7aa8e2ef36f607a4bab81aa6ce42a13dc3f03dd"},
+    {file = "urllib3-2.6.2.tar.gz", hash = "sha256:016f9c98bb7e98085cb2b4b17b87d2c702975664e4f060c6532e64d1c1a5e797"},
 ]
 
 [package.extras]
@@ -5778,4 +5779,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "d4584a5c78478c3646b88cf456cd97caa0aa518bed03e293320aafc2128a2940"
+content-hash = "1f6b47f86240019fa31e125281f7ad93f593d9c5ab9ac7f1e75c41bfdc3dfcd3"
