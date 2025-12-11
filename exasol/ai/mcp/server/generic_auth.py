@@ -237,7 +237,7 @@ def get_auth_provider() -> AuthProvider | None:
 
     provider_map = _get_provider_map()
     if provider_name not in provider_map:
-        raise ValueError(f"Generic OAuth provider {provider_name} is not supported ")
+        return None
 
     verifier, verifier_name = get_token_verifier(provider_name)
     if provider_name == verifier_name:
