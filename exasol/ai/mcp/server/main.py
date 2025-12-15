@@ -2,6 +2,8 @@ import json
 import os
 import re
 from typing import Any
+import logging
+from logging.handlers import RotatingFileHandler
 
 import click
 from pydantic import ValidationError
@@ -14,6 +16,16 @@ from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
+
+ENV_LOG_FILE = "EXA_MCP_LOG_FILE"
+ENV_LOG_LEVEL = "EXA_MCP_LOG_LEVEL"
+ENV_LOG_MAX_SIZE = "EXA_MCP_LOG_MAX_SIZE"
+ENV_LOG_BACKUP_COUNT = "EXA_MCP_LOG_BACKUP_COUNT"
+ENV_LOG_FORMATTER = "EXA_MCP_LOG_FORMATTER"
+
+DEFAULT_LOG_LEVEL = logging.WARNING
+DEFAULT_LOG_MAX_SIZE = 1048576  # 1 MB
+DEFAULT_LOG_BACKUP_COUNT = 5
 
 
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
@@ -202,6 +214,42 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_execute_write_query(mcp_server)
 
 
+def setup_logger(env: dict[str, str]) -> logging.Logger:
+    """
+    Configures the root logger using the info in the provided configuration dictionary.
+    Return the root logger
+    """
+    logger = logging.getLogger()
+    log_level = env[ENV_LOG_LEVEL] if ENV_LOG_LEVEL in env else DEFAULT_LOG_LEVEL
+    logger.setLevel(log_level)
+
+    if ENV_LOG_FILE in env:
+        # Create logs directory if it doesn't exist
+        log_file = env[ENV_LOG_FILE]
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        # Create rotating file handler
+        max_bytes = int(env[ENV_LOG_MAX_SIZE]) if ENV_LOG_MAX_SIZE in env else DEFAULT_LOG_MAX_SIZE
+        backup_count = int(env[ENV_LOG_BACKUP_COUNT]) if ENV_LOG_BACKUP_COUNT in env else DEFAULT_LOG_BACKUP_COUNT
+        log_handler = RotatingFileHandler(
+            filename=log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+
+        # Create formatter if provided
+        if ENV_LOG_FORMATTER in env:
+            formatter = logging.Formatter(env[ENV_LOG_FORMATTER])
+            log_handler.setFormatter(formatter)
+
+        logger.addHandler(log_handler)
+
+    return logger
+
+
 def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
     """
     Reads optional settings. They can be provided either in a json string stored in the
@@ -246,13 +294,16 @@ def mcp_server() -> ExasolMCPServer:
     Builds the Exasol MCP server and all its components.
     """
     env = get_env()
+    logger = setup_logger(env)
     mcp_settings = get_mcp_settings(env)
     auth_kwargs = get_auth_kwargs()
     connection_factory = get_connection_factory(env)
 
     connection = DbConnection(connection_factory=connection_factory)
 
-    return create_mcp_server(connection=connection, config=mcp_settings, **auth_kwargs)
+    server = create_mcp_server(connection=connection, config=mcp_settings, **auth_kwargs)
+    logger.info("Exasol MCP Server created.")
+    return server
 
 
 def main():
