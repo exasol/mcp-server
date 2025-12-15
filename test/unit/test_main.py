@@ -16,13 +16,13 @@ from exasol.ai.mcp.server.connection_factory import (
 )
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
-    ENV_SETTINGS,
     ENV_LOG_FILE,
-    ENV_LOG_LEVEL,
     ENV_LOG_FORMATTER,
+    ENV_LOG_LEVEL,
+    ENV_SETTINGS,
     get_mcp_settings,
-    setup_logger,
     mcp_server,
+    setup_logger,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -81,13 +81,17 @@ def test_get_mcp_settings_no_file(tmp_path) -> None:
 
 def test_setup_logger(tmp_path) -> None:
     log_file = tmp_path / "log_dir/log_file.log"
-    log_format = '%(name)s - %(levelname)s - %(message)s'
-    env = {ENV_LOG_FILE: str(log_file), ENV_LOG_LEVEL: "INFO", ENV_LOG_FORMATTER: log_format}
+    log_format = "%(name)s - %(levelname)s - %(message)s"
+    env = {
+        ENV_LOG_FILE: str(log_file),
+        ENV_LOG_LEVEL: "INFO",
+        ENV_LOG_FORMATTER: log_format,
+    }
     setup_logger(env)
     logger = logging.getLogger("test_logger")
     logger.info("Test message")
-    with open(log_file, "r") as f:
-        assert f.read().strip() == 'test_logger - INFO - Test message'
+    with open(log_file) as f:
+        assert f.read().strip() == "test_logger - INFO - Test message"
 
 
 @patch("exasol.ai.mcp.server.main.create_mcp_server")

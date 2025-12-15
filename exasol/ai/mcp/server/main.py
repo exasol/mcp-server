@@ -1,9 +1,9 @@
 import json
+import logging
 import os
 import re
-from typing import Any
-import logging
 from logging.handlers import RotatingFileHandler
+from typing import Any
 
 import click
 from pydantic import ValidationError
@@ -231,13 +231,21 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
             os.makedirs(log_dir)
 
         # Create rotating file handler
-        max_bytes = int(env[ENV_LOG_MAX_SIZE]) if ENV_LOG_MAX_SIZE in env else DEFAULT_LOG_MAX_SIZE
-        backup_count = int(env[ENV_LOG_BACKUP_COUNT]) if ENV_LOG_BACKUP_COUNT in env else DEFAULT_LOG_BACKUP_COUNT
+        max_bytes = (
+            int(env[ENV_LOG_MAX_SIZE])
+            if ENV_LOG_MAX_SIZE in env
+            else DEFAULT_LOG_MAX_SIZE
+        )
+        backup_count = (
+            int(env[ENV_LOG_BACKUP_COUNT])
+            if ENV_LOG_BACKUP_COUNT in env
+            else DEFAULT_LOG_BACKUP_COUNT
+        )
         log_handler = RotatingFileHandler(
             filename=log_file,
             maxBytes=max_bytes,
             backupCount=backup_count,
-            encoding='utf-8'
+            encoding="utf-8",
         )
 
         # Create formatter if provided
@@ -301,7 +309,9 @@ def mcp_server() -> ExasolMCPServer:
 
     connection = DbConnection(connection_factory=connection_factory)
 
-    server = create_mcp_server(connection=connection, config=mcp_settings, **auth_kwargs)
+    server = create_mcp_server(
+        connection=connection, config=mcp_settings, **auth_kwargs
+    )
     logger.info("Exasol MCP Server created.")
     return server
 

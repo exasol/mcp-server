@@ -1,3 +1,5 @@
+import json
+import logging
 import ssl
 from collections.abc import (
     Callable,
@@ -9,8 +11,6 @@ from typing import (
     Any,
     ContextManager,
 )
-import logging
-import json
 
 import exasol.saas.client.api_access as saas_api
 import fastmcp.server.dependencies as fmcp_api
@@ -229,10 +229,9 @@ def log_connection(conn_kwargs: dict[str, Any], user: str, env: dict[str, Any]) 
     masked_args = ["password", "access_token", "refresh_token"]
     conn_data = {
         "conn-kwargs": {
-            k: "***" if k in masked_args else v
-            for k, v in conn_kwargs.items()
+            k: "***" if k in masked_args else v for k, v in conn_kwargs.items()
         },
-        "user": user
+        "user": user,
     }
     log_claims = optional_bool_from_env(env, ENV_LOG_CLAIMS)
     if log_claims:
@@ -247,7 +246,9 @@ def log_connection(conn_kwargs: dict[str, Any], user: str, env: dict[str, Any]) 
     log_data = {"db-connection": conn_data}
 
     try:
-        log_json = json.dumps(log_data, ensure_ascii=False, default=lambda o: type(o).__name__)
+        log_json = json.dumps(
+            log_data, ensure_ascii=False, default=lambda o: type(o).__name__
+        )
         logger.info(log_json)
     except (ValueError, TypeError) as e:
         logger.warning("Unable to log connection info: %s", e)

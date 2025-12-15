@@ -1,3 +1,4 @@
+import json
 import ssl
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,7 +7,6 @@ from typing import (
     Optional,
 )
 from unittest.mock import patch
-import json
 
 import pytest
 from fastmcp.server.auth import AccessToken
@@ -15,6 +15,8 @@ from exasol.ai.mcp.server.connection_factory import (
     DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_DSN,
+    ENV_LOG_CLAIMS,
+    ENV_LOG_HTTP_HEADERS,
     ENV_PASSWORD,
     ENV_REFRESH_TOKEN,
     ENV_SAAS_ACCOUNT_ID,
@@ -29,8 +31,6 @@ from exasol.ai.mcp.server.connection_factory import (
     ENV_SSL_TRUSTED_CA,
     ENV_USER,
     ENV_USERNAME_CLAIM,
-    ENV_LOG_CLAIMS,
-    ENV_LOG_HTTP_HEADERS,
     get_common_kwargs,
     get_connection_factory,
     get_local_kwargs,
@@ -38,15 +38,15 @@ from exasol.ai.mcp.server.connection_factory import (
     get_saas_kwargs,
     get_ssl_options,
     local_env_complete,
+    log_connection,
     oidc_env_complete,
     optional_bool_from_env,
     saas_env_complete,
-    log_connection
 )
 from exasol.ai.mcp.server.main import (
     ENV_LOG_FILE,
-    ENV_LOG_LEVEL,
     ENV_LOG_FORMATTER,
+    ENV_LOG_LEVEL,
     setup_logger,
 )
 
@@ -510,7 +510,7 @@ def test_get_connection_factory_sass(mock_connection_params, mock_connect) -> No
 @patch("fastmcp.server.dependencies.get_http_headers")
 def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
     log_file = str(tmp_path / "log_dir/log_file.log")
-    log_format = '%(message)s'
+    log_format = "%(message)s"
     env = {
         ENV_LOG_FILE: log_file,
         ENV_LOG_LEVEL: "INFO",
@@ -534,7 +534,7 @@ def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
         "dsn": "my.db.dsn",
         "user": "server-user-name",
         "password": "my-password",
-        "non-json-arg": access_token
+        "non-json-arg": access_token,
     }
     user = "user-user-name"
     log_connection(conn_kwargs, user, env)
@@ -547,15 +547,10 @@ def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
                 "non-json-arg": "AccessToken",
             },
             "user": "user-user-name",
-            "oauth-claims": {
-                "claim1": "carnivore",
-                "claim2": "nocturnal"
-            },
-            "http-headers": {
-                "my_header_name": "my_header_value"
-            }
+            "oauth-claims": {"claim1": "carnivore", "claim2": "nocturnal"},
+            "http-headers": {"my_header_name": "my_header_value"},
         }
     }
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         actual_json = json.load(f)
     assert actual_json == expected_json
