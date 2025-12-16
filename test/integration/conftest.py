@@ -383,7 +383,7 @@ def setup_database(
 
 
 @pytest.fixture(scope="session")
-def bfs_data() -> list[ExaBfsDir]:
+def bfs_data() -> ExaBfsDir:
     return ExaBfsDir(
         name="Species",
         items=[
@@ -467,7 +467,7 @@ def bfs_data() -> list[ExaBfsDir]:
                                 )
                             ),
                             ExaBfsFile(
-                                nane="Elk",
+                                name="Elk",
                                 content=(
                                     b"One of the largest species within the deer "
                                     b"family, known for the males' large, branching "
@@ -542,13 +542,14 @@ def setup_bucketfs(
     bfs_data,
 ) -> None:
 
-    def write_content(bfs_dir: ExaBfsDir, bfs_path: bfs.path.PathLike) -> None:
-        for item in bfs_dir.items:
+    def write_content(node: ExaBfsDir, bfs_path: bfs.path.PathLike) -> None:
+        for item in node.items:
             if isinstance(item, ExaBfsFile):
                 bfs_file = bfs_path.joinpath(item.name)
                 bfs_file.write(item.content)
             elif isinstance(item, ExaBfsDir):
-                write_content(item, bfs_path.joinpath(item.name))
+                bfs_sub_dir = bfs_path.joinpath(item.name)
+                write_content(item, bfs_sub_dir)
 
-    bfs_root = bfs.path.build_path(**backend_aware_bucketfs_params)
+    bfs_root = bfs.path.build_path(**backend_aware_bucketfs_params, path=bfs_data.name)
     write_content(bfs_data, bfs_root)

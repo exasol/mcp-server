@@ -99,6 +99,16 @@ class ExaBfsObject:
 class ExaBfsDir(ExaBfsObject):
     items: list[ExaBfsObject]
 
+    def find_descendants(self, name: str, path: str = '') -> dict[str, ExaBfsObject]:
+        descendants: dict[str, ExaBfsObject] = {}
+        for item in self.items:
+            item_path = f"{path}/{item.name}"
+            if item.name == name:
+                descendants[item_path] = item
+            elif isinstance(item, ExaBfsDir):
+                descendants.update(item.find_descendants(name, path=item_path))
+        return descendants
+
 
 @dataclass
 class ExaBfsFile(ExaBfsObject):

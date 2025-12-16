@@ -14,23 +14,24 @@ IS_FILE_FIELD = "IS_FILE"
 
 
 class BucketFsTools:
-    def __init__(self, bfs_location: bfs.path.PathLike):
+    def __init__(self, bfs_location: bfs.path.PathLike, config: McpServerSettings):
         self.bfs_location = bfs_location
+        self.config = config
 
-    def list(self, rel_dir: str = '') -> ExaDbResult:
+    def list_items(self, rel_dir: str = '') -> ExaDbResult:
         abs_dir = self.bfs_location.joinpath(rel_dir)
         content = [
             {
                 PATH_FIELD: str(pth),
                 NAME_FIELD: pth.name,
-                IS_DIR_FIELD: pth.is_dir,
-                IS_FILE_FIELD: pth.is_file,
+                IS_DIR_FIELD: pth.is_dir(),
+                IS_FILE_FIELD: pth.is_file(),
             }
             for pth in abs_dir.iterdir()
         ]
         return ExaDbResult(content)
 
-    def find(self, keywords: list[str], rel_path: str = '') -> ExaDbResult:
+    def find_items(self, keywords: list[str], rel_path: str = '') -> ExaDbResult:
         abs_dir = self.bfs_location.joinpath(rel_path)
         content: list[dict[str, Any]] = []
         for dir_path, dir_names, file_names in abs_dir.walk():
@@ -48,4 +49,6 @@ class BucketFsTools:
                     IS_DIR_FIELD: False,
                     IS_FILE_FIELD: True,
                 })
-        return ExaDbResult(keyword_filter(keywords, content))
+        return ExaDbResult(
+            keyword_filter(content, keywords, language=self.config.language)
+        )
