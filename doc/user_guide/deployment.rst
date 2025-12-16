@@ -154,3 +154,30 @@ Let Nginx use the new configuration.
 .. code-block:: shell
 
     nginx -s reload
+
+Logging configuration
+---------------------------
+
+The server allows flexible logging configuration. It uses the standard
+`Python logging <https://docs.python.org/3/library/logging.html>`__. that can be set up
+through environment variables. The setup includes the standard definitions for the
+`logging level <https://docs.python.org/3/library/logging.html#logging-levels>`__ and the
+`formatter <https://docs.python.org/3/library/logging.html#logging.Formatter>`__.
+
++--------------------------+-----------------------------------------------------------------+
+| Variable Name            | Value                                                           |
++==========================+=================================================================+
+| EXA_MCP_LOG_FILE         | Full path of the log file. If not specified, the logging        |
+|                          | defaults to the standard Python logging that writes warning     |
+|                          | and error messages to the console, ignoring other levels.       |
++--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_LEVEL        | Logging level in a string form. Defaults to "WARNING".          |
++--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_MAX_SIZE     | Maximum size of the log file. After reaching this size, the     |
+|                          | file is backed up and the logging is rolled over to a new file. |
+|                          | Defaults to 1 MB.                                               |
++--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_BACKUP_COUNT | Number of old log files to keep. Defaults to 5.                 |
++--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_FORMATTER    | Optional logging formatter.                                     |
++--------------------------+-----------------------------------------------------------------+

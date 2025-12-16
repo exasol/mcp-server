@@ -1,3 +1,5 @@
+import json
+import logging
 import ssl
 from collections.abc import (
     Callable,
@@ -51,9 +53,15 @@ ENV_SSL_CLIENT_CERT = "EXA_SSL_CLIENT_CERT"
 """ Own certificate file in PEM format """
 ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"
 """ Certificate's private key file """
+ENV_LOG_CLAIMS = "EXA_LOG_CLAIMS"
+""" Log OAuth claims if available (yes/no) """
+ENV_LOG_HTTP_HEADERS = "EXA_LOG_HTTP_HEADERS"
+""" Log headers from the current HTTP request if available (yes/no) """
 
 DEFAULT_CONN_POOL_SIZE = 5
 DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
+
+logger = logging.getLogger(__name__)
 
 
 def local_env_complete(env: dict[str, Any]) -> bool:
@@ -209,8 +217,45 @@ def get_oidc_user(username_claim: str | None) -> tuple[str | None, str | None]:
     return token.claims.get(username_claim), token.token
 
 
+def log_connection(conn_kwargs: dict[str, Any], user: str, env: dict[str, Any]) -> None:
+    """
+    Logs a "db-connection" info message in a json format. Records the provided
+    connection parameters and the username, the connection if opened with or the one
+    that is impersonated.
+    Optionally, records the OAuth claims and HTTP headers that can be found in the
+    MCP context. This is controlled by the correspondent environment variables.
+    Values that are not json-compatible are replaced with their type names.
+    """
+    masked_args = ["password", "access_token", "refresh_token"]
+    conn_data = {
+        "conn-kwargs": {
+            k: "***" if k in masked_args else v for k, v in conn_kwargs.items()
+        },
+        "user": user,
+    }
+    log_claims = optional_bool_from_env(env, ENV_LOG_CLAIMS)
+    if log_claims:
+        token = fmcp_api.get_access_token()
+        if (token is not None) and token.claims:
+            conn_data["oauth-claims"] = token.claims
+    log_headers = optional_bool_from_env(env, ENV_LOG_HTTP_HEADERS)
+    if log_headers:
+        headers = fmcp_api.get_http_headers()
+        if headers:
+            conn_data["http-headers"] = headers
+    log_data = {"db-connection": conn_data}
+
+    try:
+        log_json = json.dumps(
+            log_data, ensure_ascii=False, default=lambda o: type(o).__name__
+        )
+        logger.info(log_json)
+    except (ValueError, TypeError) as e:
+        logger.warning("Unable to log connection info: %s", e)
+
+
 def get_connection_factory(
-    env: dict[str:Any], **extra_kwargs
+    env: dict[str, Any], **extra_kwargs
 ) -> Callable[[], ContextManager[pyexasol.ExaConnection]]:
     """
     Returns the pyexasol connection factory required by a DBConnection object.
@@ -329,6 +374,7 @@ def get_connection_factory(
                 # username in the connection then impersonate the actual user.
                 query = _build_impersonate_query(user)
                 connection.execute(query)
+            log_connection(conn_kwargs, user, env)
 
         yield connection
 
