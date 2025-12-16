@@ -1245,7 +1245,7 @@ version = "2.1.0"
 description = "BucketFS utilities for the Python programming language"
 optional = false
 python-versions = "<4.0,>=3.10"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "exasol_bucketfs-2.1.0-py3-none-any.whl", hash = "sha256:82d0f87d756921846ce60b7af112a71a491019aa46976693046399805c303a12"},
     {file = "exasol_bucketfs-2.1.0.tar.gz", hash = "sha256:55583af02e8a65b40bb15bc462e8bcdf1c0195e00f8c1e70148724869fb6da29"},
@@ -5779,4 +5779,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "1f6b47f86240019fa31e125281f7ad93f593d9c5ab9ac7f1e75c41bfdc3dfcd3"
+content-hash = "96bad143008f1a0242c5d1bd3fdc0456d321fee3fb54c295346869673f6f1964"

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from itertools import chain
-from typing import Any
+from typing import Any, ByteString
 
 
 @dataclass
@@ -88,3 +88,18 @@ class ExaFunction(ExaDbObject):
 class ExaSchema(ExaDbObject):
     is_new: bool
     keywords: list[str]
+
+
+@dataclass
+class ExaBfsObject:
+    name: str
+
+
+@dataclass
+class ExaBfsDir(ExaBfsObject):
+    items: list[ExaBfsObject]
+
+
+@dataclass
+class ExaBfsFile(ExaBfsObject):
+    content: ByteString

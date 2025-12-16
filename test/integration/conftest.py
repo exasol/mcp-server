@@ -7,6 +7,8 @@ from test.utils.db_objects import (
     ExaSchema,
     ExaTable,
     ExaView,
+    ExaBfsDir,
+    ExaBfsFile,
 )
 from test.utils.mcp_oidc_constants import DOCKER_DB_NAME
 from test.utils.sql_utils import format_table_rows
@@ -14,6 +16,7 @@ from textwrap import dedent
 
 import pytest
 from exasol.saas.client.api_access import timestamp_name
+import exasol.bucketfs as bfs
 
 
 def pytest_addoption(parser):
@@ -377,3 +380,175 @@ def setup_database(
                 for func in chain(db_functions, db_scripts):
                     query = f'DROP FUNCTION IF EXISTS "{schema.name}"."{func.name}"'
                     pyexasol_connection.execute(query=query)
+
+
+@pytest.fixture(scope="session")
+def bfs_data() -> list[ExaBfsDir]:
+    return ExaBfsDir(
+        name="Species",
+        items=[
+            ExaBfsDir(
+                name="Carnivores",
+                items=[
+                    ExaBfsDir(
+                        name="Cat",
+                        items=[
+                            ExaBfsFile(
+                                name="Cougar",
+                                content=(
+                                    b"A large, powerful cat with a tawny coat, also "
+                                    b"known as a mountain lion or puma. It has the "
+                                    b"greatest geographic range of any wild "
+                                    b"terrestrial mammal in the Americas."
+                                )
+                            ),
+                            ExaBfsFile(
+                                name="Bobcat",
+                                content=(
+                                    b"A medium-sized North American cat distinguished "
+                                    b"by its tufted ears, spotted coat, and short "
+                                    b'"bobbed" tail. It is highly adaptable and a '
+                                    b"stealthy predator."
+                                )
+                            )
+                        ]
+                    ),
+                    ExaBfsDir(
+                        name="Dog",
+                        items=[
+                            ExaBfsFile(
+                                name="Gray Wolf",
+                                content=(
+                                    b"The largest extant wild member of the dog family, "
+                                    b"living and hunting in complex social packs. It is "
+                                    b"a keystone predator known for its intelligence "
+                                    b"and cooperative hunting."
+                                )
+                            ),
+                            ExaBfsFile(
+                                name="Gray Fox",
+                                content=(
+                                    b"A unique fox species known for its grizzled gray "
+                                    b"and rusty coat and its strong ability to climb "
+                                    b"trees using semi-retractable claws, a trait rare "
+                                    b"among canids."
+                                )
+                            )
+                        ]
+                    ),
+                    ExaBfsDir(
+                        name="Bear",
+                        items=[
+                            ExaBfsFile(
+                                name="American Black Bear",
+                                content=(
+                                    b"The most common and widely distributed bear "
+                                    b"species in North America. It is an omnivore "
+                                    b"whose diet varies greatly by season and location."
+                                )
+                            ),
+                        ]
+                    )
+                ]
+            ),
+            ExaBfsDir(
+                name="Even-toed Ungulates",
+                items=[
+                    ExaBfsDir(
+                        name="Deer",
+                        items=[
+                            ExaBfsFile(
+                                name="White-tailed Deer",
+                                content=(
+                                    b"A medium-sized deer ubiquitous across much of "
+                                    b"North America. It is named for the bright white "
+                                    b"underside of its tail, which it raises as a flag "
+                                    b"when alarmed."
+                                )
+                            ),
+                            ExaBfsFile(
+                                nane="Elk",
+                                content=(
+                                    b"One of the largest species within the deer "
+                                    b"family, known for the males' large, branching "
+                                    b"antlers and their loud, bugling vocalizations "
+                                    b"during the rut."
+                                )
+                            ),
+                        ]
+                    ),
+                    ExaBfsFile(
+                        name="Cattle_Sheep_Goat",
+                        content=(
+                            b"A massive family of cloven-hoofed ruminants that includes "
+                            b"cattle, bison, sheep, goats, and antelope. Males (and "
+                            b"often females) typically possess permanent, unbranched "
+                            b"horns."
+                        )
+                    )
+                ]
+            ),
+            ExaBfsDir(
+                name="Rodents",
+                items=[
+                    ExaBfsDir(
+                        name="Squirrel",
+                        items=[
+                            ExaBfsFile(
+                                name="Eastern Gray Squirrel",
+                                content=(
+                                    b"A common tree squirrel in eastern North America, "
+                                    b"primarily gray with a white underside. It is a "
+                                    b"prolific scatter-hoarder of nuts and acorns."
+                                )
+                            ),
+                            ExaBfsFile(
+                                name="Eastern Chipmunk",
+                                content=(
+                                    b"A small, striped ground squirrel with prominent "
+                                    b"cheek pouches used to carry food. It is known for "
+                                    b"its burrowing habits and energetic, chattering "
+                                    b"behavior."
+                                )
+                            )
+                        ]
+                    ),
+                    ExaBfsFile(
+                        name="Hamster-Vole-Lemming",
+                        content=(
+                            b"A hugely diverse family of small rodents, including "
+                            b"hamsters, voles, lemmings, and New World rats and mice. "
+                            b"They are found in a vast array of habitats across the "
+                            b"globe."
+                        )
+                    )
+                ]
+            ),
+            ExaBfsFile(
+                name="Rabbits_Hares",
+                content=(
+                    b"An order of herbivorous mammals that includes rabbits, hares, "
+                    b"and pikas. They are characterized by two pairs of upper incisors, "
+                    b"one behind the other."
+                )
+            )
+        ]
+    )
+
+
+@pytest.fixture(scope="session")
+def setup_bucketfs(
+    backend_aware_bucketfs_params,
+    bfs_data,
+) -> None:
+
+    def write_content(bfs_dir: ExaBfsDir, bfs_path: bfs.path.PathLike) -> None:
+        for item in bfs_dir.items:
+            if isinstance(item, ExaBfsFile):
+                bfs_file = bfs_path.joinpath(item.name)
+                bfs_file.write(item.content)
+            elif isinstance(item, ExaBfsDir):
+                write_content(item, bfs_path.joinpath(item.name))
+
+    bfs_root = bfs.path.build_path(**backend_aware_bucketfs_params)
+    write_content(bfs_data, bfs_root)
