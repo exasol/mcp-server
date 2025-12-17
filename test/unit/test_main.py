@@ -19,6 +19,7 @@ from exasol.ai.mcp.server.main import (
     ENV_LOG_FILE,
     ENV_LOG_FORMATTER,
     ENV_LOG_LEVEL,
+    ENV_LOG_TO_CONSOLE,
     ENV_SETTINGS,
     get_mcp_settings,
     mcp_server,
@@ -92,6 +93,23 @@ def test_setup_logger(tmp_path) -> None:
     logger.info("Test message")
     with open(log_file) as f:
         assert f.read().strip() == "test_logger - INFO - Test message"
+
+
+def test_setup_logger_to_console(caplog) -> None:
+    log_format = "%(name)s - %(levelname)s - %(message)s"
+    env = {
+        ENV_LOG_TO_CONSOLE: "true",
+        ENV_LOG_LEVEL: "INFO",
+        ENV_LOG_FORMATTER: log_format,
+    }
+    setup_logger(env)
+    logger = logging.getLogger("test_logger")
+
+    caplog.clear()
+    logger.info("Test message")
+    assert len(caplog.records) == 1
+    assert caplog.records[0].message == "Test message"
+    assert caplog.records[0].levelname == "INFO"
 
 
 @patch("exasol.ai.mcp.server.main.create_mcp_server")

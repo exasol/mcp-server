@@ -10,7 +10,10 @@ from pydantic import ValidationError
 
 from exasol.ai.mcp.server.connection_factory import get_connection_factory
 from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.generic_auth import get_auth_kwargs
+from exasol.ai.mcp.server.generic_auth import (
+    get_auth_kwargs,
+    str_to_bool,
+)
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
@@ -22,6 +25,7 @@ ENV_LOG_LEVEL = "EXA_MCP_LOG_LEVEL"
 ENV_LOG_MAX_SIZE = "EXA_MCP_LOG_MAX_SIZE"
 ENV_LOG_BACKUP_COUNT = "EXA_MCP_LOG_BACKUP_COUNT"
 ENV_LOG_FORMATTER = "EXA_MCP_LOG_FORMATTER"
+ENV_LOG_TO_CONSOLE = "EXA_MCP_LOG_TO_CONSOLE"
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 DEFAULT_LOG_MAX_SIZE = 1048576  # 1 MB
@@ -223,6 +227,12 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
     log_level = env[ENV_LOG_LEVEL] if ENV_LOG_LEVEL in env else DEFAULT_LOG_LEVEL
     logger.setLevel(log_level)
 
+    # Create formatter if provided
+    formatter = (
+        logging.Formatter(env[ENV_LOG_FORMATTER]) if ENV_LOG_FORMATTER in env else None
+    )
+
+    # Add logging to a file, if the file is specified.
     if ENV_LOG_FILE in env:
         # Create logs directory if it doesn't exist
         log_file = env[ENV_LOG_FILE]
@@ -248,12 +258,16 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
             encoding="utf-8",
         )
 
-        # Create formatter if provided
-        if ENV_LOG_FORMATTER in env:
-            formatter = logging.Formatter(env[ENV_LOG_FORMATTER])
+        if formatter is not None:
             log_handler.setFormatter(formatter)
-
         logger.addHandler(log_handler)
+
+    # Add logging to the console if specified.
+    if (ENV_LOG_TO_CONSOLE in env) and str_to_bool(env[ENV_LOG_TO_CONSOLE]):
+        console_handler = logging.StreamHandler()
+        if formatter is not None:
+            console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 
     return logger
 
