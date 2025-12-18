@@ -181,3 +181,7 @@ through environment variables. The setup includes the standard definitions for t
 +--------------------------+-----------------------------------------------------------------+
 | EXA_MCP_LOG_FORMATTER    | Optional logging formatter.                                     |
 +--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_TO_CONSOLE   | "true" or "false". If set to true, the logging messages (up     |
+|                          | to the defined logging level) will be copied to the console.    |
+|                          | Defaults to false.                                              |
++--------------------------+-----------------------------------------------------------------+
