@@ -340,18 +340,33 @@ def main():
 
 @click.command()
 @click.option("--transport", default="http", help="MCP Transport (default: http)")
-@click.option("--host", default="0.0.0.0", help="Host address (default: 0.0.0.0)")
+@click.option("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
 @click.option(
     "--port",
     default=8000,
     type=click.IntRange(min=1),
     help="Port number (default: 8000)",
 )
-def main_http(transport, host, port) -> None:
+@click.option(
+    "--no-auth",
+    default=False,
+    is_flag=True,
+    help="Allow to run without authentication"
+)
+def main_http(transport, host, port, no_auth) -> None:
     """
-    Runs the MCP server as a Direct HTTP Server. Suitable mostly for testing purposes.
+    Runs the MCP server as a Direct HTTP Server.
     """
     server = mcp_server()
+    # Verify that an authentication is in place. If not, unless this is explicitly
+    # allowed, terminate the process.
+    if server.auth is None:
+        message = "The server has started without authentication."
+        if no_auth:
+            logger = logging.getLogger()
+            logger.warning(message)
+        else:
+            raise RuntimeError(message)
     server.run(transport=transport, host=host, port=port)
 
 

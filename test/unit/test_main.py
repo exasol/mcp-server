@@ -7,7 +7,10 @@ from unittest.mock import (
     patch,
 )
 
+from _pytest.monkeypatch import MonkeyPatch
+from click.testing import CliRunner
 import pytest
+from fastmcp.server.auth import RemoteAuthProvider
 
 from exasol.ai.mcp.server.connection_factory import (
     ENV_DSN,
@@ -24,9 +27,22 @@ from exasol.ai.mcp.server.main import (
     get_mcp_settings,
     mcp_server,
     setup_logger,
+    main_http
+)
+from exasol.ai.mcp.server.generic_auth import (
+    ENV_PROVIDER_TYPE,
+    AuthParameter,
+    exa_parameter_env_name,
+    exa_provider_name,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
+
+
+def _set_fake_conn(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv(ENV_DSN, "my.db.dsn")
+    monkeypatch.setenv(ENV_USER, "my_user_name")
+    monkeypatch.setenv(ENV_PASSWORD, "my_password")
 
 
 @pytest.fixture
@@ -153,9 +169,7 @@ def test_mcp_server_logger(
     """
     mock_server = create_autospec(ExasolMCPServer)
     mock_create_server.return_value = mock_server
-    monkeypatch.setenv(ENV_DSN, "my.db.dsn")
-    monkeypatch.setenv(ENV_USER, "my_user_name")
-    monkeypatch.setenv(ENV_PASSWORD, "my_password")
+    _set_fake_conn(monkeypatch)
     log_file = str(tmp_path / "log_dir/log_file.log")
     monkeypatch.setenv(ENV_LOG_FILE, log_file)
 
@@ -167,3 +181,48 @@ def test_mcp_server_logger(
         for handler in root_logger.handlers
         if isinstance(handler, RotatingFileHandler)
     ]
+
+
+@patch("fastmcp.FastMCP.run")
+def test_main_http(mock_run, monkeypatch) -> None:
+    """
+    Verifies that the HTTP server will run if the Auth is configured.
+    """
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(RemoteAuthProvider))
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("jwks_uri")), "https://my_oidc.com/jwks")
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("authorization_servers")), "https://my_oidc.com")
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("base_url")), f"https://my_mpc.com")
+    _set_fake_conn(monkeypatch)
+    runner = CliRunner()
+    result = runner.invoke(main_http)
+    assert result.exit_code == 0
+    assert result.exception is None
+
+
+@patch("fastmcp.FastMCP.run")
+def test_main_http_error(mock_run, monkeypatch) -> None:
+    """
+    Verifies that the HTTP server will not run if the Auth is not configured.
+    """
+    _set_fake_conn(monkeypatch)
+    runner = CliRunner()
+    result = runner.invoke(main_http)
+    assert result.exit_code > 0
+    assert result.exception is not None
+
+
+@patch("fastmcp.FastMCP.run")
+def test_main_http_no_auth(mock_run, monkeypatch, caplog) -> None:
+    """
+    Verifies that the HTTP server will run if the Auth is not configured,
+    but an exemption is given. A warning message should be logged.
+    """
+    _set_fake_conn(monkeypatch)
+    monkeypatch.setenv(ENV_LOG_TO_CONSOLE, "true")
+    caplog.clear()
+    runner = CliRunner()
+    result = runner.invoke(main_http, ['--no-auth'])
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
