@@ -465,10 +465,20 @@ def test_get_connection_factory_early_error() -> None:
         get_connection_factory(env)
 
 
-def test_get_connection_factory_late_error(mock_connect) -> None:
+@patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
+def test_get_connection_factory_late_error(mock_oidc_user, mock_connect) -> None:
     env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
+    mock_oidc_user.return_value = ("my_user_name", "")
     factory = get_connection_factory(env)
     with pytest.raises(RuntimeError, match="Cannot extract"):
+        with factory():
+            pass
+
+
+def test_get_connection_factory_no_claim(mock_connect) -> None:
+    env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
+    factory = get_connection_factory(env)
+    with pytest.raises(RuntimeError, match="Username not found"):
         with factory():
             pass
 
