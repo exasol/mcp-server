@@ -17,12 +17,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    # Even though the environment "manual-approval" will be created automatically,
-    # it still needs to be configured to require interactive review.
-    # See project settings on GitHub (Settings / Environments / manual-approval).
-    environment: manual-approval
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
