@@ -7,32 +7,26 @@ jobs:
 
   build-matrix:
     name: Generate Build Matrix
-    uses: ./.github/workflows/matrix-all.yml
+    uses: ./.github/workflows/matrix-python.yml
     permissions:
       contents: read
 
   Tests:
-    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }})
     needs: [ build-matrix ]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    # Even though the environment "manual-approval" will be created automatically,
-    # it still needs to be configured to require interactive review.
-    # See project settings on GitHub (Settings / Environments / manual-approval).
-    environment: manual-approval
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
 
     steps:
       - name: SCM Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v1
+        uses: exasol/python-toolbox/.github/actions/python-environment@v4
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -41,7 +35,7 @@ jobs:
           SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
           SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
           SAAS_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
-        run: poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=saas
+        run: poetry run -- nox -s test:integration -- -s --coverage --backend=saas
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v5

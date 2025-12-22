@@ -9,3 +9,6 @@
 ## Security
 
 * #113: Disallowed unauthenticated HTTP by default.
+
+## Internal
+* #117: Updated exasol-toolbox to 4.0.0
