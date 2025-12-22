@@ -11,16 +11,32 @@ jobs:
     permissions:
       contents: read
 
+  run-slow-tests:
+    name: Run Slow Tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    # Even though the environment "manual-approval" will be created automatically,
+    # it still needs to be configured to require interactive review.
+    # See project settings on GitHub (Settings / Environments / manual-approval).
+    environment: manual-approval
+    steps:
+      - name: Tests
+        run: echo "Slow tests approved"
+
   slow-checks-itde:
-    name: Slow
+    name: Slow-ITDE
+    needs: [ run-slow-tests ]
     uses: ./.github/workflows/slow-checks-itde.yml
     secrets: inherit
     permissions:
       contents: read
 
   slow-checks-saas:
-    name: Slow
+    name: Slow-SaaS
     uses: ./.github/workflows/slow-checks-saas.yml
+    needs: [ run-slow-tests ]
     secrets: inherit
     permissions:
       contents: read
