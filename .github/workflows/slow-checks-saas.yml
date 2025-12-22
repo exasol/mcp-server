@@ -46,6 +46,6 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: coverage-python${{ matrix.python-version }}-saas
+          name: coverage-python${{ matrix.python-version }}-exasol${{ matrix.exasol-version}})-saas
           path: .coverage
           include-hidden-files: true
