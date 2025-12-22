@@ -36,7 +36,7 @@ click = "^8.2.0"
 exasol-saas-api = "^2.4.0"
 
 [tool.poetry.group.dev.dependencies]
-exasol-toolbox = "^1.6.1"
+exasol-toolbox = "^4.0.0"
 pytest-exasol-backend = "^1.2.1"
 pytest-exasol-extension = "^0.2.4"
 exasol-integration-test-docker-environment = "^5.0.0"
@@ -85,8 +85,18 @@ module = [
 ]
 ignore_errors = true
 
+[tool.ruff.lint]
+extend-ignore = [
+    "E",      # Syntax errors
+    "F",      # Pyflakes rules (excluding F401)
+    "UP",     # pyupgrade rules
+    "D",      # Docstring rules
+]
+extend-select = ["F401"]
+unfixable = []
+
 [tool.sonar]
 projectKey = "exasol.com:mcp-server"
-hostUrl = "https://sonarcloud.io"
+host.url = "https://sonarcloud.io"
 organization = "exasol"
 exclusions = "exasol/ai/mcp/server/version.py"
