@@ -7,12 +7,12 @@ jobs:
 
   build-matrix:
     name: Generate Build Matrix
-    uses: ./.github/workflows/matrix-all.yml
+    uses: ./.github/workflows/matrix-python.yml
     permissions:
       contents: read
 
   Tests:
-    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }})
     needs: [ build-matrix ]
     runs-on: ubuntu-24.04
     permissions:
@@ -35,11 +35,11 @@ jobs:
           SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
           SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
           SAAS_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
-        run: poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=saas
+        run: poetry run -- nox -s test:integration -- -s --coverage --backend=saas
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: coverage-python${{ matrix.python-version }}-exasol${{ matrix.exasol-version}})-saas
+          name: coverage-python${{ matrix.python-version }}-saas
           path: .coverage
           include-hidden-files: true
