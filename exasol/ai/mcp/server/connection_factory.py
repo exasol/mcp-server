@@ -348,7 +348,7 @@ def get_connection_factory(
         else:
             conn_kwargs = get_local_kwargs(env)
             user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
-            if ENV_USERNAME_CLAIM and (not user):
+            if (ENV_USERNAME_CLAIM in env) and (not user):
                 raise RuntimeError(
                     f"Username not found in the OAuth claim {ENV_USERNAME_CLAIM}"
                 )
