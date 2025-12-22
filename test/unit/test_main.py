@@ -231,5 +231,7 @@ def test_main_http_no_auth(mock_run, monkeypatch, caplog) -> None:
     result = runner.invoke(main_http, ["--no-auth"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert len(caplog.records) == 1
-    assert caplog.records[0].levelname == "WARNING"
+    assert any(
+        (rec.levelname == "WARNING") and ("authentication" in rec.message.lower())
+        for rec in caplog.records
+    )
