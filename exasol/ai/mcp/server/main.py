@@ -348,10 +348,7 @@ def main():
     help="Port number (default: 8000)",
 )
 @click.option(
-    "--no-auth",
-    default=False,
-    is_flag=True,
-    help="Allow to run without authentication"
+    "--no-auth", default=False, is_flag=True, help="Allow to run without authentication"
 )
 def main_http(transport, host, port, no_auth) -> None:
     """

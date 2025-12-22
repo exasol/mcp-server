@@ -7,9 +7,9 @@ from unittest.mock import (
     patch,
 )
 
+import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
-import pytest
 from fastmcp.server.auth import RemoteAuthProvider
 
 from exasol.ai.mcp.server.connection_factory import (
@@ -18,6 +18,12 @@ from exasol.ai.mcp.server.connection_factory import (
     ENV_USER,
 )
 from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.generic_auth import (
+    ENV_PROVIDER_TYPE,
+    AuthParameter,
+    exa_parameter_env_name,
+    exa_provider_name,
+)
 from exasol.ai.mcp.server.main import (
     ENV_LOG_FILE,
     ENV_LOG_FORMATTER,
@@ -25,15 +31,9 @@ from exasol.ai.mcp.server.main import (
     ENV_LOG_TO_CONSOLE,
     ENV_SETTINGS,
     get_mcp_settings,
+    main_http,
     mcp_server,
     setup_logger,
-    main_http
-)
-from exasol.ai.mcp.server.generic_auth import (
-    ENV_PROVIDER_TYPE,
-    AuthParameter,
-    exa_parameter_env_name,
-    exa_provider_name,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
@@ -189,9 +189,16 @@ def test_main_http(mock_run, monkeypatch) -> None:
     Verifies that the HTTP server will run if the Auth is configured.
     """
     monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(RemoteAuthProvider))
-    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("jwks_uri")), "https://my_oidc.com/jwks")
-    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("authorization_servers")), "https://my_oidc.com")
-    monkeypatch.setenv(exa_parameter_env_name(AuthParameter("base_url")), f"https://my_mpc.com")
+    monkeypatch.setenv(
+        exa_parameter_env_name(AuthParameter("jwks_uri")), "https://my_oidc.com/jwks"
+    )
+    monkeypatch.setenv(
+        exa_parameter_env_name(AuthParameter("authorization_servers")),
+        "https://my_oidc.com",
+    )
+    monkeypatch.setenv(
+        exa_parameter_env_name(AuthParameter("base_url")), f"https://my_mpc.com"
+    )
     _set_fake_conn(monkeypatch)
     runner = CliRunner()
     result = runner.invoke(main_http)
@@ -221,7 +228,7 @@ def test_main_http_no_auth(mock_run, monkeypatch, caplog) -> None:
     monkeypatch.setenv(ENV_LOG_TO_CONSOLE, "true")
     caplog.clear()
     runner = CliRunner()
-    result = runner.invoke(main_http, ['--no-auth'])
+    result = runner.invoke(main_http, ["--no-auth"])
     assert result.exit_code == 0
     assert result.exception is None
     assert len(caplog.records) == 1
