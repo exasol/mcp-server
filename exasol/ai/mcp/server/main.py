@@ -1,6 +1,8 @@
 import json
+import logging
 import os
 import re
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 import click
@@ -8,12 +10,26 @@ from pydantic import ValidationError
 
 from exasol.ai.mcp.server.connection_factory import get_connection_factory
 from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.generic_auth import get_auth_kwargs
+from exasol.ai.mcp.server.generic_auth import (
+    get_auth_kwargs,
+    str_to_bool,
+)
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
+
+ENV_LOG_FILE = "EXA_MCP_LOG_FILE"
+ENV_LOG_LEVEL = "EXA_MCP_LOG_LEVEL"
+ENV_LOG_MAX_SIZE = "EXA_MCP_LOG_MAX_SIZE"
+ENV_LOG_BACKUP_COUNT = "EXA_MCP_LOG_BACKUP_COUNT"
+ENV_LOG_FORMATTER = "EXA_MCP_LOG_FORMATTER"
+ENV_LOG_TO_CONSOLE = "EXA_MCP_LOG_TO_CONSOLE"
+
+DEFAULT_LOG_LEVEL = logging.WARNING
+DEFAULT_LOG_MAX_SIZE = 1048576  # 1 MB
+DEFAULT_LOG_BACKUP_COUNT = 5
 
 
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
@@ -202,6 +218,60 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_execute_write_query(mcp_server)
 
 
+def setup_logger(env: dict[str, str]) -> logging.Logger:
+    """
+    Configures the root logger using the info in the provided configuration dictionary.
+    Return the root logger
+    """
+    logger = logging.getLogger()
+    log_level = env[ENV_LOG_LEVEL] if ENV_LOG_LEVEL in env else DEFAULT_LOG_LEVEL
+    logger.setLevel(log_level)
+
+    # Create formatter if provided
+    formatter = (
+        logging.Formatter(env[ENV_LOG_FORMATTER]) if ENV_LOG_FORMATTER in env else None
+    )
+
+    # Add logging to a file, if the file is specified.
+    if ENV_LOG_FILE in env:
+        # Create logs directory if it doesn't exist
+        log_file = env[ENV_LOG_FILE]
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        # Create rotating file handler
+        max_bytes = (
+            int(env[ENV_LOG_MAX_SIZE])
+            if ENV_LOG_MAX_SIZE in env
+            else DEFAULT_LOG_MAX_SIZE
+        )
+        backup_count = (
+            int(env[ENV_LOG_BACKUP_COUNT])
+            if ENV_LOG_BACKUP_COUNT in env
+            else DEFAULT_LOG_BACKUP_COUNT
+        )
+        log_handler = RotatingFileHandler(
+            filename=log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
+        )
+
+        if formatter is not None:
+            log_handler.setFormatter(formatter)
+        logger.addHandler(log_handler)
+
+    # Add logging to the console if specified.
+    if (ENV_LOG_TO_CONSOLE in env) and str_to_bool(env[ENV_LOG_TO_CONSOLE]):
+        console_handler = logging.StreamHandler()
+        if formatter is not None:
+            console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+    return logger
+
+
 def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
     """
     Reads optional settings. They can be provided either in a json string stored in the
@@ -246,13 +316,18 @@ def mcp_server() -> ExasolMCPServer:
     Builds the Exasol MCP server and all its components.
     """
     env = get_env()
+    logger = setup_logger(env)
     mcp_settings = get_mcp_settings(env)
     auth_kwargs = get_auth_kwargs()
     connection_factory = get_connection_factory(env)
 
     connection = DbConnection(connection_factory=connection_factory)
 
-    return create_mcp_server(connection=connection, config=mcp_settings, **auth_kwargs)
+    server = create_mcp_server(
+        connection=connection, config=mcp_settings, **auth_kwargs
+    )
+    logger.info("Exasol MCP Server created.")
+    return server
 
 
 def main():
@@ -265,18 +340,30 @@ def main():
 
 @click.command()
 @click.option("--transport", default="http", help="MCP Transport (default: http)")
-@click.option("--host", default="0.0.0.0", help="Host address (default: 0.0.0.0)")
+@click.option("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
 @click.option(
     "--port",
     default=8000,
     type=click.IntRange(min=1),
     help="Port number (default: 8000)",
 )
-def main_http(transport, host, port) -> None:
+@click.option(
+    "--no-auth", default=False, is_flag=True, help="Allow to run without authentication"
+)
+def main_http(transport, host, port, no_auth) -> None:
     """
-    Runs the MCP server as a Direct HTTP Server. Suitable mostly for testing purposes.
+    Runs the MCP server as a Direct HTTP Server.
     """
     server = mcp_server()
+    # Verify that an authentication is in place. If not, unless this is explicitly
+    # allowed, terminate the process.
+    if server.auth is None:
+        message = "The server has started without authentication."
+        if no_auth:
+            logger = logging.getLogger()
+            logger.warning(message)
+        else:
+            raise RuntimeError(message)
     server.run(transport=transport, host=host, port=port)
 
 

@@ -1,3 +1,4 @@
+import json
 import ssl
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,11 +9,14 @@ from typing import (
 from unittest.mock import patch
 
 import pytest
+from fastmcp.server.auth import AccessToken
 
 from exasol.ai.mcp.server.connection_factory import (
     DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_DSN,
+    ENV_LOG_CLAIMS,
+    ENV_LOG_HTTP_HEADERS,
     ENV_PASSWORD,
     ENV_REFRESH_TOKEN,
     ENV_SAAS_ACCOUNT_ID,
@@ -34,9 +38,16 @@ from exasol.ai.mcp.server.connection_factory import (
     get_saas_kwargs,
     get_ssl_options,
     local_env_complete,
+    log_connection,
     oidc_env_complete,
     optional_bool_from_env,
     saas_env_complete,
+)
+from exasol.ai.mcp.server.main import (
+    ENV_LOG_FILE,
+    ENV_LOG_FORMATTER,
+    ENV_LOG_LEVEL,
+    setup_logger,
 )
 
 
@@ -454,10 +465,20 @@ def test_get_connection_factory_early_error() -> None:
         get_connection_factory(env)
 
 
-def test_get_connection_factory_late_error(mock_connect) -> None:
+@patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
+def test_get_connection_factory_late_error(mock_oidc_user, mock_connect) -> None:
     env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
+    mock_oidc_user.return_value = ("my_user_name", "")
     factory = get_connection_factory(env)
     with pytest.raises(RuntimeError, match="Cannot extract"):
+        with factory():
+            pass
+
+
+def test_get_connection_factory_no_claim(mock_connect) -> None:
+    env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
+    factory = get_connection_factory(env)
+    with pytest.raises(RuntimeError, match="Username not found"):
         with factory():
             pass
 
@@ -493,3 +514,53 @@ def test_get_connection_factory_sass(mock_connection_params, mock_connect) -> No
     with factory():
         pass
     assert mock_connect.call_count == 1
+
+
+@patch("fastmcp.server.dependencies.get_access_token")
+@patch("fastmcp.server.dependencies.get_http_headers")
+def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
+    log_file = str(tmp_path / "log_dir/log_file.log")
+    log_format = "%(message)s"
+    env = {
+        ENV_LOG_FILE: log_file,
+        ENV_LOG_LEVEL: "INFO",
+        ENV_LOG_FORMATTER: log_format,
+        ENV_LOG_CLAIMS: "true",
+        ENV_LOG_HTTP_HEADERS: "true",
+    }
+    setup_logger(env)
+
+    access_token = AccessToken(
+        token="my_token",
+        client_id="my_client_id",
+        scopes=["my_scope"],
+        claims={"claim1": "carnivore", "claim2": "nocturnal"},
+    )
+    mock_access_token.return_value = access_token
+    mock_http_headers.return_value = {
+        "my_header_name": "my_header_value",
+    }
+    conn_kwargs = {
+        "dsn": "my.db.dsn",
+        "user": "server-user-name",
+        "password": "my-password",
+        "non-json-arg": access_token,
+    }
+    user = "user-user-name"
+    log_connection(conn_kwargs, user, env)
+    expected_json = {
+        "db-connection": {
+            "conn-kwargs": {
+                "dsn": "my.db.dsn",
+                "user": "server-user-name",
+                "password": "***",
+                "non-json-arg": "AccessToken",
+            },
+            "user": "user-user-name",
+            "oauth-claims": {"claim1": "carnivore", "claim2": "nocturnal"},
+            "http-headers": {"my_header_name": "my_header_value"},
+        }
+    }
+    with open(log_file) as f:
+        actual_json = json.load(f)
+    assert actual_json == expected_json
