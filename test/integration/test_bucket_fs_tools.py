@@ -1,4 +1,5 @@
 from typing import Any
+import time
 import pytest
 import exasol.bucketfs as bfs
 
@@ -72,3 +73,40 @@ def test_find_items(bucket_fs_tools, bfs_data, path) -> None:
         expected_nodes.update(bfs_data.find_descendants(name, bfs_data.name))
     expected_result = _get_expected_result(expected_nodes)
     assert sorted_result == expected_result
+
+
+def test_read_file(bucket_fs_tools, bfs_data) -> None:
+    for item in bfs_data.items:
+        if isinstance(item, ExaBfsDir):
+            dir_path = f"{bfs_data.name}/{item.name}"
+            for sub_item in item.items:
+                if isinstance(sub_item, ExaBfsFile):
+                    file_path = f"{dir_path}/{sub_item.name}"
+                    content = bucket_fs_tools.read_file(file_path)
+                    assert content == str(sub_item.content, encoding="utf-8")
+
+
+def test_write_file(bucket_fs_tools) -> None:
+    content = (
+        "A human (Homo sapiens) is a bipedal primate species characterized by a large "
+        "brain, high cognitive capacity, and complex culture. Morphologically, it is "
+        "defined by a unique combination of traits including a high and rounded skull, "
+        "reduced jaw and teeth, and a fully opposable thumb. Genetically, it is a "
+        "distinct lineage within the hominid family, with a genome that demonstrates "
+        "close relation to other Homo species (now extinct) and more distant relation "
+        "to extant great apes."
+    )
+    path = "primates/human"
+    bucket_fs_tools.write_file(path, content)
+    assert bucket_fs_tools.read_file(path) == content
+
+
+def test_download_file(bucket_fs_tools) -> None:
+    path = "download_test/README"
+    url = "https://raw.githubusercontent.com/octocat/Hello-World/master/README"
+    bucket_fs_tools.download_file(path, url)
+    time.sleep(5)
+    full_path = self.bfs_location.joinpath(path)
+    assert full_path.exits()
+    assert full_path.is_file()
+    assert bucket_fs_tools.read_file(path).strip() == "Hello World!"
