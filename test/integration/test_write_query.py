@@ -37,7 +37,7 @@ async def _run_tool_async(
         yield connection
 
     async def elicitation_handler(message: str, response_type: type, params, context):
-        sql = params.requestedSchema['properties']['sql']['default']
+        sql = params.requestedSchema["properties"]["sql"]["default"]
         new_sql = sql.replace(INCORRECT_COMMAND, CORRECT_COMMAND)
         response_data = response_type(sql=new_sql)
         return ElicitResult(action=action, content=response_data)
@@ -51,7 +51,7 @@ async def _run_tool_async(
 
 
 def _run_tool(
-        connection: ExaConnection, config: McpServerSettings, action: str | None, query: str
+    connection: ExaConnection, config: McpServerSettings, action: str | None, query: str
 ):
     return asyncio.run(_run_tool_async(connection, config, action, query))
 
@@ -70,6 +70,7 @@ def _validate_table_creation(
     Misformed query will be corrected by the "user" in the elicitation.
     In this case, the tool should return the updated query.
     """
+
     def create_insert_query(cmd: str) -> str:
         return (
             f'{cmd} "{schema.name}"."{table.name}" '
@@ -115,9 +116,7 @@ def new_table() -> ExaTable:
 
 
 @pytest.mark.parametrize(
-    "command",
-    [CORRECT_COMMAND, INCORRECT_COMMAND],
-    ids=["non-modified", "modified"]
+    "command", [CORRECT_COMMAND, INCORRECT_COMMAND], ids=["non-modified", "modified"]
 )
 def test_execute_write_query(
     pyexasol_connection, setup_database, db_schemas, new_table, command

@@ -9,7 +9,10 @@ from fastmcp import (
     Context,
     FastMCP,
 )
-from pydantic import Field, BaseModel
+from pydantic import (
+    BaseModel,
+    Field,
+)
 from sqlglot import (
     exp,
     parse_one,
@@ -294,7 +297,7 @@ class ExasolMCPServer(FastMCP):
                 "it will not cause unintended changes in the data. Modify the query "
                 "if need. Finally, accept or decline the query execution."
             ),
-            response_type=QueryElicitation
+            response_type=QueryElicitation,
         )
         if confirmation.action == "accept":
             accepted_query = confirmation.data.sql
