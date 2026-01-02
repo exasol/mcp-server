@@ -189,7 +189,10 @@ def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.execute_write_query,
         description=(
-            "The tool executes the specified DML or DDL query in the Exasol Database."
+            "The tool executes the specified DML or DDL query in the Exasol Database. "
+            "The user can alter the query through elicitation. If the query was "
+            "executed it its original form, the tool returns None. Otherwise, the "
+            "tool returns a modified query."
         ),
     )
 
