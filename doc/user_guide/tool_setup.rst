@@ -12,10 +12,10 @@ using SQL queries is enabled. Note that both options are disabled by default. To
 the data reading, set the ``enable_read_query`` property to true, as shown below.
 
 To enable Data Modification and Data Definition queries set ``enable_write_query`` property
-to true. This option is not recommended since it can cause unintended loss of data.
-Before the query is executed the user will be asked to review the query and accept its
-execution. This is done through the elicitation mechanism. If the client application
-does not support elicitation, the tool will return an error.
+to true. This option should be used with caution, as it can cause unintended loss of data.
+Before the query is executed, the user will be asked to review the query and modify it if needed.
+This is done through the elicitation mechanism. If the client application does not support
+elicitation, the tool will return an error.
 
 .. code-block:: json
 

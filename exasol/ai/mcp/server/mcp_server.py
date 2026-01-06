@@ -9,7 +9,10 @@ from fastmcp import (
     Context,
     FastMCP,
 )
-from pydantic import Field
+from pydantic import (
+    BaseModel,
+    Field,
+)
 from sqlglot import (
     exp,
     parse_one,
@@ -277,22 +280,31 @@ class ExasolMCPServer(FastMCP):
 
     async def execute_write_query(
         self, query: Annotated[str, Field(description="DML or DDL query")], ctx: Context
-    ) -> None:
+    ) -> str | None:
         if not self.config.enable_write_query:
             raise RuntimeError(
                 "The execution of Data Definition and "
                 "Data Manipulation queries is disabled."
             )
+
+        class QueryElicitation(BaseModel):
+            sql: str = Field(default=query)
+
         confirmation = await ctx.elicit(
             message=(
                 "The following Data Definition or Data Manipulation query will be "
                 "executed if permitted. Please review the query carefully to ensure "
-                "it will not cause unintended changes in the data, and then accept "
-                f"or decline the query execution.\n\n{query}"
-            )
+                "it will not cause unintended changes in the data. Modify the query "
+                "if need. Finally, accept or decline the query execution."
+            ),
+            response_type=QueryElicitation,
         )
         if confirmation.action == "accept":
-            self.connection.execute_query(query, snapshot=False)
+            accepted_query = confirmation.data.sql
+            self.connection.execute_query(accepted_query, snapshot=False)
+            if accepted_query != query:
+                return accepted_query
+            return None
         elif confirmation.action == "reject":
             raise InterruptedError("The query execution is declined by the user.")
         else:  # cancel
