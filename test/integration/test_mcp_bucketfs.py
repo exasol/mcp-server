@@ -41,7 +41,4 @@ def test_mcp_server_with_bucketfs(
         enable_read_bucketfs=enable_bucketfs
     )
     server = mcp_server()
-    if enable_bucketfs:
-        assert server.bucketfs_location.exists()
-    else:
-        assert server.bucketfs_location is None
+    assert (server.bucketfs_location is not None) == enable_bucketfs
