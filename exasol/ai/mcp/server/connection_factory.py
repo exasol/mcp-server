@@ -12,6 +12,7 @@ from typing import (
     ContextManager,
 )
 
+import exasol.bucketfs as bfs
 import exasol.saas.client.api_access as saas_api
 import fastmcp.server.dependencies as fmcp_api
 import pyexasol
@@ -57,6 +58,20 @@ ENV_LOG_CLAIMS = "EXA_LOG_CLAIMS"
 """ Log OAuth claims if available (yes/no) """
 ENV_LOG_HTTP_HEADERS = "EXA_LOG_HTTP_HEADERS"
 """ Log headers from the current HTTP request if available (yes/no) """
+ENV_BUCKETFS_HOST = "EXA_BUCKETFS_HOST"
+""" On-prem BucketFS host name """
+ENV_BUCKETFS_PORT = "EXA_BUCKETFS_PORT"
+""" On-prem BucketFS port number """
+ENV_BUCKETFS_SERVICE = "EXA_BUCKETFS_SERVICE"
+""" On-prem BucketFS service name (not required in most cases) """
+ENV_BUCKETFS_BUCKET = "EXA_BUCKETFS_BUCKET"
+""" On-prem BucketFS bucket name ("default" if not specified) """
+ENV_BUCKETFS_USER = "EXA_BUCKETFS_USER"
+""" On-prem BucketFS user name """
+ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"
+""" On-prem BucketFS user password """
+ENV_BUCKETFS_PATH = "EXA_BUCKETFS_PATH"
+""" Optional root directory in the bucket (defaults to the bucket root) """
 
 DEFAULT_CONN_POOL_SIZE = 5
 DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
@@ -387,3 +402,44 @@ def get_connection_factory(
             connection_pool.checkin(user, connection)
 
     return connection_factory
+
+
+def get_bucketfs_location(env: dict[str, Any]) -> bfs.path.PathLike | None:
+    """
+    If sufficient configuration parameters are provided, opens a BucketFS connection
+    and returns a PathLike of the bucket root or a specified root directory.
+
+    Here, the word "connection" is used superficially. No actual connection exists.
+    A successfully created BucketFS PathLike object indicates that the specified
+    bucket is accessible, subject to read/write permissions.
+
+    If BucketFS is inaccessible, logs a warning and returns None.
+    """
+    kwargs = _copy_kwargs(
+        env,
+        {
+            ENV_BUCKETFS_HOST: "bucketfs_host",
+            ENV_BUCKETFS_PORT: "bucketfs_port",
+            ENV_BUCKETFS_SERVICE: "bucketfs_name",
+            ENV_BUCKETFS_BUCKET: "bucket",
+            ENV_BUCKETFS_USER: "bucketfs_user",
+            ENV_BUCKETFS_PASSWORD: "bucketfs_password",
+            ENV_SAAS_HOST: "saas_url",
+            ENV_SAAS_ACCOUNT_ID: "saas_account_id",
+            ENV_SAAS_PAT: "saas_token",
+            ENV_SAAS_DATABASE_ID: "saas_database_id",
+            ENV_SAAS_DATABASE_NAME: "saas_database_name",
+            ENV_BUCKETFS_PATH: "path_in_bucket",
+        },
+    )
+    if "bucketfs_port" in kwargs:
+        kwargs["bucketfs_port"] = int(kwargs["bucketfs_port"])
+    certificate_validation = optional_bool_from_env(env, ENV_SSL_CERT_VALIDATION)
+    if certificate_validation is not None:
+        kwargs["verify"] = certificate_validation
+
+    try:
+        return bfs.path.infer_path(**kwargs)
+    except Exception as e:
+        logger.warning("Unable to open BucketFS location. %s", e)
+    return None
