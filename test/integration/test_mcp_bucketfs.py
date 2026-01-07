@@ -5,6 +5,7 @@ import exasol.bucketfs as bfs
 import pytest
 
 from exasol.ai.mcp.server.main import mcp_server
+from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
