@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 import exasol.bucketfs as bfs
+import pytest
 
 from exasol.ai.mcp.server.main import mcp_server
 
