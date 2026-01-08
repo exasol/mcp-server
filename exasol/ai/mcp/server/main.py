@@ -198,6 +198,39 @@ def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_list_directories(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.list_directories,
+            description=(
+                "Lists subdirectories at the given directory of the BucketFS file "
+                "system."
+            ),
+        )
+
+
+def _register_list_files(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.list_files,
+            description=(
+                "Lists files at the given directory of the BucketFS file system."
+            ),
+        )
+
+
+def _register_find_files(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.find_files,
+            description=(
+                "Performs a keyword search of files in the BucketFS file system."
+                "Files are searched in the given directory and all its descendant "
+                "subdirectories."
+            ),
+        )
+
+
 def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> None:
     if config.schemas.enable:
         _register_list_schemas(mcp_server)
@@ -220,6 +253,10 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_execute_query(mcp_server)
     if config.enable_write_query:
         _register_execute_write_query(mcp_server)
+    if config.enable_read_bucketfs:
+        _register_list_directories(mcp_server)
+        _register_list_files(mcp_server)
+        _register_find_files(mcp_server)
 
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
