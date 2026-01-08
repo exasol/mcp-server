@@ -72,7 +72,7 @@ def test_str_to_bool(input_str, expected_bool):
 
 def test_str_to_bool_error():
     with pytest.raises(ValueError, match="Invalid boolean parameter"):
-        str_to_bool("yes")
+        str_to_bool("maybe")
 
 
 @pytest.mark.parametrize(
