@@ -8,7 +8,7 @@ from exasol.ai.mcp.server.main import mcp_server
 from exasol.ai.mcp.server.server_settings import McpServerSettings
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
     """
     Stores the backend_aware_bucketfs_params into the environment variables.
