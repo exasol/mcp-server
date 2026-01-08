@@ -6,6 +6,7 @@
 * #111: Added an option to direct logging to the console.
 * #116: Made the connection_factory fail if the expected username claim cannot be found.
 * #121: Allowed editing generated DDL/DML query in elicitation.
+* #123: Added creating a BucketFS connection.
 
 ## Security
 
