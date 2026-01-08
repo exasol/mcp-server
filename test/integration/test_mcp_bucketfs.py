@@ -15,11 +15,11 @@ def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
     """
     bucketfs_to_env = {v: k for k, v in env_to_bucketfs.items()}
     backend = backend_aware_bucketfs_params["backend"]
-    for k, v in backend_aware_bucketfs_params:
+    for k, v in backend_aware_bucketfs_params.items():
         # The parameter name can be disambiguated with appended backend name.
         env_name = bucketfs_to_env.get(k) or bucketfs_to_env.get(f"{k}|{backend}")
         if env_name:
-            monkeypatch.setenv(bucketfs_to_env[k], str(v))
+            monkeypatch.setenv(env_name, str(v))
 
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
