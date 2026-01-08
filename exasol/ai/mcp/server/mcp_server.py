@@ -5,6 +5,7 @@ from typing import (
     Any,
 )
 
+import exasol.bucketfs as bfs
 from fastmcp import (
     Context,
     FastMCP,
@@ -106,13 +107,23 @@ class ExasolMCPServer(FastMCP):
             pyexasol connection wrapper.
         config:
             The server configuration.
+        bucketfs_location:
+            Optional BucketFS PathLike object. If not provided or None
+            the BucketFS tools should not be registered.
+        kwargs:
+            Extra arguments to be passed to FastMCP.
     """
 
     def __init__(
-        self, connection: DbConnection, config: McpServerSettings, **kwargs
+        self,
+        connection: DbConnection,
+        config: McpServerSettings,
+        bucketfs_location: bfs.path.PathLike | None = None,
+        **kwargs,
     ) -> None:
         super().__init__(name="exasol-mcp", **kwargs)
         self.connection = connection
+        self.bucketfs_location = bucketfs_location
         self.meta_query = ExasolMetaQuery(config)
 
     @property

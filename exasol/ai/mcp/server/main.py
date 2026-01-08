@@ -6,9 +6,10 @@ from logging.handlers import RotatingFileHandler
 from typing import Any
 
 import click
+import exasol.bucketfs as bfs
 from pydantic import ValidationError
 
-from exasol.ai.mcp.server.connection_factory import get_connection_factory
+import exasol.ai.mcp.server.connection_factory as cf
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.generic_auth import (
     get_auth_kwargs,
@@ -300,14 +301,22 @@ def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
 
 
 def create_mcp_server(
-    connection: DbConnection, config: McpServerSettings, **kwargs
+    connection: DbConnection,
+    config: McpServerSettings,
+    bucketfs_location: bfs.path.PathLike | None = None,
+    **kwargs,
 ) -> ExasolMCPServer:
     """
     Creates the Exasol MCP Server and registers its tools.
     """
-    mcp_server = ExasolMCPServer(connection=connection, config=config, **kwargs)
-    register_tools(mcp_server, config)
-    return mcp_server
+    mcp_server_ = ExasolMCPServer(
+        connection=connection,
+        config=config,
+        bucketfs_location=bucketfs_location,
+        **kwargs,
+    )
+    register_tools(mcp_server_, config)
+    return mcp_server_
 
 
 def get_env() -> dict[str:Any]:
@@ -322,12 +331,20 @@ def mcp_server() -> ExasolMCPServer:
     logger = setup_logger(env)
     mcp_settings = get_mcp_settings(env)
     auth_kwargs = get_auth_kwargs()
-    connection_factory = get_connection_factory(env)
+    connection_factory = cf.get_connection_factory(env)
 
     connection = DbConnection(connection_factory=connection_factory)
+    # Try to get the BucketFS location only if the bucketfs tools are enabled.
+    if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
+        bucketfs_location = cf.get_bucketfs_location(env)
+    else:
+        bucketfs_location = None
 
     server = create_mcp_server(
-        connection=connection, config=mcp_settings, **auth_kwargs
+        connection=connection,
+        config=mcp_settings,
+        bucketfs_location=bucketfs_location,
+        **auth_kwargs,
     )
     logger.info("Exasol MCP Server created.")
     return server
