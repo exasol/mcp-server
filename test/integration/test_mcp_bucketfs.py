@@ -1,32 +1,41 @@
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import exasol.bucketfs as bfs
 import pytest
 
 from exasol.ai.mcp.server.main import mcp_server
 from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
+
+
+@pytest.fixture(scope="session")
+def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
+    """
+    Stores the backend_aware_bucketfs_params into the environment variables.
+    """
+    bucketfs_to_env = {v: k for k, v in env_to_bucketfs.items()}
+    backend = backend_aware_bucketfs_params['backend']
+    for k, v in backend_aware_bucketfs_params:
+        # The parameter name can be disambiguated with appended backend name.
+        env_name = bucketfs_to_env.get(k) or bucketfs_to_env.get(f"{k}|{backend}")
+        if env_name:
+            monkeypatch.setenv(bucketfs_to_env[k], str(v))
 
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
 @patch("exasol.ai.mcp.server.main.get_mcp_settings")
-@patch("exasol.ai.mcp.server.connection_factory.get_bucketfs_location")
 @patch("exasol.ai.mcp.server.connection_factory.get_connection_factory")
 def test_mcp_server_with_bucketfs(
     mock_get_conn_factory,
-    mock_get_bfs_location,
     mock_get_mcp_settings,
     enable_bucketfs,
     pyexasol_connection,
-    backend_aware_bucketfs_params,
+    bucketfs_params_env
 ) -> None:
     """
     Verifies that if BucketFS tools are enabled the server gets a valid PathLike object
     pointing to the root of the BucketFS bucket. Otherwise, even if the BucketFS access
     is configured, the object is None.
-
-    The `get_bucketfs_location` is not tested here but mocked instead. It is tested in
-    a unit tests.
     """
 
     @contextmanager
@@ -34,9 +43,6 @@ def test_mcp_server_with_bucketfs(
         yield pyexasol_connection
 
     mock_get_conn_factory.return_value = connection_factory
-    mock_get_bfs_location.return_value = bfs.path.build_path(
-        **backend_aware_bucketfs_params
-    )
     mock_get_mcp_settings.return_value = McpServerSettings(
         enable_read_bucketfs=enable_bucketfs
     )

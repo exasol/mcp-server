@@ -15,10 +15,9 @@ from exasol.ai.mcp.server.connection_factory import (
     DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_BUCKETFS_BUCKET,
-    ENV_BUCKETFS_HOST,
+    ENV_BUCKETFS_URL,
     ENV_BUCKETFS_PASSWORD,
     ENV_BUCKETFS_PATH,
-    ENV_BUCKETFS_PORT,
     ENV_BUCKETFS_SERVICE,
     ENV_BUCKETFS_USER,
     ENV_DSN,
@@ -579,8 +578,7 @@ def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
     [
         (
             {
-                ENV_BUCKETFS_HOST: "my_bfs_host",
-                ENV_BUCKETFS_PORT: "4321",
+                ENV_BUCKETFS_URL: "https://my_bfs_host:4321",
                 ENV_BUCKETFS_SERVICE: "my_bfs_service",
                 ENV_BUCKETFS_BUCKET: "my_bucket",
                 ENV_BUCKETFS_USER: "me",
@@ -589,13 +587,13 @@ def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
                 ENV_SSL_CERT_VALIDATION: "yes",
             },
             {
-                "bucketfs_host": "my_bfs_host",
-                "bucketfs_port": 4321,
-                "bucketfs_name": "my_bfs_service",
-                "bucket": "my_bucket",
-                "bucketfs_user": "me",
-                "bucketfs_password": "my_password",
-                "path_in_bucket": "my_path_in_bucket",
+                "backend": "onprem",
+                "url": "https://my_bfs_host:4321",
+                "service_name": "my_bfs_service",
+                "bucket_name": "my_bucket",
+                "username": "me",
+                "password": "my_password",
+                "path": "my_path_in_bucket",
                 "verify": True,
             },
         ),
@@ -605,36 +603,32 @@ def test_log_connection(mock_http_headers, mock_access_token, tmp_path) -> None:
                 ENV_SAAS_ACCOUNT_ID: "my_saas_account_id",
                 ENV_SAAS_PAT: "my_saas_pat",
                 ENV_SAAS_DATABASE_ID: "my_saas_db_id",
-                ENV_SAAS_DATABASE_NAME: "my_saas_db_name",
                 ENV_BUCKETFS_PATH: "my_path_in_bucket",
             },
             {
-                "saas_url": "the_saas_url",
-                "saas_account_id": "my_saas_account_id",
-                "saas_token": "my_saas_pat",
-                "saas_database_id": "my_saas_db_id",
-                "saas_database_name": "my_saas_db_name",
-                "path_in_bucket": "my_path_in_bucket",
+                "backend": "saas",
+                "url": "the_saas_url",
+                "account_id": "my_saas_account_id",
+                "pat": "my_saas_pat",
+                "database_id": "my_saas_db_id",
+                "path": "my_path_in_bucket",
             },
         ),
     ],
 )
-@patch("exasol.bucketfs.path.infer_path")
+@patch("exasol.bucketfs.path.build_path")
 def test_get_bucketfs_location(mock_infer_path, env, expected_kwargs) -> None:
     get_bucketfs_location(env)
     mock_infer_path.assert_called_with(**expected_kwargs)
 
 
-def test_get_bucketfs_location_failure(caplog) -> None:
-    caplog.clear()
-    bucketfs_location = get_bucketfs_location(
-        {
-            ENV_BUCKETFS_HOST: "my_bfs_host",
-            ENV_BUCKETFS_PORT: "4321",
-            ENV_BUCKETFS_USER: "me",
-            # No password, that should trigger an exception before
-            # attempting to access the BucketFS.
-        }
-    )
-    assert bucketfs_location is None
-    assert any(rec.levelname == "WARNING" for rec in caplog.records)
+def test_get_bucketfs_location_failure() -> None:
+    with pytest.raises(Exception):
+        get_bucketfs_location(
+            {
+                ENV_BUCKETFS_URL: "https://my_bfs_host:4321",
+                ENV_BUCKETFS_USER: "me",
+                # No password, that should trigger an exception before
+                # attempting to access the BucketFS.
+            }
+        )
