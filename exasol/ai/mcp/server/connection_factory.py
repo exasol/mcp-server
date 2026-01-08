@@ -18,8 +18,8 @@ import fastmcp.server.dependencies as fmcp_api
 import pyexasol
 import sqlglot.expressions as exp
 
-from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
 from exasol.ai.mcp.server.generic_auth import str_to_bool
+from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
 
 ENV_DSN = "EXA_DSN"
 """ Exasol DB server DSN """
@@ -89,7 +89,7 @@ env_to_bucketfs = {
     ENV_SAAS_DATABASE_ID: "database_id",
     # ENV_SAAS_DATABASE_NAME should be added once build_path supports database_name
     ENV_BUCKETFS_PATH: "path",
-    ENV_SSL_CERT_VALIDATION: "verify"
+    ENV_SSL_CERT_VALIDATION: "verify",
 }
 
 
@@ -425,7 +425,7 @@ def get_bucketfs_location(env: dict[str, Any]) -> bfs.path.PathLike:
     """
     kwargs = _copy_kwargs(env, env_to_bucketfs)
     # Remove parameter name disambiguation.
-    kwargs = {k.split('|')[0]: v for k, v in kwargs.items()}
+    kwargs = {k.split("|")[0]: v for k, v in kwargs.items()}
     if saas_env_complete(env):
         kwargs["backend"] = "saas"
         # This code should be moved to the `bucketfs-python.build_path`.
@@ -434,7 +434,7 @@ def get_bucketfs_location(env: dict[str, Any]) -> bfs.path.PathLike:
                 env[ENV_SAAS_HOST],
                 env[ENV_SAAS_ACCOUNT_ID],
                 env[ENV_SAAS_PAT],
-                env[ENV_SAAS_DATABASE_NAME]
+                env[ENV_SAAS_DATABASE_NAME],
             )
     else:
         kwargs["backend"] = "onprem"
