@@ -13,6 +13,10 @@
 
 * #125: Extracted helper functions from the main integration test into utilities.
 
+## Refactoring
+
+* #125: Extracted helper functions from the main integration test into utilities.
+
 ## Security
 
 * #113: Disallowed unauthenticated HTTP by default.
