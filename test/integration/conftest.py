@@ -1,3 +1,4 @@
+import time
 from itertools import chain
 from test.utils.db_objects import (
     ExaBfsDir,
@@ -553,3 +554,4 @@ def setup_bucketfs(
 
     bfs_root = bfs.path.build_path(**backend_aware_bucketfs_params, path=bfs_data.name)
     write_content(bfs_data, bfs_root)
+    time.sleep(10)
