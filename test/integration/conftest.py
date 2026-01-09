@@ -1,4 +1,3 @@
-import time
 from itertools import chain
 from test.utils.db_objects import (
     ExaBfsDir,
