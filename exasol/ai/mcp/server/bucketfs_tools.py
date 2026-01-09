@@ -21,9 +21,7 @@ class BucketFsTools:
     ) -> ExaDbResult:
         abs_dir = self.bfs_location.joinpath(rel_dir)
         content = [
-            {PATH_FIELD: str(pth)}
-            for pth in abs_dir.iterdir()
-            if item_filter(pth)
+            {PATH_FIELD: str(pth)} for pth in abs_dir.iterdir() if item_filter(pth)
         ]
         return ExaDbResult(content)
 

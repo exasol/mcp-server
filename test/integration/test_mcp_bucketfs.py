@@ -54,10 +54,7 @@ def _run_tool(bucketfs_location: bfs.path.PathLike, tool_name: str, **kwargs):
 
 
 def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
-    expected_json = [
-        {PATH_FIELD: path}
-        for path, item in items.items()
-    ]
+    expected_json = [{PATH_FIELD: path} for path, item in items.items()]
     return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
