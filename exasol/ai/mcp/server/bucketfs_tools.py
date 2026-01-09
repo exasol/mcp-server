@@ -17,7 +17,6 @@ from exasol.ai.mcp.server.server_settings import (
 )
 
 PATH_FIELD = "FULL_PATH"
-NAME_FIELD = "NAME"
 
 
 class BucketFsTools:
@@ -30,12 +29,7 @@ class BucketFsTools:
     ) -> ExaDbResult:
         abs_dir = self.bfs_location.joinpath(rel_dir)
         content = [
-            {
-                PATH_FIELD: str(pth),
-                NAME_FIELD: pth.name,
-            }
-            for pth in abs_dir.iterdir()
-            if item_filter(pth)
+            {PATH_FIELD: str(pth)} for pth in abs_dir.iterdir() if item_filter(pth)
         ]
         return ExaDbResult(content)
 
@@ -60,10 +54,7 @@ class BucketFsTools:
         """
         abs_dir = self.bfs_location.joinpath(directory)
         content = [
-            {
-                PATH_FIELD: str(dir_path.joinpath(file_name)),
-                NAME_FIELD: file_name,
-            }
+            {PATH_FIELD: str(dir_path.joinpath(file_name))}
             for dir_path, dir_names, file_names in abs_dir.walk()
             for file_name in file_names
         ]

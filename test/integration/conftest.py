@@ -417,7 +417,7 @@ def bfs_data() -> ExaBfsDir:
                         name="Dog",
                         items=[
                             ExaBfsFile(
-                                name="Gray Wolf",
+                                name="Gray_Wolf",
                                 content=(
                                     b"The largest extant wild member of the dog family, "
                                     b"living and hunting in complex social packs. It is "
@@ -426,7 +426,7 @@ def bfs_data() -> ExaBfsDir:
                                 ),
                             ),
                             ExaBfsFile(
-                                name="Gray Fox",
+                                name="Gray_Fox",
                                 content=(
                                     b"A unique fox species known for its grizzled gray "
                                     b"and rusty coat and its strong ability to climb "
@@ -440,7 +440,7 @@ def bfs_data() -> ExaBfsDir:
                         name="Bear",
                         items=[
                             ExaBfsFile(
-                                name="American Black Bear",
+                                name="American_Black_Bear",
                                 content=(
                                     b"The most common and widely distributed bear "
                                     b"species in North America. It is an omnivore "
@@ -452,13 +452,13 @@ def bfs_data() -> ExaBfsDir:
                 ],
             ),
             ExaBfsDir(
-                name="Even-toed Ungulates",
+                name="Even-toed_Ungulates",
                 items=[
                     ExaBfsDir(
                         name="Deer",
                         items=[
                             ExaBfsFile(
-                                name="White-tailed Deer",
+                                name="White-tailed_Deer",
                                 content=(
                                     b"A medium-sized deer ubiquitous across much of "
                                     b"North America. It is named for the bright white "
@@ -495,7 +495,7 @@ def bfs_data() -> ExaBfsDir:
                         name="Squirrel",
                         items=[
                             ExaBfsFile(
-                                name="Eastern Gray Squirrel",
+                                name="Eastern_Gray_Squirrel",
                                 content=(
                                     b"A common tree squirrel in eastern North America, "
                                     b"primarily gray with a white underside. It is a "
@@ -503,7 +503,7 @@ def bfs_data() -> ExaBfsDir:
                                 ),
                             ),
                             ExaBfsFile(
-                                name="Eastern Chipmunk",
+                                name="Eastern_Chipmunk",
                                 content=(
                                     b"A small, striped ground squirrel with prominent "
                                     b"cheek pouches used to carry food. It is known for "
@@ -514,7 +514,7 @@ def bfs_data() -> ExaBfsDir:
                         ],
                     ),
                     ExaBfsFile(
-                        name="Hamster-Vole-Lemming",
+                        name="Hamster_Vole_Lemming",
                         content=(
                             b"A hugely diverse family of small rodents, including "
                             b"hamsters, voles, lemmings, and New World rats and mice. "

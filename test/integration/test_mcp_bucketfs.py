@@ -21,10 +21,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
-from exasol.ai.mcp.server.bucketfs_tools import (
-    NAME_FIELD,
-    PATH_FIELD,
-)
+from exasol.ai.mcp.server.bucketfs_tools import PATH_FIELD
 from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
@@ -57,13 +54,7 @@ def _run_tool(bucketfs_location: bfs.path.PathLike, tool_name: str, **kwargs):
 
 
 def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
-    expected_json = [
-        {
-            PATH_FIELD: path,
-            NAME_FIELD: item.name,
-        }
-        for path, item in items.items()
-    ]
+    expected_json = [{PATH_FIELD: path} for path, item in items.items()]
     return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
