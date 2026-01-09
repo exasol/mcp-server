@@ -90,37 +90,48 @@ class BucketFsTools:
     ) -> None:
         """
         Writes a piece of text to a file at the provided path in bucket-fs.
-        The path is relative to the root location. The file will override an
-        existing file.
+        The path is relative to the root location. An existing file will be overwritten.
+        Elicitation is required. If the path is modified in elicitation and there is an
+        existing file at the modified path, the elicitation is repeated, to get an
+        explicit confirmation that the existing file can be deleted.
         """
-        class FileElicitation(BaseModel):
-            file_path: str = Field(default=path)
-            file_content: str = Field(default=content)
+        abs_path = self.bfs_location.joinpath(path)
+        file_exists = abs_path.exists()
+        while True:
+            class FileElicitation(BaseModel):
+                file_path: str = Field(default=path)
+                file_content: str = Field(default=content)
 
-        message = (
-            "The following text will be saved in a BucketFS file at the give path. "
-            "Please review the text and the path. Make changes if need. Finally, "
-            "accept or decline the operation."
-        )
-        if self.bfs_location.joinpath(path).exists():
-            message += (
-                " Please note that the existing file at this path will be overwritten."
+            message = (
+                "The following text will be saved in a BucketFS file at the give path. "
+                "Please review the text and the path. Make changes if need. Finally, "
+                "accept or decline the operation."
             )
-
-        confirmation = await ctx.elicit(
-            message=message,
-            response_type=FileElicitation,
-        )
-        if confirmation.action == "accept":
-            accepted_path = confirmation.data.file_path
-            accepted_content = confirmation.data.file_content
-            byte_content = accepted_content.encode(encoding="utf-8")
-            abs_path = self.bfs_location.joinpath(accepted_path)
-            abs_path.write(byte_content)
-        elif confirmation.action == "reject":
-            raise InterruptedError("The query execution is declined by the user.")
-        else:  # cancel
-            raise InterruptedError("The query execution is cancelled by the user.")
+            if file_exists:
+                message += (
+                    " Please note that there is an existing file at the chosen path. "
+                    "If the operation is accepted the existing file will be overwritten."
+                )
+            confirmation = await ctx.elicit(
+                message=message,
+                response_type=FileElicitation,
+            )
+            if confirmation.action == "accept":
+                accepted_path = confirmation.data.file_path
+                content = confirmation.data.file_content
+                abs_path = self.bfs_location.joinpath(accepted_path)
+                if accepted_path != path:
+                    file_exists = abs_path.exists()
+                    if file_exists:
+                        path = accepted_path
+                        continue
+                byte_content = content.encode(encoding="utf-8")
+                abs_path.write(byte_content)
+                break
+            elif confirmation.action == "reject":
+                raise InterruptedError("The query execution is declined by the user.")
+            else:  # cancel
+                raise InterruptedError("The query execution is cancelled by the user.")
 
     def download_file(self, file_path: str, url: str) -> None:
         """
