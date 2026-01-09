@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import Generator
+from contextlib import contextmanager
 from itertools import chain
 from test.utils.db_objects import (
     ExaColumn,
@@ -8,19 +11,21 @@ from test.utils.db_objects import (
     ExaSchema,
     ExaTable,
 )
-from test.utils.tool_utils import (
+from test.utils.result_utils import (
     get_list_result_json,
     get_result_json,
     get_sort_result_json,
-    list_tools,
     result_sort_func,
-    run_tool,
 )
 from typing import Any
 
 import pytest
+from fastmcp import Client
 from fastmcp.exceptions import ToolError
+from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.mcp_server import TABLE_USAGE
 from exasol.ai.mcp.server.parameter_parser import FUNCTION_USAGE
 from exasol.ai.mcp.server.server_settings import (
@@ -30,6 +35,36 @@ from exasol.ai.mcp.server.server_settings import (
     MetaListSettings,
     MetaParameterSettings,
 )
+
+
+async def _run_tool_async(
+    connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
+):
+    @contextmanager
+    def connection_factory() -> Generator[ExaConnection, None, None]:
+        yield connection
+
+    db_connection = DbConnection(connection_factory, num_retries=1)
+
+    exa_server = create_mcp_server(db_connection, config)
+    async with Client(exa_server) as client:
+        return await client.call_tool(tool_name, kwargs)
+
+
+async def _list_tools_async(connection: ExaConnection, config: McpServerSettings):
+    exa_server = create_mcp_server(connection, config)
+    async with Client(exa_server) as client:
+        return await client.list_tools()
+
+
+def _run_tool(
+    connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
+):
+    return asyncio.run(_run_tool_async(connection, config, tool_name, **kwargs))
+
+
+def _list_tools(connection: ExaConnection, config: McpServerSettings):
+    return asyncio.run(_list_tools_async(connection, config))
 
 
 def _get_expected_json(
@@ -173,7 +208,7 @@ def test_tool_disabled(
     """
     config_dict = {meta_type: {"enable": False} for meta_type in meta_types}
     config = McpServerSettings.model_validate(config_dict)
-    result = list_tools(pyexasol_connection, config)
+    result = _list_tools(pyexasol_connection, config)
     tool_list = [tool.name for tool in result]
     assert tool_name not in tool_list
 
@@ -199,7 +234,7 @@ def test_list_schemas(
                 regexp_pattern=schema.name if use_regexp else "",
             )
         )
-        result = run_tool(pyexasol_connection, config, "list_schemas")
+        result = _run_tool(pyexasol_connection, config, "list_schemas")
         result_json = get_list_result_json(result)
         expected_json = _get_expected_list_json([schema], schema.name, config.schemas)
         if use_like or use_regexp:
@@ -222,7 +257,7 @@ def test_find_schemas(
         # Will test on new schemas only, where the result is more reliable.
         if not schema.is_new:
             continue
-        result = run_tool(
+        result = _run_tool(
             pyexasol_connection, config, "find_schemas", keywords=schema.keywords
         )
         result_json = get_result_json(result)["result"][0]
@@ -299,7 +334,7 @@ def test_list_tables(
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
             continue
-        result = run_tool(
+        result = _run_tool(
             pyexasol_connection,
             config,
             "list_tables",
@@ -378,7 +413,7 @@ def test_find_tables(
             case_sensitive=case_sensitive,
         )
         for table in chain(db_tables, db_views):
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_tables",
@@ -431,7 +466,7 @@ def test_list_functions(
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
             continue
-        result = run_tool(
+        result = _run_tool(
             pyexasol_connection,
             config,
             "list_functions",
@@ -494,7 +529,7 @@ def test_find_functions(
             case_sensitive=case_sensitive,
         )
         for func in db_functions:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_functions",
@@ -546,7 +581,7 @@ def test_list_scripts(
     for schema in db_schemas:
         if (not schema.is_new) and (not use_like) and (not use_regexp):
             continue
-        result = run_tool(
+        result = _run_tool(
             pyexasol_connection,
             config,
             "list_scripts",
@@ -608,7 +643,7 @@ def test_find_scripts(
             language=language,
         )
         for script in db_scripts:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "find_scripts",
@@ -641,7 +676,7 @@ def test_describe_table(
     )
     for schema in db_schemas:
         for table in db_tables:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "describe_table",
@@ -665,7 +700,7 @@ def test_describe_view_comment(
     )
     for schema in db_schemas:
         for view in db_views:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "describe_table",
@@ -697,7 +732,7 @@ def test_describe_no_schema_name(
         parameters=MetaParameterSettings(enable=True),
     )
     with pytest.raises(ToolError):
-        run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
+        _run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
 
 
 @pytest.mark.parametrize(
@@ -716,7 +751,7 @@ def test_describe_no_db_object_name(
     )
     for schema in db_schemas:
         with pytest.raises(ToolError):
-            run_tool(
+            _run_tool(
                 pyexasol_connection,
                 config,
                 tool_name=tool_name,
@@ -740,7 +775,7 @@ def test_describe_function(
     )
     for schema in db_schemas:
         for func in db_functions:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "describe_function",
@@ -769,7 +804,7 @@ def test_describe_script(
     )
     for schema in db_schemas:
         for script in db_scripts:
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection,
                 config,
                 "describe_script",
@@ -795,7 +830,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
     for schema in db_schemas:
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
-            result = run_tool(
+            result = _run_tool(
                 pyexasol_connection, config, tool_name="execute_query", query=query
             )
             result_json = get_list_result_json(result)
@@ -822,6 +857,6 @@ def test_execute_query_error(
                 f'FROM "{schema.name}"."{table.name}"'
             )
             with pytest.raises(ToolError):
-                run_tool(
+                _run_tool(
                     pyexasol_connection, config, tool_name="execute_query", query=query
                 )
