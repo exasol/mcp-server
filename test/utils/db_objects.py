@@ -1,6 +1,7 @@
+from collections.abc import ByteString
 from dataclasses import dataclass
 from itertools import chain
-from typing import Any, ByteString
+from typing import Any
 
 
 @dataclass
@@ -99,7 +100,9 @@ class ExaBfsObject:
 class ExaBfsDir(ExaBfsObject):
     items: list[ExaBfsObject]
 
-    def find_descendants(self, names: list[str], path: str = '') -> dict[str, ExaBfsObject]:
+    def find_descendants(
+        self, names: list[str], path: str = ""
+    ) -> dict[str, ExaBfsObject]:
         descendants: dict[str, ExaBfsObject] = {}
         path = path or self.name
         for item in self.items:

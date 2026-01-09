@@ -20,6 +20,7 @@ from sqlglot import (
 )
 from sqlglot.errors import ParseError
 
+from exasol.ai.mcp.server.bucketfs_tools import BucketFsTools
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.keyword_search import keyword_filter
 from exasol.ai.mcp.server.meta_query import (
@@ -39,7 +40,6 @@ from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
     McpServerSettings,
 )
-from exasol.ai.mcp.server.bucketfs_tools import BucketFsTools
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "
@@ -124,7 +124,11 @@ class ExasolMCPServer(FastMCP):
     ) -> None:
         super().__init__(name="exasol-mcp", **kwargs)
         self.connection = connection
-        self.bucketfs_tools = BucketFsTools(bucketfs_location, config) if bucketfs_location is not None else None
+        self.bucketfs_tools = (
+            BucketFsTools(bucketfs_location, config)
+            if bucketfs_location is not None
+            else None
+        )
         self.meta_query = ExasolMetaQuery(config)
 
     @property

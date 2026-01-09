@@ -1,5 +1,7 @@
 from itertools import chain
 from test.utils.db_objects import (
+    ExaBfsDir,
+    ExaBfsFile,
     ExaColumn,
     ExaConstraint,
     ExaFunction,
@@ -7,16 +9,14 @@ from test.utils.db_objects import (
     ExaSchema,
     ExaTable,
     ExaView,
-    ExaBfsDir,
-    ExaBfsFile,
 )
 from test.utils.mcp_oidc_constants import DOCKER_DB_NAME
 from test.utils.sql_utils import format_table_rows
 from textwrap import dedent
 
+import exasol.bucketfs as bfs
 import pytest
 from exasol.saas.client.api_access import timestamp_name
-import exasol.bucketfs as bfs
 
 
 def pytest_addoption(parser):
@@ -400,7 +400,7 @@ def bfs_data() -> ExaBfsDir:
                                     b"known as a mountain lion or puma. It has the "
                                     b"greatest geographic range of any wild "
                                     b"terrestrial mammal in the Americas."
-                                )
+                                ),
                             ),
                             ExaBfsFile(
                                 name="Bobcat",
@@ -409,9 +409,9 @@ def bfs_data() -> ExaBfsDir:
                                     b"by its tufted ears, spotted coat, and short "
                                     b'"bobbed" tail. It is highly adaptable and a '
                                     b"stealthy predator."
-                                )
-                            )
-                        ]
+                                ),
+                            ),
+                        ],
                     ),
                     ExaBfsDir(
                         name="Dog",
@@ -423,7 +423,7 @@ def bfs_data() -> ExaBfsDir:
                                     b"living and hunting in complex social packs. It is "
                                     b"a keystone predator known for its intelligence "
                                     b"and cooperative hunting."
-                                )
+                                ),
                             ),
                             ExaBfsFile(
                                 name="Gray Fox",
@@ -432,9 +432,9 @@ def bfs_data() -> ExaBfsDir:
                                     b"and rusty coat and its strong ability to climb "
                                     b"trees using semi-retractable claws, a trait rare "
                                     b"among canids."
-                                )
-                            )
-                        ]
+                                ),
+                            ),
+                        ],
                     ),
                     ExaBfsDir(
                         name="Bear",
@@ -445,11 +445,11 @@ def bfs_data() -> ExaBfsDir:
                                     b"The most common and widely distributed bear "
                                     b"species in North America. It is an omnivore "
                                     b"whose diet varies greatly by season and location."
-                                )
+                                ),
                             ),
-                        ]
-                    )
-                ]
+                        ],
+                    ),
+                ],
             ),
             ExaBfsDir(
                 name="Even-toed Ungulates",
@@ -464,7 +464,7 @@ def bfs_data() -> ExaBfsDir:
                                     b"North America. It is named for the bright white "
                                     b"underside of its tail, which it raises as a flag "
                                     b"when alarmed."
-                                )
+                                ),
                             ),
                             ExaBfsFile(
                                 name="Elk",
@@ -473,9 +473,9 @@ def bfs_data() -> ExaBfsDir:
                                     b"family, known for the males' large, branching "
                                     b"antlers and their loud, bugling vocalizations "
                                     b"during the rut."
-                                )
+                                ),
                             ),
-                        ]
+                        ],
                     ),
                     ExaBfsFile(
                         name="Cattle_Sheep_Goat",
@@ -484,9 +484,9 @@ def bfs_data() -> ExaBfsDir:
                             b"cattle, bison, sheep, goats, and antelope. Males (and "
                             b"often females) typically possess permanent, unbranched "
                             b"horns."
-                        )
-                    )
-                ]
+                        ),
+                    ),
+                ],
             ),
             ExaBfsDir(
                 name="Rodents",
@@ -500,7 +500,7 @@ def bfs_data() -> ExaBfsDir:
                                     b"A common tree squirrel in eastern North America, "
                                     b"primarily gray with a white underside. It is a "
                                     b"prolific scatter-hoarder of nuts and acorns."
-                                )
+                                ),
                             ),
                             ExaBfsFile(
                                 name="Eastern Chipmunk",
@@ -509,9 +509,9 @@ def bfs_data() -> ExaBfsDir:
                                     b"cheek pouches used to carry food. It is known for "
                                     b"its burrowing habits and energetic, chattering "
                                     b"behavior."
-                                )
-                            )
-                        ]
+                                ),
+                            ),
+                        ],
                     ),
                     ExaBfsFile(
                         name="Hamster-Vole-Lemming",
@@ -520,9 +520,9 @@ def bfs_data() -> ExaBfsDir:
                             b"hamsters, voles, lemmings, and New World rats and mice. "
                             b"They are found in a vast array of habitats across the "
                             b"globe."
-                        )
-                    )
-                ]
+                        ),
+                    ),
+                ],
             ),
             ExaBfsFile(
                 name="Rabbits_Hares",
@@ -530,9 +530,9 @@ def bfs_data() -> ExaBfsDir:
                     b"An order of herbivorous mammals that includes rabbits, hares, "
                     b"and pikas. They are characterized by two pairs of upper incisors, "
                     b"one behind the other."
-                )
-            )
-        ]
+                ),
+            ),
+        ],
     )
 
 
