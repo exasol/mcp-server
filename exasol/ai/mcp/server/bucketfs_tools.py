@@ -1,6 +1,14 @@
+from typing import Annotated
 from collections.abc import Callable
 
+from pydantic import (
+    BaseModel,
+    Field,
+)
+import tempfile
+import requests
 import exasol.bucketfs as bfs
+from fastmcp import Context
 
 from exasol.ai.mcp.server.keyword_search import keyword_filter
 from exasol.ai.mcp.server.server_settings import (
@@ -62,3 +70,73 @@ class BucketFsTools:
         return ExaDbResult(
             keyword_filter(content, keywords, language=self.config.language)
         )
+
+    def read_file(self, path: str) -> str:
+        """
+        Reads the content of a text file at the provided path in bucket-fs and returns
+        it as a string. The path is relative to the root location.
+        """
+        abs_path = self.bfs_location.joinpath(path)
+        if not abs_path.is_file():
+            raise FileNotFoundError(abs_path)
+        byte_content = b"".join(abs_path.read())
+        return str(byte_content, encoding="utf-8")
+
+    async def write_file(
+        self,
+        path: Annotated[str, Field(description="Path to save the file")],
+        content: Annotated[str, Field(description="File content")],
+        ctx: Context
+    ) -> None:
+        """
+        Writes a piece of text to a file at the provided path in bucket-fs.
+        The path is relative to the root location. The file will override an
+        existing file.
+        """
+        class FileElicitation(BaseModel):
+            file_path: str = Field(default=path)
+            file_content: str = Field(default=content)
+
+        message = (
+            "The following text will be saved in a BucketFS file at the give path. "
+            "Please review the text and the path. Make changes if need. Finally, "
+            "accept or decline the operation."
+        )
+        if self.bfs_location.joinpath(path).exists():
+            message += (
+                " Please note that the existing file at this path will be overwritten."
+            )
+
+        confirmation = await ctx.elicit(
+            message=message,
+            response_type=FileElicitation,
+        )
+        if confirmation.action == "accept":
+            accepted_path = confirmation.data.file_path
+            accepted_content = confirmation.data.file_content
+            byte_content = accepted_content.encode(encoding="utf-8")
+            abs_path = self.bfs_location.joinpath(accepted_path)
+            abs_path.write(byte_content)
+        elif confirmation.action == "reject":
+            raise InterruptedError("The query execution is declined by the user.")
+        else:  # cancel
+            raise InterruptedError("The query execution is cancelled by the user.")
+
+    def download_file(self, file_path: str, url: str) -> None:
+        """
+        Downloads a file from a given url and writes to a file at the provided path in
+        bucket-fs. The path is relative to the root location. The file overwrites an
+        existing file.
+        """
+        abs_path = self.bfs_location.joinpath(file_path)
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            response = requests.get(url, stream=True, timeout=300)
+            response.raise_for_status()
+            tmp_file.write(response.content)
+            tmp_file.flush()
+            # tmp_file.seek(0)
+            # abs_path.write(tmp_file)
+            # Have to open another file handler due to a bug in bucketfs-python
+            # https://github.com/exasol/bucketfs-python/issues/262
+            with open(tmp_file.name) as f:
+                abs_path.write(f)
