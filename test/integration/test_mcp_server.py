@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import Generator
 from contextlib import contextmanager
 from itertools import chain
@@ -12,10 +11,13 @@ from test.utils.db_objects import (
     ExaSchema,
     ExaTable,
 )
-from typing import (
-    Any,
-    cast,
+from test.utils.result_utils import (
+    get_list_result_json,
+    get_result_json,
+    get_sort_result_json,
+    result_sort_func,
 )
+from typing import Any
 
 import pytest
 from fastmcp import Client
@@ -65,32 +67,6 @@ def _list_tools(connection: ExaConnection, config: McpServerSettings):
     return asyncio.run(_list_tools_async(connection, config))
 
 
-def _result_sort_func(d: Any) -> str:
-    if isinstance(d, dict):
-        return ",".join(str(d[key]) for key in sorted(d.keys()))
-    return str(d)
-
-
-def _get_result_json(result) -> dict[str, Any]:
-    return cast(dict[str, Any], json.loads(result.content[0].text))
-
-
-def _get_sort_result_json(result) -> dict[str, Any]:
-    result_json = _get_result_json(result)
-    return {
-        key: sorted(val, key=_result_sort_func) if isinstance(val, list) else val
-        for key, val in result_json.items()
-    }
-
-
-def _get_list_result_json(result) -> ExaDbResult:
-    result_json = _get_result_json(result)
-    unsorted = ExaDbResult(**result_json)
-    if isinstance(unsorted.result, list):
-        return ExaDbResult(sorted(unsorted.result, key=_result_sort_func))
-    return unsorted
-
-
 def _get_expected_json(
     db_obj: ExaDbObject, conf: MetaListSettings, schema_name: str | None
 ) -> dict[str, Any]:
@@ -112,7 +88,7 @@ def _get_expected_list_json(
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
-    return ExaDbResult(sorted(expected_json, key=_result_sort_func))
+    return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
 def _get_expected_column_list_json(
@@ -126,7 +102,7 @@ def _get_expected_column_list_json(
         }
         for col in column_list
     ]
-    return sorted(expected_json, key=_result_sort_func)
+    return sorted(expected_json, key=result_sort_func)
 
 
 def _get_expected_constraint_list_json(
@@ -147,7 +123,7 @@ def _get_expected_constraint_list_json(
         }
         for cons in constraint_list
     ]
-    return sorted(expected_json, key=_result_sort_func)
+    return sorted(expected_json, key=result_sort_func)
 
 
 def _get_expected_table_json(
@@ -259,7 +235,7 @@ def test_list_schemas(
             )
         )
         result = _run_tool(pyexasol_connection, config, "list_schemas")
-        result_json = _get_list_result_json(result)
+        result_json = get_list_result_json(result)
         expected_json = _get_expected_list_json([schema], schema.name, config.schemas)
         if use_like or use_regexp:
             assert result_json == expected_json
@@ -284,7 +260,7 @@ def test_find_schemas(
         result = _run_tool(
             pyexasol_connection, config, "find_schemas", keywords=schema.keywords
         )
-        result_json = _get_result_json(result)["result"][0]
+        result_json = get_result_json(result)["result"][0]
         expected_json = {"name": schema.name, "comment": schema.comment}
         assert result_json == expected_json
 
@@ -364,7 +340,7 @@ def test_list_tables(
             "list_tables",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
-        result_json = _get_list_result_json(result)
+        result_json = get_list_result_json(result)
         expected_result: list[dict[str, Any]] = []
         if enable_tables:
             expected_json = _get_expected_list_json(
@@ -376,7 +352,7 @@ def test_list_tables(
                 db_views, "run", config.views, schema.name
             )
             expected_result.extend(expected_json.result)
-        expected_json = ExaDbResult(sorted(expected_result, key=_result_sort_func))
+        expected_json = ExaDbResult(sorted(expected_result, key=result_sort_func))
         assert result_json == expected_json
 
 
@@ -447,7 +423,7 @@ def test_find_tables(
                 ),
             )
 
-            result_json = _get_result_json(result)["result"][0]
+            result_json = get_result_json(result)["result"][0]
             expected_json = {
                 "name": table.name,
                 "comment": table.comment,
@@ -496,7 +472,7 @@ def test_list_functions(
             "list_functions",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
-        result_json = _get_list_result_json(result)
+        result_json = get_list_result_json(result)
         expected_json = _get_expected_list_json(
             db_functions, "cut", config.functions, schema.name
         )
@@ -562,7 +538,7 @@ def test_find_functions(
                     schema, use_like or use_regexp, case_sensitive
                 ),
             )
-            result_json = _get_result_json(result)["result"][0]
+            result_json = get_result_json(result)["result"][0]
             expected_json = {
                 "name": func.name,
                 "comment": func.comment,
@@ -611,7 +587,7 @@ def test_list_scripts(
             "list_scripts",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
-        result_json = _get_list_result_json(result)
+        result_json = get_list_result_json(result)
         expected_json = _get_expected_list_json(
             db_scripts, "fibo", config.scripts, schema.name
         )
@@ -676,7 +652,7 @@ def test_find_scripts(
                     schema, use_like or use_regexp, case_sensitive
                 ),
             )
-            result_json = _get_result_json(result)["result"][0]
+            result_json = get_result_json(result)["result"][0]
             expected_json = {
                 "name": script.name,
                 "comment": script.comment,
@@ -707,7 +683,7 @@ def test_describe_table(
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 table_name=_get_db_name_param(table, case_sensitive),
             )
-            result_json = _get_sort_result_json(result)
+            result_json = get_sort_result_json(result)
             expected_json = _get_expected_table_json(table, config.columns, schema.name)
             assert result_json == expected_json
 
@@ -731,7 +707,7 @@ def test_describe_view_comment(
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 table_name=_get_db_name_param(view, case_sensitive),
             )
-            result_json = _get_sort_result_json(result)
+            result_json = get_sort_result_json(result)
             assert result_json[config.columns.table_comment_field] == view.comment
 
 
@@ -806,7 +782,7 @@ def test_describe_function(
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 func_name=_get_db_name_param(func, case_sensitive),
             )
-            result_json = _get_result_json(result)
+            result_json = get_result_json(result)
             expected_json = _get_expected_param_json(func, config.parameters)
             expected_json[config.parameters.usage_field] = FUNCTION_USAGE
             assert result_json == expected_json
@@ -835,7 +811,7 @@ def test_describe_script(
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 script_name=_get_db_name_param(script, case_sensitive),
             )
-            result_json = _get_result_json(result)
+            result_json = get_result_json(result)
             # The call example message is properly tested in the unit tests.
             # Here we just verify that it exists.
             assert config.parameters.usage_field in result_json
@@ -857,12 +833,12 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
             result = _run_tool(
                 pyexasol_connection, config, tool_name="execute_query", query=query
             )
-            result_json = _get_list_result_json(result)
+            result_json = get_list_result_json(result)
             expected_json = [
                 {col.name: col_value for col, col_value in zip(table.columns, row)}
                 for row in table.rows
             ]
-            expected_json.sort(key=_result_sort_func)
+            expected_json.sort(key=result_sort_func)
             assert result_json == ExaDbResult(expected_json)
 
 
