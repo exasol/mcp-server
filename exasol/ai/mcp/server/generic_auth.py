@@ -57,9 +57,9 @@ def str_to_str(s: str) -> str:
 
 def str_to_bool(s) -> bool:
     s_lower = str_to_str(s).lower()
-    if s_lower == "true":
+    if s_lower in ["true", "yes", "y"]:
         return True
-    if s_lower == "false":
+    if s_lower in ["false", "no", "n"]:
         return False
     raise ValueError(f"Invalid boolean parameter: {s}")
 

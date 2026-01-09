@@ -12,11 +12,13 @@ from typing import (
     ContextManager,
 )
 
+import exasol.bucketfs as bfs
 import exasol.saas.client.api_access as saas_api
 import fastmcp.server.dependencies as fmcp_api
 import pyexasol
 import sqlglot.expressions as exp
 
+from exasol.ai.mcp.server.generic_auth import str_to_bool
 from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
 
 ENV_DSN = "EXA_DSN"
@@ -57,11 +59,38 @@ ENV_LOG_CLAIMS = "EXA_LOG_CLAIMS"
 """ Log OAuth claims if available (yes/no) """
 ENV_LOG_HTTP_HEADERS = "EXA_LOG_HTTP_HEADERS"
 """ Log headers from the current HTTP request if available (yes/no) """
+ENV_BUCKETFS_URL = "EXA_BUCKETFS_URL"
+""" On-prem BucketFS service url """
+ENV_BUCKETFS_SERVICE = "EXA_BUCKETFS_SERVICE"
+""" On-prem BucketFS service name (not required in most cases) """
+ENV_BUCKETFS_BUCKET = "EXA_BUCKETFS_BUCKET"
+""" On-prem BucketFS bucket name ("default" if not specified) """
+ENV_BUCKETFS_USER = "EXA_BUCKETFS_USER"
+""" On-prem BucketFS user name """
+ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"
+""" On-prem BucketFS user password """
+ENV_BUCKETFS_PATH = "EXA_BUCKETFS_PATH"
+""" Optional root directory in the bucket (defaults to the bucket root) """
 
 DEFAULT_CONN_POOL_SIZE = 5
 DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
 
 logger = logging.getLogger(__name__)
+
+env_to_bucketfs = {
+    ENV_BUCKETFS_URL: "url|onprem",
+    ENV_BUCKETFS_SERVICE: "service_name",
+    ENV_BUCKETFS_BUCKET: "bucket_name",
+    ENV_BUCKETFS_USER: "username",
+    ENV_BUCKETFS_PASSWORD: "password",
+    ENV_SAAS_HOST: "url|saas",
+    ENV_SAAS_ACCOUNT_ID: "account_id",
+    ENV_SAAS_PAT: "pat",
+    ENV_SAAS_DATABASE_ID: "database_id",
+    # ENV_SAAS_DATABASE_NAME should be added once build_path supports database_name
+    ENV_BUCKETFS_PATH: "path",
+    ENV_SSL_CERT_VALIDATION: "verify",
+}
 
 
 def local_env_complete(env: dict[str, Any]) -> bool:
@@ -136,13 +165,7 @@ def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
 def optional_bool_from_env(env: dict[str, Any], var_name: str) -> bool | None:
     if var_name not in env:
         return None
-    v = env[var_name].lower()
-    if v in ["true", "yes", "y"]:
-        return True
-    elif v in ["false", "no", "n"]:
-        return False
-    else:
-        raise ValueError(f"Unable to interpret {var_name} as a boolean value.")
+    return str_to_bool(env[var_name])
 
 
 def get_ssl_options(env: dict[str, Any]) -> dict[str, Any]:
@@ -387,3 +410,35 @@ def get_connection_factory(
             connection_pool.checkin(user, connection)
 
     return connection_factory
+
+
+def get_bucketfs_location(env: dict[str, Any]) -> bfs.path.PathLike:
+    """
+    If sufficient configuration parameters are provided, opens a BucketFS connection
+    and returns a PathLike of the bucket root or a specified root directory.
+
+    Here, the word "connection" is used superficially. No actual connection exists.
+    A successfully created BucketFS PathLike object indicates that the specified
+    bucket is accessible, subject to read/write permissions.
+
+    Will raise an error if BucketFS is inaccessible with the provided configuration.
+    """
+    kwargs = _copy_kwargs(env, env_to_bucketfs)
+    # Remove parameter name disambiguation.
+    kwargs = {k.split("|")[0]: v for k, v in kwargs.items()}
+    if saas_env_complete(env):
+        kwargs["backend"] = "saas"
+        # This code should be moved to the `bucketfs-python.build_path`.
+        if "database_id" not in kwargs:
+            kwargs["database_id"] = bfs.path.get_database_id_by_name(
+                env[ENV_SAAS_HOST],
+                env[ENV_SAAS_ACCOUNT_ID],
+                env[ENV_SAAS_PAT],
+                env[ENV_SAAS_DATABASE_NAME],
+            )
+    else:
+        kwargs["backend"] = "onprem"
+    if "verify" in kwargs:
+        kwargs["verify"] = str_to_bool(kwargs["verify"])
+
+    return bfs.path.build_path(**kwargs)
