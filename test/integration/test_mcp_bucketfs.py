@@ -1,11 +1,61 @@
+import asyncio
+from collections.abc import Generator
 from contextlib import contextmanager
-from unittest.mock import patch
+from test.utils.db_objects import (
+    ExaBfsDir,
+    ExaBfsFile,
+    ExaBfsObject,
+)
+from test.utils.result_utils import (
+    get_list_result_json,
+    result_sort_func,
+)
+from unittest.mock import (
+    create_autospec,
+    patch,
+)
 
+import exasol.bucketfs as bfs
+import pyexasol
 import pytest
+from fastmcp import Client
+from fastmcp.exceptions import ToolError
 
+from exasol.ai.mcp.server.bucketfs_tools import PATH_FIELD
 from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
-from exasol.ai.mcp.server.main import mcp_server
-from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.main import (
+    create_mcp_server,
+    mcp_server,
+)
+from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
+    McpServerSettings,
+)
+
+
+async def _run_tool_async(
+    bucketfs_location: bfs.path.PathLike, tool_name: str, **kwargs
+):
+    @contextmanager
+    def connection_factory() -> Generator[pyexasol.ExaConnection, None, None]:
+        yield create_autospec(pyexasol.ExaConnection)
+
+    db_connection = DbConnection(connection_factory, num_retries=1)
+
+    config = McpServerSettings(enable_read_bucketfs=True, enable_write_bucketfs=True)
+    exa_server = create_mcp_server(db_connection, config, bucketfs_location)
+    async with Client(exa_server) as client:
+        return await client.call_tool(tool_name, kwargs)
+
+
+def _run_tool(bucketfs_location: bfs.path.PathLike, tool_name: str, **kwargs):
+    return asyncio.run(_run_tool_async(bucketfs_location, tool_name, **kwargs))
+
+
+def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
+    expected_json = [{PATH_FIELD: path} for path, item in items.items()]
+    return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
 @pytest.fixture
@@ -20,6 +70,14 @@ def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
         env_name = bucketfs_to_env.get(k) or bucketfs_to_env.get(f"{k}|{backend}")
         if env_name:
             monkeypatch.setenv(env_name, str(v))
+
+
+@pytest.fixture(scope="session")
+def bucketfs_location(backend_aware_bucketfs_params, setup_bucketfs):
+    """
+    Will delete this fixture from here. once it becomes available in the pytest-plugin.
+    """
+    return bfs.path.build_path(**backend_aware_bucketfs_params)
 
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
@@ -47,4 +105,79 @@ def test_mcp_server_with_bucketfs(
         enable_read_bucketfs=enable_bucketfs
     )
     server = mcp_server()
-    assert (server.bucketfs_location is not None) == enable_bucketfs
+    assert (server.bucketfs_tools is not None) == enable_bucketfs
+
+
+def test_list_directories(bucketfs_location, bfs_data) -> None:
+    for item in bfs_data.items:
+        if isinstance(item, ExaBfsDir):
+            path = f"{bfs_data.name}/{item.name}"
+            result = _run_tool(bucketfs_location, "list_directories", directory=path)
+            result_json = get_list_result_json(result)
+            expected_nodes = {
+                f"{path}/{sub_item.name}": sub_item
+                for sub_item in item.items
+                if isinstance(sub_item, ExaBfsDir)
+            }
+            expected_json = _get_expected_list_json(expected_nodes)
+            assert result_json == expected_json
+
+
+def test_list_directories_root(bucketfs_location, bfs_data) -> None:
+    result = _run_tool(bucketfs_location, "list_directories")
+    result_json = get_list_result_json(result)
+    expected_nodes = {bfs_data.name: bfs_data}
+    expected_json = _get_expected_list_json(expected_nodes)
+    assert result_json == expected_json
+
+
+def test_list_files(bucketfs_location, bfs_data) -> None:
+    for item in bfs_data.items:
+        if isinstance(item, ExaBfsDir):
+            path = f"{bfs_data.name}/{item.name}"
+            result = _run_tool(bucketfs_location, "list_files", directory=path)
+            result_json = get_list_result_json(result)
+            expected_nodes = {
+                f"{path}/{sub_item.name}": sub_item
+                for sub_item in item.items
+                if isinstance(sub_item, ExaBfsFile)
+            }
+            expected_json = _get_expected_list_json(expected_nodes)
+            assert result_json == expected_json
+
+
+def test_list_files_root(bucketfs_location) -> None:
+    result = _run_tool(bucketfs_location, "list_files")
+    result_json = get_list_result_json(result)
+    expected_json = _get_expected_list_json({})
+    assert result_json == expected_json
+
+
+def test_list_not_in_directory(bucketfs_location, bfs_data) -> None:
+    for item in bfs_data.items:
+        if isinstance(item, ExaBfsFile):
+            path = f"{bfs_data.name}/{item.name}"
+            with pytest.raises(ToolError):
+                _run_tool(bucketfs_location, "list_directories", directory=path)
+            with pytest.raises(ToolError):
+                _run_tool(bucketfs_location, "list_files", directory=path)
+
+
+def test_list_in_nowhere(bucketfs_location, bfs_data) -> None:
+    path = f"{bfs_data.name}/Unicorn"
+    with pytest.raises(ToolError):
+        _run_tool(bucketfs_location, "list_directories", directory=path)
+    with pytest.raises(ToolError):
+        _run_tool(bucketfs_location, "list_files", directory=path)
+
+
+@pytest.mark.parametrize("path", ["Species/Carnivores", "Species", ""])
+def test_find_files(bucketfs_location, bfs_data, path) -> None:
+    keywords = ["cat"]
+    result = _run_tool(
+        bucketfs_location, "find_files", keywords=keywords, directory=path
+    )
+    result_json = get_list_result_json(result)
+    expected_nodes = bfs_data.find_descendants(["Cougar", "Bobcat"])
+    expected_json = _get_expected_list_json(expected_nodes)
+    assert result_json == expected_json

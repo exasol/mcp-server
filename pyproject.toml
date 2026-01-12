@@ -34,6 +34,7 @@ stopwords = "^1.0.1"
 rank-bm25 = "^0.2.2"
 click = "^8.2.0"
 exasol-saas-api = "^2.4.0"
+exasol-bucketfs = "^2.1.0"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^4.0.0"

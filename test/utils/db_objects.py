@@ -1,3 +1,4 @@
+from collections.abc import ByteString
 from dataclasses import dataclass
 from itertools import chain
 from typing import Any
@@ -88,3 +89,31 @@ class ExaFunction(ExaDbObject):
 class ExaSchema(ExaDbObject):
     is_new: bool
     keywords: list[str]
+
+
+@dataclass
+class ExaBfsObject:
+    name: str
+
+
+@dataclass
+class ExaBfsDir(ExaBfsObject):
+    items: list[ExaBfsObject]
+
+    def find_descendants(
+        self, names: list[str], path: str = ""
+    ) -> dict[str, ExaBfsObject]:
+        descendants: dict[str, ExaBfsObject] = {}
+        path = path or self.name
+        for item in self.items:
+            item_path = f"{path}/{item.name}"
+            if item.name in names:
+                descendants[item_path] = item
+            elif isinstance(item, ExaBfsDir):
+                descendants.update(item.find_descendants(names, path=item_path))
+        return descendants
+
+
+@dataclass
+class ExaBfsFile(ExaBfsObject):
+    content: ByteString
