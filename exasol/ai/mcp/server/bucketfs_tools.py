@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from typing import Annotated
 
 import exasol.bucketfs as bfs
+from pydantic import Field
 
 from exasol.ai.mcp.server.keyword_search import keyword_filter
 from exasol.ai.mcp.server.server_settings import (
@@ -25,21 +27,40 @@ class BucketFsTools:
         ]
         return ExaDbResult(content)
 
-    def list_directories(self, directory: str = "") -> ExaDbResult:
+    def list_directories(
+        self,
+        directory: Annotated[
+            str, Field(description="Directory, defaults to bucket root", default="")
+        ],
+    ) -> ExaDbResult:
         """
         Lists subdirectories at the given directory. The directory path is relative
         to the root location.
         """
         return self._list_items(directory, lambda pth: pth.is_dir())
 
-    def list_files(self, directory: str = "") -> ExaDbResult:
+    def list_files(
+        self,
+        directory: Annotated[
+            str, Field(description="Directory, defaults to bucket root", default="")
+        ],
+    ) -> ExaDbResult:
         """
         Lists files at the given directory. The directory path is relative to the
         root location.
         """
         return self._list_items(directory, lambda pth: pth.is_file())
 
-    def find_files(self, keywords: list[str], directory: str = "") -> ExaDbResult:
+    def find_files(
+        self,
+        keywords: Annotated[
+            list[str],
+            Field(description="List of keywords to look for in the file path"),
+        ],
+        directory: Annotated[
+            str, Field(description="Directory, defaults to bucket root", default="")
+        ],
+    ) -> ExaDbResult:
         """
         Performs a keyword search of files at the given directory and all its descendant
         subdirectories. The path is relative to the root location.

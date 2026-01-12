@@ -74,6 +74,9 @@ def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
 
 @pytest.fixture(scope="session")
 def bucketfs_location(backend_aware_bucketfs_params, setup_bucketfs):
+    """
+    Will delete this fixture from here. once it becomes available in the pytest-plugin.
+    """
     return bfs.path.build_path(**backend_aware_bucketfs_params)
 
 
@@ -120,6 +123,14 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
             assert result_json == expected_json
 
 
+def test_list_directories_root(bucketfs_location, bfs_data) -> None:
+    result = _run_tool(bucketfs_location, "list_directories")
+    result_json = get_list_result_json(result)
+    expected_nodes = {bfs_data.name: bfs_data}
+    expected_json = _get_expected_list_json(expected_nodes)
+    assert result_json == expected_json
+
+
 def test_list_files(bucketfs_location, bfs_data) -> None:
     for item in bfs_data.items:
         if isinstance(item, ExaBfsDir):
@@ -133,6 +144,13 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
             }
             expected_json = _get_expected_list_json(expected_nodes)
             assert result_json == expected_json
+
+
+def test_list_files_root(bucketfs_location) -> None:
+    result = _run_tool(bucketfs_location, "list_files")
+    result_json = get_list_result_json(result)
+    expected_json = _get_expected_list_json({})
+    assert result_json == expected_json
 
 
 def test_list_not_in_directory(bucketfs_location, bfs_data) -> None:
