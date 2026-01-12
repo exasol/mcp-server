@@ -93,7 +93,8 @@ class BucketFsTools:
     def find_files(
         self,
         keywords: Annotated[
-            str, Field(description="List of keywords to look for in the file path")
+            list[str],
+            Field(description="List of keywords to look for in the file path"),
         ],
         directory: Annotated[
             str, Field(description="Directory, defaults to bucket root", default="")
