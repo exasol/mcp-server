@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from test.utils.db_objects import (
     ExaBfsDir,
     ExaBfsFile,
@@ -21,7 +22,10 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
-from exasol.ai.mcp.server.bucketfs_tools import PATH_FIELD
+from exasol.ai.mcp.server.bucketfs_tools import (
+    OVERWRITE_WARNING,
+    PATH_FIELD,
+)
 from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
 from exasol.ai.mcp.server.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
@@ -33,19 +37,61 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
 )
 
+_human = (
+    "A human (Homo sapiens) is a bipedal primate species characterized by a large "
+    "brain, high cognitive capacity, and complex culture. Morphologically, it is "
+    "defined by a unique combination of traits including a high and rounded skull, "
+    "reduced jaw and teeth, and a fully opposable thumb. Genetically, it is a "
+    "distinct lineage within the hominid family, with a genome that demonstrates "
+    "close relation to other Homo species (now extinct) and more distant relation "
+    "to extant great apes."
+)
+
+_chimpanzee = (
+    "Great ape, closest living relative to humans. Robust, covered in coarse black "
+    "hair (face, palms, soles bare). Arms longer than legs. Pronounced brow ridge, "
+    "large ears."
+)
+
+
+@dataclass
+class ElicitationData:
+    warning: bool
+    action: str
+    data: dict[str, str]
+
+
+@dataclass
+class WriteTestCase:
+    path: str
+    content: str
+    elicitation: list[ElicitationData]
+
 
 async def _run_tool_async(
     bucketfs_location: bfs.path.PathLike, tool_name: str, **kwargs
 ):
+    elicit_count = 0
+
     @contextmanager
     def connection_factory() -> Generator[pyexasol.ExaConnection, None, None]:
         yield create_autospec(pyexasol.ExaConnection)
+
+    async def elicitation_handler(message: str, response_type: type, params, context):
+        nonlocal elicit_count
+        elicitation: ElicitationData = kwargs["elicitation"][elicit_count]
+        assert (OVERWRITE_WARNING in message) == elicitation.warning
+        action = elicitation.action
+        response_data = response_type(**elicitation.data)
+        elicit_count += 1
+        return ElicitResult(action=action, content=response_data)
 
     db_connection = DbConnection(connection_factory, num_retries=1)
 
     config = McpServerSettings(enable_read_bucketfs=True, enable_write_bucketfs=True)
     exa_server = create_mcp_server(db_connection, config, bucketfs_location)
-    async with Client(exa_server) as client:
+    elicit_handler = elicitation_handler if elicitation in kwargs else None
+    async with Client(exa_server, elicitation_handler=elicit_handler) as client:
         return await client.call_tool(tool_name, kwargs)
 
 
@@ -163,3 +209,37 @@ def test_find_files(bucketfs_location, bfs_data, path) -> None:
     expected_nodes = bfs_data.find_descendants(["Cougar", "Bobcat"])
     expected_json = _get_expected_list_json(expected_nodes)
     assert result_json == expected_json
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WriteTestCase(
+            path="Species/Primates/human",
+            content=_chimpanzee,
+            elicitation=[
+                ElicitationData(
+                    warning=False,
+                    action="accept",
+                    data={
+                        "file_path": "Species/Rodents/Squirrel",
+                        "file_content": _chimpanzee,
+                    },
+                ),
+                ElicitationData(
+                    warning=True,
+                    action="accept",
+                    data={"file_path": path, "file_content": _human},
+                ),
+            ],
+        )
+    ],
+)
+def test_write_file(bucketfs_location, test_case) -> None:
+    result = _run_tool(
+        bucketfs_location,
+        "write_file",
+        path=test_case.path,
+        content=test_case.content,
+        elicitation=test_case.elicitation,
+    )
