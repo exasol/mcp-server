@@ -19,9 +19,9 @@ class BucketFsTools:
         self.config = config
 
     def _list_items(
-        self, rel_dir: str, item_filter: Callable[[bfs.path.PathLike], bool]
+        self, directory: str, item_filter: Callable[[bfs.path.PathLike], bool]
     ) -> ExaDbResult:
-        abs_dir = self.bfs_location.joinpath(rel_dir)
+        abs_dir = self.bfs_location.joinpath(directory)
         content = [
             {PATH_FIELD: str(pth)} for pth in abs_dir.iterdir() if item_filter(pth)
         ]

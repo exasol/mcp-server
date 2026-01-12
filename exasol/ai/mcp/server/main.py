@@ -224,7 +224,8 @@ def _register_find_files(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.find_files,
             description=(
-                "Performs a keyword search of files in the BucketFS file system."
+                "Performs a keyword search of files in the BucketFS file system. The "
+                "list of keywords should include common inflections of each keyword. "
                 "Files are searched in the given directory and all its descendant "
                 "subdirectories."
             ),
