@@ -140,6 +140,26 @@ def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
     return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
+@contextmanager
+def tmp_path_write(bfs_path: bfs.path.PathLike):
+    """
+    Allows to test writing at the specified location, with subsequent deletion
+    or restoration of the previous file if the one existed.
+    """
+    assert not bfs_path.is_dir()
+    if bfs_path.is_file():
+        byte_content = b"".join(bfs_path.read())
+    else:
+        byte_content = None
+    try:
+        yield
+    finally:
+        if byte_content is None:
+            bfs_path.rm()
+        else:
+            bfs_path.write(byte_content)
+
+
 @pytest.fixture
 def bucketfs_params_env(backend_aware_bucketfs_params, monkeypatch) -> None:
     """
@@ -287,6 +307,12 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             elicitation=[ElicitationData(warning=False, action="accept", data={})],
         ),
         WriteTestCase(
+            # Same, but overwriting existing file.
+            path="Species/Even-toed_Ungulates/Deer/Elk",
+            content=_chimpanzee,
+            elicitation=[ElicitationData(warning=True, action="accept", data={})],
+        ),
+        WriteTestCase(
             # First suggests a path that doesn't exist,
             # then, in the elicitation, changes it to another one that does exist.
             # This should cause another elicitation, where it changes it again.
@@ -310,23 +336,20 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             ],
         ),
     ],
-    ids=["one elicitation", "two elicitations"],
+    ids=["one elicitation", "overwriting file", "two elicitations"],
 )
 def test_write_file(bucketfs_location, test_case) -> None:
-    _run_tool(
-        bucketfs_location,
-        "write_file",
-        elicitation=test_case.elicitation,
-        path=test_case.path,
-        content=test_case.content,
-    )
-    try:
+    with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
+        _run_tool(
+            bucketfs_location,
+            "write_file",
+            elicitation=test_case.elicitation,
+            path=test_case.path,
+            content=test_case.content,
+        )
         result = _run_tool(bucketfs_location, "read_file", path=test_case.expected_path)
         content = get_result_content(result)
         assert content == test_case.expected_content
-    finally:
-        expected_bfs_path = bucketfs_location.joinpath(test_case.expected_path)
-        expected_bfs_path.rm()
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
@@ -356,6 +379,11 @@ def test_write_file_not_accepted(bucketfs_location, action) -> None:
             elicitation=[ElicitationData(warning=False, action="accept", data={})],
         ),
         WriteTestCase(
+            path="Species/Even-toed_Ungulates/Deer/Elk",
+            content="",
+            elicitation=[ElicitationData(warning=True, action="accept", data={})],
+        ),
+        WriteTestCase(
             path="Species/Rodents/Squirrel",
             content="",
             elicitation=[
@@ -369,24 +397,21 @@ def test_write_file_not_accepted(bucketfs_location, action) -> None:
             ],
         ),
     ],
-    ids=["accept path", "change path"],
+    ids=["accept path", "overwrite file", "change path"],
 )
 def test_download_file(bucketfs_location, test_case) -> None:
-    _run_tool(
-        bucketfs_location,
-        "download_file",
-        elicitation=test_case.elicitation,
-        url="https://raw.githubusercontent.com/octocat/Hello-World/master/README",
-        path=test_case.path,
-    )
-    time.sleep(5)
-    try:
+    with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
+        _run_tool(
+            bucketfs_location,
+            "download_file",
+            elicitation=test_case.elicitation,
+            url="https://raw.githubusercontent.com/octocat/Hello-World/master/README",
+            path=test_case.path,
+        )
+        time.sleep(5)
         result = _run_tool(bucketfs_location, "read_file", path=test_case.expected_path)
         content = get_result_content(result)
         assert content.strip() == "Hello World!"
-    finally:
-        expected_bfs_path = bucketfs_location.joinpath(test_case.expected_path)
-        expected_bfs_path.rm()
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
