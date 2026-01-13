@@ -1,9 +1,12 @@
+import asyncio
 import tempfile
 from collections.abc import Callable
+from contextlib import AsyncExitStack
 from typing import Annotated
 
 import exasol.bucketfs as bfs
-import requests
+import httpx
+from aiofile import async_open
 from fastmcp import Context
 from pydantic import (
     BaseModel,
@@ -198,13 +201,19 @@ class BucketFsTools:
         abs_path = self.bfs_location.joinpath(answer.file_path)
 
         with tempfile.NamedTemporaryFile() as tmp_file:
-            response = requests.get(url, stream=True, timeout=300)
-            response.raise_for_status()
-            tmp_file.write(response.content)
-            tmp_file.flush()
-            # tmp_file.seek(0)
-            # abs_path.write(tmp_file)
-            # Have to open another file handler due to a bug in bucketfs-python
-            # https://github.com/exasol/bucketfs-python/issues/262
-            with open(tmp_file.name) as f:
-                abs_path.write(f)
+            async with AsyncExitStack() as stack:
+                client = await stack.enter_async_context(httpx.AsyncClient(timeout=300))
+                response = await stack.enter_async_context(client.stream("GET", url))
+                response.raise_for_status()
+
+                # Download in chunks
+                afp = await stack.enter_async_context(async_open(tmp_file.name, "wb"))
+                async for chunk in response.aiter_bytes(262144):
+                    await afp.write(chunk)
+
+            # At the moment, BucketFS only supports synchronous I/O
+            def upload_to_bucketfs():
+                with open(tmp_file.name) as f:
+                    abs_path.write(f)
+
+            await asyncio.to_thread(upload_to_bucketfs)
