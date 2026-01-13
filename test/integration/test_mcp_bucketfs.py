@@ -1,5 +1,4 @@
 import asyncio
-import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -26,8 +25,10 @@ from fastmcp.client.elicitation import ElicitResult
 from fastmcp.exceptions import ToolError
 
 from exasol.ai.mcp.server.bucketfs_tools import (
+    INVALID_PATH_WARNING,
     OVERWRITE_WARNING,
     PATH_FIELD,
+    PathStatus,
 )
 from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
 from exasol.ai.mcp.server.db_connection import DbConnection
@@ -67,7 +68,7 @@ _home_luminis = (
 
 @dataclass
 class ElicitationData:
-    warning: bool
+    path_status: PathStatus
     action: str | None
     data: dict[str, str]
 
@@ -76,14 +77,18 @@ class ElicitationData:
 class WriteTestCase:
     path: str
     content: str
-    elicitation: list[ElicitationData]
+    elicitations: list[ElicitationData]
 
     def _expected_value(self, init_value, value_name: str) -> str:
-        x_value = init_value
-        for ed in self.elicitation:
-            if value_name in ed.data:
-                x_value = ed.data[value_name]
-        return x_value
+        """
+        Gets the expected final value of an element with the given name, that can be
+        changed in elicitation.
+        """
+        elicit_value = init_value
+        for elicit in self.elicitations:
+            if value_name in elicit.data:
+                elicit_value = elicit.data[value_name]
+        return elicit_value
 
     @property
     def expected_path(self) -> str:
@@ -108,10 +113,15 @@ async def _run_tool_async(
 
     async def elicitation_handler(message: str, response_type: type, params, context):
         nonlocal elicit_count
-        elicitation_i = elicitation[elicit_count]
-        assert (OVERWRITE_WARNING in message) == elicitation_i.warning
-        action = elicitation_i.action
-        response_data = response_type(**elicitation_i.data)
+        current_elicitation = elicitation[elicit_count]
+        assert (INVALID_PATH_WARNING in message) == (
+            current_elicitation.path_status == PathStatus.Invalid
+        )
+        assert (OVERWRITE_WARNING in message) == (
+            current_elicitation.path_status == PathStatus.Exists
+        )
+        action = current_elicitation.action
+        response_data = response_type(**current_elicitation.data)
         elicit_count += 1
         return ElicitResult(action=action, content=response_data)
 
@@ -286,15 +296,12 @@ def test_find_files(bucketfs_location, bfs_data, path) -> None:
 
 
 def test_read_file(bucketfs_location, bfs_data) -> None:
-    for item in bfs_data.items:
-        if isinstance(item, ExaBfsDir):
-            dir_path = f"{bfs_data.name}/{item.name}"
-            for sub_item in item.items:
-                if isinstance(sub_item, ExaBfsFile):
-                    file_path = f"{dir_path}/{sub_item.name}"
-                    result = _run_tool(bucketfs_location, "read_file", path=file_path)
-                    content = get_result_content(result)
-                    assert content == str(sub_item.content, encoding="utf-8")
+    file_path = "Species/Rodents/Squirrel/Eastern_Gray_Squirrel"
+    item = next(iter(bfs_data.find_descendants(["Eastern_Gray_Squirrel"]).values()))
+    assert isinstance(item, ExaBfsFile)
+    result = _run_tool(bucketfs_location, "read_file", path=file_path)
+    content = get_result_content(result)
+    assert content == str(item.content, encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -304,13 +311,17 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             # A simple case with one round of elicitation.
             path="Species/Primates/chimpanzee",
             content=_chimpanzee,
-            elicitation=[ElicitationData(warning=False, action="accept", data={})],
+            elicitations=[
+                ElicitationData(path_status=PathStatus.OK, action="accept", data={})
+            ],
         ),
         WriteTestCase(
             # Same, but overwriting existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
             content=_chimpanzee,
-            elicitation=[ElicitationData(warning=True, action="accept", data={})],
+            elicitations=[
+                ElicitationData(path_status=PathStatus.Exists, action="accept", data={})
+            ],
         ),
         WriteTestCase(
             # First suggests a path that doesn't exist,
@@ -319,9 +330,9 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             # The content is changed in the first elicitation.
             path="Species/Primates/human",
             content=_chimpanzee,
-            elicitation=[
+            elicitations=[
                 ElicitationData(
-                    warning=False,
+                    path_status=PathStatus.OK,
                     action="accept",
                     data={
                         "file_path": "Species/Rodents/Squirrel",
@@ -329,21 +340,33 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
                     },
                 ),
                 ElicitationData(
-                    warning=True,
+                    path_status=PathStatus.Exists,
                     action="accept",
                     data={"file_path": "Species/Primates/human"},
                 ),
             ],
         ),
+        WriteTestCase(
+            # Starts with a bad file path, then corrects it in the elicitation.
+            path="Species/Primates/home:luminis",
+            content=_home_luminis,
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={"file_path": "Species/Primates/home-luminis"},
+                )
+            ],
+        ),
     ],
-    ids=["one elicitation", "overwriting file", "two elicitations"],
+    ids=["one elicitation", "overwrites file", "two elicitations", "corrects_path"],
 )
-def test_write_file(bucketfs_location, test_case) -> None:
+def test_write_text_to_file(bucketfs_location, test_case) -> None:
     with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
         _run_tool(
             bucketfs_location,
-            "write_file",
-            elicitation=test_case.elicitation,
+            "write_text_to_file",
+            elicitation=test_case.elicitations,
             path=test_case.path,
             content=test_case.content,
         )
@@ -353,15 +376,18 @@ def test_write_file(bucketfs_location, test_case) -> None:
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_write_file_not_accepted(bucketfs_location, action) -> None:
+def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
+    """
+    Verifies the case when the file writing is rejected in elicitation.
+    """
     path = "Species/Primates/home_luminis"
     elicitation = [
-        ElicitationData(warning=False, action=action, data={}),
+        ElicitationData(path_status=PathStatus.OK, action=action, data={}),
     ]
     with pytest.raises(ToolError):
         _run_tool(
             bucketfs_location,
-            "write_file",
+            "write_text_to_file",
             elicitation=elicitation,
             path=path,
             content=_home_luminis,
@@ -374,58 +400,107 @@ def test_write_file_not_accepted(bucketfs_location, action) -> None:
     "test_case",
     [
         WriteTestCase(
-            path="download_test/README",
+            # Creates a new file with trivial elicitation.
+            path="humanoids/home-luminis",
             content="",
-            elicitation=[ElicitationData(warning=False, action="accept", data={})],
+            elicitations=[
+                ElicitationData(path_status=PathStatus.OK, action="accept", data={})
+            ],
         ),
         WriteTestCase(
+            # Overwrites an existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
             content="",
-            elicitation=[ElicitationData(warning=True, action="accept", data={})],
+            elicitations=[
+                ElicitationData(path_status=PathStatus.Exists, action="accept", data={})
+            ],
         ),
         WriteTestCase(
+            # Changes the path in elicitation to avoid overwriting existing file.
             path="Species/Rodents/Squirrel",
             content="",
-            elicitation=[
+            elicitations=[
                 ElicitationData(
-                    warning=True,
+                    path_status=PathStatus.Exists,
                     action="accept",
                     data={
-                        "file_path": "README",
+                        "file_path": "home-luminis",
+                    },
+                ),
+            ],
+        ),
+        WriteTestCase(
+            # Corrects an invalid path in elicitation.
+            path="humanoids/home:luminis",
+            content="",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={
+                        "file_path": "humanoids2/home-luminis",
                     },
                 ),
             ],
         ),
     ],
-    ids=["accept path", "overwrite file", "change path"],
+    ids=["accepts path", "overwrites file", "changes path", "corrects path"],
 )
-def test_download_file(bucketfs_location, test_case) -> None:
+def test_download_file(bucketfs_location, test_case, httpserver) -> None:
+    url_path = "/fake_science"
+    httpserver.expect_request(url_path).respond_with_data(_home_luminis)
     with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
         _run_tool(
             bucketfs_location,
             "download_file",
-            elicitation=test_case.elicitation,
-            url="https://raw.githubusercontent.com/octocat/Hello-World/master/README",
+            elicitation=test_case.elicitations,
+            url=httpserver.url_for(url_path),
             path=test_case.path,
         )
-        time.sleep(5)
         result = _run_tool(bucketfs_location, "read_file", path=test_case.expected_path)
         content = get_result_content(result)
-        assert content.strip() == "Hello World!"
+        assert content == _home_luminis
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_download_file_not_accepted(bucketfs_location, action) -> None:
-    path = "download_test_rejected/README"
+def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> None:
+    """
+    Verifies the case when the file downloading is rejected in elicitation.
+    """
+    url_path = "/fake_science"
+    httpserver.expect_request(url_path).respond_with_data(_home_luminis)
+    path = "humanoids3/home-luminis"
     elicitation = [
-        ElicitationData(warning=False, action=action, data={}),
+        ElicitationData(path_status=PathStatus.OK, action=action, data={}),
     ]
     with pytest.raises(ToolError):
         _run_tool(
             bucketfs_location,
             "download_file",
             elicitation=elicitation,
-            url="https://raw.githubusercontent.com/octocat/Hello-World/master/README",
+            url=httpserver.url_for(url_path),
+            path=path,
+        )
+    bfs_path = bucketfs_location.joinpath(path)
+    assert not bfs_path.exists()
+
+
+def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
+    """
+    Verifies the case when the provided url doesn't exist.
+    """
+    url_path = "/fake_science"
+    httpserver.expect_request(url_path).respond_with_data(_home_luminis)
+    path = "humanoids4/home-luminis"
+    elicitation = [
+        ElicitationData(path_status=PathStatus.OK, action="accept", data={}),
+    ]
+    with pytest.raises(ToolError):
+        _run_tool(
+            bucketfs_location,
+            "download_file",
+            elicitation=elicitation,
+            url=httpserver.url_for("/true_science"),
             path=path,
         )
     bfs_path = bucketfs_location.joinpath(path)

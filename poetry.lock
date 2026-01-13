@@ -3950,6 +3950,21 @@ pytest = ">=7,<9"
 pytest-exasol-backend = ">=1.1,<2"
 
 [[package]]
+name = "pytest-httpserver"
+version = "1.1.3"
+description = "pytest-httpserver is a httpserver for pytest"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pytest_httpserver-1.1.3-py3-none-any.whl", hash = "sha256:5f84757810233e19e2bb5287f3826a71c97a3740abe3a363af9155c0f82fdbb9"},
+    {file = "pytest_httpserver-1.1.3.tar.gz", hash = "sha256:af819d6b533f84b4680b9416a5b3f67f1df3701f1da54924afd4d6e4ba5917ec"},
+]
+
+[package.dependencies]
+Werkzeug = ">=2.0.0"
+
+[[package]]
 name = "python-daemon"
 version = "3.1.2"
 description = "Library to implement a well-behaved Unix daemon process."
@@ -5849,4 +5864,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "68c09bf46d1b965e4f8535b57b3ba850842f3edad1a86022b4b6db70aabd1b1c"
+content-hash = "a9acff1ea33caa14bd9ec2b45f38721bc84930f5b2b4cd2d5370e13229075ef5"

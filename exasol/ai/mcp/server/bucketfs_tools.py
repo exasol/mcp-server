@@ -2,12 +2,20 @@ import asyncio
 import tempfile
 from collections.abc import Callable
 from contextlib import AsyncExitStack
+from enum import (
+    Enum,
+    auto,
+)
 from typing import Annotated
 
 import exasol.bucketfs as bfs
 import httpx
 from aiofile import async_open
 from fastmcp import Context
+from pathvalidate import (
+    ValidationError,
+    validate_filepath,
+)
 from pydantic import (
     BaseModel,
     Field,
@@ -24,6 +32,15 @@ OVERWRITE_WARNING = (
     "Please note that there is an existing file at the chosen path. If the operation "
     "is accepted the existing file will be overwritten."
 )
+INVALID_PATH_WARNING = (
+    "Please note that the chosen path has some invalid characters and must be modified."
+)
+
+
+class PathStatus(Enum):
+    OK = auto()
+    Invalid = auto()
+    Exists = auto()
 
 
 class BucketFsTools:
@@ -40,14 +57,30 @@ class BucketFsTools:
         ]
         return ExaDbResult(content)
 
+    def _get_path_status(self, path: str) -> PathStatus:
+        # First check if the path has any of the BucketFS own disallowed characters.
+        if any(c in path for c in ": "):
+            return PathStatus.Invalid
+        # Then check the normal Linux rules.
+        try:
+            validate_filepath(path, platform="Linux")
+        except ValidationError:
+            return PathStatus.Invalid
+        bfs_path = self.bfs_location.joinpath(path)
+        # If the path is OK, check if it points to an existing file or directory.
+        if bfs_path.exists():
+            return PathStatus.Exists
+        return PathStatus.OK
+
     async def _elicitate(self, message: str, ctx: Context, response_type_factory):
 
         path, response_type = response_type_factory()
-        abs_path = self.bfs_location.joinpath(path)
-        file_exists = abs_path.exists()
+        path_status = self._get_path_status(path)
         while True:
             full_message = message
-            if file_exists:
+            if path_status == PathStatus.Invalid:
+                full_message += " " + INVALID_PATH_WARNING
+            elif path_status == PathStatus.Exists:
                 full_message += " " + OVERWRITE_WARNING
             confirmation = await ctx.elicit(
                 message=full_message,
@@ -56,18 +89,18 @@ class BucketFsTools:
             if confirmation.action == "accept":
                 accepted_path, response_type = response_type_factory(confirmation.data)
                 if accepted_path != path:
-                    abs_path = self.bfs_location.joinpath(accepted_path)
-                    file_exists = abs_path.exists()
-                    if file_exists:
-                        # Another path is chosen, but there is an existing file there.
-                        # Ask to re-confirm overwriting it.
+                    path_status = self._get_path_status(accepted_path)
+                    if path_status != PathStatus.OK:
+                        # Another path is chosen, but it is either invalid or there is
+                        # an existing file or directory. Either way, go for another
+                        # elicitation.
                         path = accepted_path
                         continue
                 return confirmation.data
             elif confirmation.action == "reject":
-                raise InterruptedError("The query execution is declined by the user.")
+                raise InterruptedError("The file operation is declined by the user.")
             else:  # cancel
-                raise InterruptedError("The query execution is cancelled by the user.")
+                raise InterruptedError("The file operation is cancelled by the user.")
 
     def list_directories(
         self,
@@ -121,7 +154,7 @@ class BucketFsTools:
         self, path: Annotated[str, Field(description="Full path of the file")]
     ) -> str:
         """
-        Reads the content of a text file at the provided path in bucket-fs and returns
+        Reads the content of a text file at the provided path in BucketFS and returns
         it as a string. The path is relative to the root location.
         """
         abs_path = self.bfs_location.joinpath(path)
@@ -130,14 +163,22 @@ class BucketFsTools:
         byte_content = b"".join(abs_path.read())
         return str(byte_content, encoding="utf-8")
 
-    async def write_file(
+    async def write_text_to_file(
         self,
-        path: Annotated[str, Field(description="Path where the file should be saved")],
-        content: Annotated[str, Field(description="File content")],
+        path: Annotated[
+            str,
+            Field(
+                description=(
+                    "BucketFS file path where the file should be saved. "
+                    "Spaces and colons are not allowed in the path."
+                )
+            ),
+        ],
+        content: Annotated[str, Field(description="File textual content")],
         ctx: Context,
     ) -> None:
         """
-        Writes a piece of text to a file at the provided path in bucket-fs.
+        Writes a piece of text to a file at the provided path in BucketFS.
         The path is relative to the root location. An existing file will be overwritten.
         Elicitation is required. If the path is modified in elicitation and there is an
         existing file at the modified path, the elicitation is repeated, to get an
@@ -158,7 +199,7 @@ class BucketFsTools:
 
         message = (
             "The following text will be saved in a BucketFS file at the give path. "
-            "Please review the text and the path. Make changes if need. Finally, "
+            "Please review the text and the path. Make changes if needed. Finally, "
             "accept or decline the operation."
         )
 
@@ -169,7 +210,15 @@ class BucketFsTools:
 
     async def download_file(
         self,
-        path: Annotated[str, Field(description="Path where the file should be saved")],
+        path: Annotated[
+            str,
+            Field(
+                description=(
+                    "BucketFS file path where the file should be saved. "
+                    "Spaces and colons are not allowed in the path."
+                )
+            ),
+        ],
         url: Annotated[
             str, Field(description="URL where the file should be downloaded from")
         ],
@@ -177,7 +226,7 @@ class BucketFsTools:
     ) -> None:
         """
         Downloads a file from a given url and writes to a file at the provided path in
-        bucket-fs. The path is relative to the root location. The file overwrites an
+        BucketFS. The path is relative to the root location. The file overwrites an
         existing file.
         """
 

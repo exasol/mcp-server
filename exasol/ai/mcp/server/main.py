@@ -242,10 +242,10 @@ def _register_read_file(mcp_server: ExasolMCPServer) -> None:
         )
 
 
-def _register_write_file(mcp_server: ExasolMCPServer) -> None:
+def _register_write_text_to_file(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
-            mcp_server.bucketfs_tools.write_file,
+            mcp_server.bucketfs_tools.write_text_to_file,
             description=(
                 "Writes the provided text to a file in the BucketFS file system."
             ),
@@ -291,7 +291,7 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_find_files(mcp_server)
         _register_read_file(mcp_server)
     if config.enable_write_bucketfs:
-        _register_write_file(mcp_server)
+        _register_write_text_to_file(mcp_server)
         _register_download_file(mcp_server)
 
 
