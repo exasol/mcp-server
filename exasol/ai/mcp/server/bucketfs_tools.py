@@ -27,20 +27,31 @@ from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
 )
 
-PATH_FIELD = "FULL_PATH"
-OVERWRITE_WARNING = (
-    "Please note that there is an existing file at the chosen path. If the operation "
-    "is accepted the existing file will be overwritten."
-)
-INVALID_PATH_WARNING = (
-    "Please note that the chosen path has some invalid characters and must be modified."
-)
-
 
 class PathStatus(Enum):
     OK = auto()
     Invalid = auto()
-    Exists = auto()
+    FileExists = auto()
+    DirExists = ()
+
+
+PATH_FIELD = "FULL_PATH"
+
+PATH_WARNINGS = {
+    PathStatus.FileExists: (
+        "Please note that there is an existing file at the chosen path. If the "
+        "operation is accepted the existing file will be overwritten."
+    ),
+    PathStatus.DirExists: (
+        "There is an existing directory at the chosen path. The operation cannot "
+        "proceed because it is not possible to delete a directory. Please choose "
+        "another path."
+    ),
+    PathStatus.Invalid: (
+        "Please note that the chosen path has some invalid characters and must be "
+        "modified."
+    ),
+}
 
 
 class BucketFsTools:
@@ -68,8 +79,10 @@ class BucketFsTools:
             return PathStatus.Invalid
         bfs_path = self.bfs_location.joinpath(path)
         # If the path is OK, check if it points to an existing file or directory.
-        if bfs_path.exists():
-            return PathStatus.Exists
+        if bfs_path.is_file():
+            return PathStatus.FileExists
+        elif bfs_path.is_dir():
+            return PathStatus.DirExists
         return PathStatus.OK
 
     async def _elicitate(self, message: str, ctx: Context, response_type_factory):
@@ -77,25 +90,26 @@ class BucketFsTools:
         path, response_type = response_type_factory()
         path_status = self._get_path_status(path)
         while True:
-            full_message = message
-            if path_status == PathStatus.Invalid:
-                full_message += " " + INVALID_PATH_WARNING
-            elif path_status == PathStatus.Exists:
-                full_message += " " + OVERWRITE_WARNING
+            if path_status == PathStatus.OK:
+                full_message = message
+            else:
+                full_message = f"{message} {PATH_WARNINGS[path_status]}"
             confirmation = await ctx.elicit(
                 message=full_message,
                 response_type=response_type,
             )
             if confirmation.action == "accept":
                 accepted_path, response_type = response_type_factory(confirmation.data)
-                if accepted_path != path:
-                    path_status = self._get_path_status(accepted_path)
-                    if path_status != PathStatus.OK:
-                        # Another path is chosen, but it is either invalid or there is
-                        # an existing file or directory. Either way, go for another
-                        # elicitation.
-                        path = accepted_path
-                        continue
+                path_status = self._get_path_status(accepted_path)
+                if path_status == PathStatus.DirExists or (
+                    (path_status == PathStatus.FileExists) and (accepted_path != path)
+                ):
+                    # The chosen path points to an existing directory (we cannot
+                    # proceed with that), or an existing file (OK, but we need an
+                    # explicit confirmation in order to proceed). Either way, go
+                    # for another elicitation.
+                    path = accepted_path
+                    continue
                 return confirmation.data
             elif confirmation.action == "reject":
                 raise InterruptedError("The file operation is declined by the user.")
