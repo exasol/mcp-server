@@ -8,10 +8,7 @@
 * #121: Allowed editing generated DDL/DML query in elicitation.
 * #123: Added creating a BucketFS connection.
 * #107: Added BucketFS file system browsing tools.
-
-## Refactoring
-
-* #125: Extracted helper functions from the main integration test into utilities.
+* #120: Added tools to read, write and download bucketfs files
 
 ## Refactoring
 

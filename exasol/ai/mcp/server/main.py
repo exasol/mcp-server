@@ -213,9 +213,7 @@ def _register_list_files(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.list_files,
-            description=(
-                "Lists files at the given directory of the BucketFS file system."
-            ),
+            description=("Lists files at the given directory of the BucketFS."),
         )
 
 
@@ -224,10 +222,37 @@ def _register_find_files(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.find_files,
             description=(
-                "Performs a keyword search of files in the BucketFS file system. The "
-                "list of keywords should include common inflections of each keyword. "
+                "Performs a keyword search of files in the BucketFS. The list "
+                "of keywords should include common inflections of each keyword. "
                 "Files are searched in the given directory and all its descendant "
                 "subdirectories."
+            ),
+        )
+
+
+def _register_read_file(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.read_file,
+            description=("Reads the content of a text file in the BucketFS."),
+        )
+
+
+def _register_write_text_to_file(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.write_text_to_file,
+            description=("Writes the provided text to a file in the BucketFS."),
+        )
+
+
+def _register_download_file(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.download_file,
+            description=(
+                "Downloads a file from a given url and saves it at the specified path "
+                "in the BucketFS. The file will overwrite an existing file."
             ),
         )
 
@@ -258,6 +283,10 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_list_directories(mcp_server)
         _register_list_files(mcp_server)
         _register_find_files(mcp_server)
+        _register_read_file(mcp_server)
+    if config.enable_write_bucketfs:
+        _register_write_text_to_file(mcp_server)
+        _register_download_file(mcp_server)
 
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
