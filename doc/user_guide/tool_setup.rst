@@ -27,7 +27,7 @@ elicitation, the tool will return an error.
 Enable BucketFS I/O
 --------------------
 
-Likewise, the configuration specifies if the server can read and write the data from/to
+The configuration also specifies if the server can read and write the data from/to
 the BucketFS. To enable reading of the directory structure and the content of files, set the
 ``enable_read_bucketfs`` property to true, as shown below.
 

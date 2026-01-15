@@ -13,14 +13,14 @@ On-Prem configuration
 +-----------------------+-------------------------------------------------------------+
 | Variable Name         | Description                                                 |
 +=======================+=============================================================+
-| EXA_BUCKETFS_URL      | BucketFS URL, for example https://demodb.exasol.com:2202"). |
+| EXA_BUCKETFS_URL      | BucketFS URL, for example "https://demodb.exasol.com:2202". |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_SERVICE  | Optional name of the BucketFS service,                      |
-|                       | not required in most cases                                  |
+|                       | not required in most cases.                                  |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_BUCKET   | Optional name of the bucket, defaults to "default".         |
 +-----------------------+-------------------------------------------------------------+
-| EXA_BUCKETFS_USER     | BucketFS user name.                                         |
+| EXA_BUCKETFS_USER     | BucketFS username.                                         |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_PASSWORD | Password for the selected bucket.                           |
 +-----------------------+-------------------------------------------------------------+
@@ -31,7 +31,7 @@ On-Prem configuration
 SaaS configuration
 ------------------
 
-In the case of SaaS backend, the BucketFS shares the authentication with the database.
-Currently there is only one BucketFS service and only one bucket. Therefore, no extra
+In the case of a SaaS backend, the BucketFS shares the authentication with the database.
+Currently, there is only one BucketFS service and only one bucket. Therefore, no extra
 configuration is required. The only optional configuration element that could be used
-is `EXA_BUCKETFS_PATH`, which has the same meaning as in On-Prem case.
+is `EXA_BUCKETFS_PATH`, which has the same meaning as in the On-Prem case.
