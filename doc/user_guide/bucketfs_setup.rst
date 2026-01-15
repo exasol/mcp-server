@@ -16,11 +16,11 @@ On-Prem configuration
 | EXA_BUCKETFS_URL      | BucketFS URL, for example "https://demodb.exasol.com:2202". |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_SERVICE  | Optional name of the BucketFS service,                      |
-|                       | not required in most cases.                                  |
+|                       | not required in most cases.                                 |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_BUCKET   | Optional name of the bucket, defaults to "default".         |
 +-----------------------+-------------------------------------------------------------+
-| EXA_BUCKETFS_USER     | BucketFS username.                                         |
+| EXA_BUCKETFS_USER     | BucketFS username.                                          |
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_PASSWORD | Password for the selected bucket.                           |
 +-----------------------+-------------------------------------------------------------+
