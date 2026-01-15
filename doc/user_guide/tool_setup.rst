@@ -24,6 +24,28 @@ elicitation, the tool will return an error.
         "enable_write_query": true
     }
 
+Enable BucketFS I/O
+--------------------
+
+The configuration also specifies if the server can read and write the data from/to
+the BucketFS. To enable reading of the directory structure and the content of files, set the
+``enable_read_bucketfs`` property to true, as shown below.
+
+To enable writing file operations, such as saving a text in a file, downloading a file from
+a provided URL and deleting a file, set ``enable_write_bucketfs`` property to true. Before a
+BucketFS writing operation is executed, the user will be asked to check the path where the new
+file is going to be saved. If a file or directory exists at this path, the user must explicitly
+confirm the deletion of the old file. This, again, is done through the elicitation mechanism.
+Currently, the writing file operations are only possible if the client application supports
+elicitation.
+
+.. code-block:: json
+
+    {
+        "enable_read_bucketfs": true,
+        "enable_write_bucketfs": true
+    }
+
 Set DB object listing filters
 -----------------------------
 

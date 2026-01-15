@@ -9,5 +9,6 @@
     server_setup
     tool_setup
     db_connection_setup
+    bucketfs_setup
     open_id_setup
     deployment

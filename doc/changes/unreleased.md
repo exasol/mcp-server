@@ -18,5 +18,9 @@
 
 * #113: Disallowed unauthenticated HTTP by default.
 
+## Documentation
+
+* #129: Update the User Guide with information about BucketFS support.
+
 ## Internal
 * #117: Updated exasol-toolbox to 4.0.0
