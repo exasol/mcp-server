@@ -1,5 +1,8 @@
 import asyncio
-from collections.abc import Generator
+from collections.abc import (
+    ByteString,
+    Generator,
+)
 from contextlib import contextmanager
 from dataclasses import dataclass
 from test.utils.db_objects import (
@@ -23,11 +26,14 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.elicitation import ElicitResult
 from fastmcp.exceptions import ToolError
+from tenacity import retry
+from tenacity.stop import stop_after_attempt
+from tenacity.wait import wait_exponential
 
 from exasol.ai.mcp.server.bucketfs_tools import (
     PATH_FIELD,
-    PATH_WARNINGS,
     PathStatus,
+    get_path_warning,
 )
 from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
 from exasol.ai.mcp.server.db_connection import DbConnection
@@ -75,8 +81,8 @@ class ElicitationData:
 @dataclass
 class WriteTestCase:
     path: str
-    content: str
     elicitations: list[ElicitationData]
+    content: str = ""
 
     def _expected_value(self, init_value, value_name: str) -> str:
         """
@@ -101,7 +107,8 @@ class WriteTestCase:
 async def _run_tool_async(
     bucketfs_location: bfs.path.PathLike,
     tool_name: str,
-    elicitation: list[ElicitationData] | None = None,
+    elicitation: list[ElicitationData] | None,
+    expected_status: PathStatus | None,
     **kwargs,
 ):
     elicit_count = 0
@@ -113,8 +120,13 @@ async def _run_tool_async(
     async def elicitation_handler(message: str, response_type: type, params, context):
         nonlocal elicit_count
         current_elicitation = elicitation[elicit_count]
-        for status, warning in PATH_WARNINGS.items():
-            assert (warning in message) == (status == current_elicitation.path_status)
+        # Verify the presence of the correct warning in the elicitation message.
+        for status in PathStatus:
+            warning = get_path_warning(status, expected_status)
+            if warning:
+                assert (warning in message) == (
+                    status == current_elicitation.path_status
+                )
         action = current_elicitation.action
         response_data = response_type(**current_elicitation.data)
         elicit_count += 1
@@ -133,10 +145,13 @@ def _run_tool(
     bucketfs_location: bfs.path.PathLike,
     tool_name: str,
     elicitation: list[ElicitationData] | None = None,
+    expected_status: PathStatus | None = None,
     **kwargs,
 ):
     return asyncio.run(
-        _run_tool_async(bucketfs_location, tool_name, elicitation, **kwargs)
+        _run_tool_async(
+            bucketfs_location, tool_name, elicitation, expected_status, **kwargs
+        )
     )
 
 
@@ -145,24 +160,40 @@ def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
     return ExaDbResult(sorted(expected_json, key=result_sort_func))
 
 
+@retry(
+    reraise=True,
+    wait=wait_exponential(multiplier=1, min=1, max=15),
+    stop=stop_after_attempt(7),
+)
+def _restore_file(bfs_file: bfs.path.PathLike, byte_content: ByteString | None) -> None:
+    bfs_file.write(byte_content)
+
+
 @contextmanager
 def tmp_path_write(bfs_path: bfs.path.PathLike):
     """
-    Allows to test writing at the specified location, with subsequent deletion
-    or restoration of the previous file if the one existed.
+    Allows to test creating a file or deleting a file or directory at the specified
+    location, with subsequent restoration of the pre-existing file structure.
     """
-    assert not bfs_path.is_dir()
-    if bfs_path.is_file():
+
+    controlled_files: list[tuple[bfs.path.PathLike, ByteString]] = []
+    if bfs_path.is_dir():
+        for bfs_dir, sub_dirs, files in bfs_path.walk():
+            for file in files:
+                bfs_file = bfs_dir.joinpath(file)
+                byte_content = b"".join(bfs_file.read())
+                controlled_files.append((bfs_file, byte_content))
+    elif bfs_path.is_file():
         byte_content = b"".join(bfs_path.read())
-    else:
-        byte_content = None
+        controlled_files.append((bfs_path, byte_content))
+
     try:
         yield
     finally:
-        if byte_content is None:
+        for bfs_file, byte_content in controlled_files:
+            _restore_file(bfs_file, byte_content)
+        if not controlled_files:
             bfs_path.rm()
-        else:
-            bfs_path.write(byte_content)
 
 
 @pytest.fixture
@@ -307,11 +338,11 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             path="Species/Primates/chimpanzee",
             content=_chimpanzee,
             elicitations=[
-                ElicitationData(path_status=PathStatus.OK, action="accept", data={})
+                ElicitationData(path_status=PathStatus.Vacant, action="accept", data={})
             ],
         ),
         WriteTestCase(
-            # Same, but overwriting existing file.
+            # Set to overwrite an existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
             content=_chimpanzee,
             elicitations=[
@@ -321,15 +352,13 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             ],
         ),
         WriteTestCase(
-            # First suggests a path that doesn't exist,
-            # then, in the elicitation, changes it to another one that does exist.
-            # This should cause another elicitation, where it changes it again.
-            # The content is changed in the first elicitation.
+            # Start with a path that doesn't exist, then, change it to another one
+            # that does exist. The content is changed in the first elicitation.
             path="Species/Primates/human",
             content=_chimpanzee,
             elicitations=[
                 ElicitationData(
-                    path_status=PathStatus.OK,
+                    path_status=PathStatus.Vacant,
                     action="accept",
                     data={
                         "file_path": "Species/Rodents/Squirrel/Eastern_Gray_Squirrel",
@@ -344,20 +373,24 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
             ],
         ),
         WriteTestCase(
-            # Starts with a bad file path, then corrects it in the elicitation.
+            # Start with a bad file path, then correct it after the second reminder.
             path="Species/Primates/home:luminis",
             content=_home_luminis,
             elicitations=[
                 ElicitationData(
                     path_status=PathStatus.Invalid,
                     action="accept",
+                    data={},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
                     data={"file_path": "Species/Primates/home-luminis"},
-                )
+                ),
             ],
         ),
         WriteTestCase(
-            # First point to an existing directory, confirm it, then give up
-            # and set it to an existing file. Confirm again, and then done.
+            # Start from an existing directory, then set it to an existing file.
             path="Species/Rodents/Squirrel",
             content=_chimpanzee,
             elicitations=[
@@ -380,11 +413,11 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
         ),
     ],
     ids=[
-        "one elicitation",
-        "overwrites file",
+        "base case",
+        "overwrite file",
         "two elicitations",
-        "corrects_path",
-        "tries to kill a directory",
+        "invalid path",
+        "directory",
     ],
 )
 def test_write_text_to_file(bucketfs_location, test_case) -> None:
@@ -408,7 +441,7 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
     """
     path = "Species/Primates/home_luminis"
     elicitation = [
-        ElicitationData(path_status=PathStatus.OK, action=action, data={}),
+        ElicitationData(path_status=PathStatus.Vacant, action=action, data={}),
     ]
     with pytest.raises(ToolError):
         _run_tool(
@@ -426,17 +459,15 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
     "test_case",
     [
         WriteTestCase(
-            # Creates a new file with trivial elicitation.
+            # A simple case with one round of elicitation.
             path="humanoids/home-luminis",
-            content="",
             elicitations=[
-                ElicitationData(path_status=PathStatus.OK, action="accept", data={})
+                ElicitationData(path_status=PathStatus.Vacant, action="accept", data={})
             ],
         ),
         WriteTestCase(
-            # Overwrites an existing file.
+            # Set to overwrite an existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
-            content="",
             elicitations=[
                 ElicitationData(
                     path_status=PathStatus.FileExists, action="accept", data={}
@@ -444,9 +475,8 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
             ],
         ),
         WriteTestCase(
-            # Changes the path in elicitation to avoid overwriting existing file.
+            # Change the path to avoid overwriting existing file.
             path="Species/Rodents/Squirrel/Eastern_Gray_Squirrel",
-            content="",
             elicitations=[
                 ElicitationData(
                     path_status=PathStatus.FileExists,
@@ -458,10 +488,14 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
             ],
         ),
         WriteTestCase(
-            # Corrects an invalid path in elicitation.
+            # Start with a bad path, then correct it after the second reminder.
             path="humanoids/home:luminis",
-            content="",
             elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={},
+                ),
                 ElicitationData(
                     path_status=PathStatus.Invalid,
                     action="accept",
@@ -472,9 +506,9 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
             ],
         ),
         WriteTestCase(
-            # Tries to set the path to an existing directory.
+            # Start with a path pointing to an existing directory. Then change it
+            # to a non-existent path.
             path="Species/Rodents/Squirrel",
-            content="",
             elicitations=[
                 ElicitationData(
                     path_status=PathStatus.DirExists,
@@ -490,11 +524,11 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
         ),
     ],
     ids=[
-        "accepts path",
-        "overwrites file",
-        "changes path",
-        "corrects path",
-        "tries to kill a directory",
+        "base case",
+        "overwrite file",
+        "change path",
+        "invalid path",
+        "directory",
     ],
 )
 def test_download_file(bucketfs_location, test_case, httpserver) -> None:
@@ -522,7 +556,7 @@ def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> No
     httpserver.expect_request(url_path).respond_with_data(_home_luminis)
     path = "humanoids3/home-luminis"
     elicitation = [
-        ElicitationData(path_status=PathStatus.OK, action=action, data={}),
+        ElicitationData(path_status=PathStatus.Vacant, action=action, data={}),
     ]
     with pytest.raises(ToolError):
         _run_tool(
@@ -544,7 +578,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
     httpserver.expect_request(url_path).respond_with_data(_home_luminis)
     path = "humanoids4/home-luminis"
     elicitation = [
-        ElicitationData(path_status=PathStatus.OK, action="accept", data={}),
+        ElicitationData(path_status=PathStatus.Vacant, action="accept", data={}),
     ]
     with pytest.raises(ToolError):
         _run_tool(
@@ -556,3 +590,222 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
         )
     bfs_path = bucketfs_location.joinpath(path)
     assert not bfs_path.exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WriteTestCase(
+            # A simple case with one round of elicitation.
+            path="Species/Carnivores/Cat/Cougar",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.FileExists, action="accept", data={}
+                )
+            ],
+        ),
+        WriteTestCase(
+            # Start with a path that doesn't exist, change it to an existing one.
+            path="Species/unicorn",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Vacant,
+                    action="accept",
+                    data={"file_path": "Species/Rodents/Squirrel/Eastern_Chipmunk"},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.FileExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+        WriteTestCase(
+            # Start with a bad file path, then correct it after the second reminder.
+            path="Species/Even-toed_Ungulates/Deer:White-tailed_Deer",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={
+                        "file_path": "Species/Even-toed_Ungulates/Deer/White-tailed_Deer"
+                    },
+                ),
+                ElicitationData(
+                    path_status=PathStatus.FileExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+        WriteTestCase(
+            # Try to delete an existing directory, then set the path to an existing file.
+            path="Species/Even-toed_Ungulates",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.DirExists,
+                    action="accept",
+                    data={},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.DirExists,
+                    action="accept",
+                    data={"file_path": "Species/Even-toed_Ungulates/Deer/Elk"},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.FileExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+    ],
+    ids=[
+        "base case",
+        "file does not exist",
+        "invalid path",
+        "directory",
+    ],
+)
+def test_delete_file(bucketfs_location, test_case) -> None:
+    abs_path = bucketfs_location.joinpath(test_case.expected_path)
+    assert abs_path.exists()
+    with tmp_path_write(abs_path):
+        _run_tool(
+            bucketfs_location,
+            "delete_file",
+            elicitation=test_case.elicitations,
+            expected_status=PathStatus.FileExists,
+            path=test_case.path,
+        )
+        assert not abs_path.exists()
+
+
+@pytest.mark.parametrize("action", ["decline", "cancel", None])
+def test_delete_file_not_accepted(bucketfs_location, action) -> None:
+    """
+    Verifies the case when the file deletion is rejected in elicitation.
+    """
+    path = "Species/Even-toed_Ungulates/Deer/Elk"
+    elicitation = [
+        ElicitationData(path_status=PathStatus.FileExists, action=action, data={}),
+    ]
+    with pytest.raises(ToolError):
+        _run_tool(bucketfs_location, "delete_file", elicitation=elicitation, path=path)
+    bfs_path = bucketfs_location.joinpath(path)
+    assert bfs_path.exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WriteTestCase(
+            # A simple case with one round of elicitation.
+            path="Species/Carnivores/",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.DirExists, action="accept", data={}
+                )
+            ],
+        ),
+        WriteTestCase(
+            # Start with a path that doesn't exist, change it to an existing one.
+            path="Species/Unicorns",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Vacant,
+                    action="accept",
+                    data={"file_path": "Species/Rodents"},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.DirExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+        WriteTestCase(
+            # Start with a bad path, then correct it after the second reminder.
+            path="Species/Carnivores:Dog",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.Invalid,
+                    action="accept",
+                    data={"file_path": "Species/Carnivores/Dog"},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.DirExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+        WriteTestCase(
+            # Try to delete an existing file, then set the path to an existing
+            # directory.
+            path="Species/Carnivores/Dog/Gray_Fox",
+            elicitations=[
+                ElicitationData(
+                    path_status=PathStatus.FileExists,
+                    action="accept",
+                    data={},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.FileExists,
+                    action="accept",
+                    data={"file_path": "Species/Carnivores/Dog"},
+                ),
+                ElicitationData(
+                    path_status=PathStatus.DirExists,
+                    action="accept",
+                    data={},
+                ),
+            ],
+        ),
+    ],
+    ids=[
+        "base case",
+        "directory does not exist",
+        "invalid path",
+        "file",
+    ],
+)
+def test_delete_directory(bucketfs_location, test_case) -> None:
+    abs_path = bucketfs_location.joinpath(test_case.expected_path)
+    assert abs_path.exists()
+    with tmp_path_write(abs_path):
+        _run_tool(
+            bucketfs_location,
+            "delete_directory",
+            elicitation=test_case.elicitations,
+            expected_status=PathStatus.DirExists,
+            path=test_case.path,
+        )
+        assert not abs_path.exists()
+
+
+@pytest.mark.parametrize("action", ["decline", "cancel", None])
+def test_delete_directory_not_accepted(bucketfs_location, action) -> None:
+    """
+    Verifies the case when the directory deletion is rejected in elicitation.
+    """
+    path = "Species/Even-toed_Ungulates"
+    elicitation = [
+        ElicitationData(path_status=PathStatus.DirExists, action=action, data={}),
+    ]
+    with pytest.raises(ToolError):
+        _run_tool(
+            bucketfs_location, "delete_directory", elicitation=elicitation, path=path
+        )
+    bfs_path = bucketfs_location.joinpath(path)
+    assert bfs_path.exists()
