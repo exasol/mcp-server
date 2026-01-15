@@ -86,6 +86,7 @@ linkcheck_anchors = False
 linkcheck_ignore: list[str] = [
     r"http://localhost:\d+",  # Localhost URLs
     r"https://.*\.compute\.amazonaws\.com",  # Example URL in AWS
+    r"https://demodb.exasol.com:2202",  # Demo DB BucketFS URL
 ]
 linkcheck_allowed_redirects = {
     # All HTTP redirections from the source URI to
