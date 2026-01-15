@@ -13,8 +13,12 @@ def result_sort_func(d: Any) -> str:
     return str(d)
 
 
+def get_result_content(result) -> str:
+    return result.content[0].text
+
+
 def get_result_json(result) -> dict[str, Any]:
-    return cast(dict[str, Any], json.loads(result.content[0].text))
+    return cast(dict[str, Any], json.loads(get_result_content(result)))
 
 
 def get_sort_result_json(result) -> dict[str, Any]:

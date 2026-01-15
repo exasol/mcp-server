@@ -35,6 +35,8 @@ rank-bm25 = "^0.2.2"
 click = "^8.2.0"
 exasol-saas-api = "^2.4.0"
 exasol-bucketfs = "^2.1.0"
+aiofile = "^3.9.0"
+pathvalidate = "^3.3.1"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^4.0.0"
@@ -43,6 +45,7 @@ pytest-exasol-extension = "^0.2.4"
 exasol-integration-test-docker-environment = "^5.0.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"
+pytest-httpserver = "^1.1.3"
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
