@@ -9,6 +9,7 @@
 * #123: Added creating a BucketFS connection.
 * #107: Added BucketFS file system browsing tools.
 * #120: Added tools to read, write and download bucketfs files
+* #131: Added tools to delete BucketFS files and directories
 
 ## Refactoring
 

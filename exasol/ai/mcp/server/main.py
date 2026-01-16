@@ -257,6 +257,26 @@ def _register_download_file(mcp_server: ExasolMCPServer) -> None:
         )
 
 
+def _register_delete_file(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.delete_file,
+            description="Deletes a BucketFS file at the specified path.",
+        )
+
+
+def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
+    if mcp_server.bucketfs_tools is not None:
+        mcp_server.tool(
+            mcp_server.bucketfs_tools.delete_directory,
+            description=(
+                "Deletes a BucketFS directory at the specified path. This operation "
+                "will recursively delete all files and all subdirectories in this "
+                "directory."
+            ),
+        )
+
+
 def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> None:
     if config.schemas.enable:
         _register_list_schemas(mcp_server)
@@ -287,6 +307,8 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
     if config.enable_write_bucketfs:
         _register_write_text_to_file(mcp_server)
         _register_download_file(mcp_server)
+        _register_delete_file(mcp_server)
+        _register_delete_directory(mcp_server)
 
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
