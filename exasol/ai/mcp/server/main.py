@@ -269,7 +269,11 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.delete_directory,
-            description="Deletes a BucketFS directory at the specified path.",
+            description=(
+                "Deletes a BucketFS directory at the specified path. This operation "
+                "will recursively delete all files and all subdirectories in this "
+                "directory."
+            ),
         )
 
 

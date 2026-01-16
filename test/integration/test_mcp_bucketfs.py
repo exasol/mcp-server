@@ -79,7 +79,7 @@ class ElicitationData:
 
 
 @dataclass
-class WriteTestCase:
+class ModifyTestCase:
     path: str
     elicitations: list[ElicitationData]
     content: str = ""
@@ -333,7 +333,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
 @pytest.mark.parametrize(
     "test_case",
     [
-        WriteTestCase(
+        ModifyTestCase(
             # A simple case with one round of elicitation.
             path="Species/Primates/chimpanzee",
             content=_chimpanzee,
@@ -341,7 +341,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
                 ElicitationData(path_status=PathStatus.Vacant, action="accept", data={})
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Set to overwrite an existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
             content=_chimpanzee,
@@ -351,7 +351,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
                 )
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a path that doesn't exist, then, change it to another one
             # that does exist. The content is changed in the first elicitation.
             path="Species/Primates/human",
@@ -372,7 +372,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a bad file path, then correct it after the second reminder.
             path="Species/Primates/home:luminis",
             content=_home_luminis,
@@ -389,7 +389,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start from an existing directory, then set it to an existing file.
             path="Species/Rodents/Squirrel",
             content=_chimpanzee,
@@ -458,14 +458,14 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
 @pytest.mark.parametrize(
     "test_case",
     [
-        WriteTestCase(
+        ModifyTestCase(
             # A simple case with one round of elicitation.
             path="humanoids/home-luminis",
             elicitations=[
                 ElicitationData(path_status=PathStatus.Vacant, action="accept", data={})
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Set to overwrite an existing file.
             path="Species/Even-toed_Ungulates/Deer/Elk",
             elicitations=[
@@ -474,7 +474,7 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
                 )
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Change the path to avoid overwriting existing file.
             path="Species/Rodents/Squirrel/Eastern_Gray_Squirrel",
             elicitations=[
@@ -487,7 +487,7 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a bad path, then correct it after the second reminder.
             path="humanoids/home:luminis",
             elicitations=[
@@ -505,7 +505,7 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a path pointing to an existing directory. Then change it
             # to a non-existent path.
             path="Species/Rodents/Squirrel",
@@ -595,7 +595,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
 @pytest.mark.parametrize(
     "test_case",
     [
-        WriteTestCase(
+        ModifyTestCase(
             # A simple case with one round of elicitation.
             path="Species/Carnivores/Cat/Cougar",
             elicitations=[
@@ -604,7 +604,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                 )
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a path that doesn't exist, change it to an existing one.
             path="Species/unicorn",
             elicitations=[
@@ -615,7 +615,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a bad file path, then correct it after the second reminder.
             path="Species/Even-toed_Ungulates/Deer:White-tailed_Deer",
             elicitations=[
@@ -633,7 +633,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Try to delete an existing directory, then set the path to an existing file.
             path="Species/Even-toed_Ungulates",
             elicitations=[
@@ -689,7 +689,7 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
 @pytest.mark.parametrize(
     "test_case",
     [
-        WriteTestCase(
+        ModifyTestCase(
             # A simple case with one round of elicitation.
             path="Species/Carnivores/",
             elicitations=[
@@ -698,7 +698,7 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                 )
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a path that doesn't exist, change it to an existing one.
             path="Species/Unicorns",
             elicitations=[
@@ -709,7 +709,7 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Start with a bad path, then correct it after the second reminder.
             path="Species/Carnivores:Dog",
             elicitations=[
@@ -725,7 +725,7 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                 ),
             ],
         ),
-        WriteTestCase(
+        ModifyTestCase(
             # Try to delete an existing file, then set the path to an existing
             # directory.
             path="Species/Carnivores/Dog/Gray_Fox",
