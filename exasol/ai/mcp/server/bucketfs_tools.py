@@ -38,7 +38,7 @@ class PathStatus(Enum):
 PATH_FIELD = "FULL_PATH"
 
 PATH_WARNINGS = {
-    PathStatus.Vacant: ("There is no file or directory at the chosen path."),
+    PathStatus.Vacant: "There is no file or directory at the chosen path.",
     PathStatus.FileExists: (
         "There is an existing file at the chosen path. If the operation is accepted "
         "the existing file will be overwritten."
@@ -108,7 +108,30 @@ class BucketFsTools:
         response_type_factory,
         expected_status: PathStatus | None = None,
     ):
+        """
+        Calls the MCP elicitation one or more times. The elicitation is required for
+        data modifying tools, such as writing and deleting files. A mandatory field in
+        the elicitation data is a BucketFS path of a file or directory targeted by the
+        tool. The exact rules in regard to the path are different depending on the tool.
+        Generally, if the user changed the path, and there is important information the
+        user may need to know, for instance there is an existing file at this path, the
+        elicitation may be repeated.
 
+        Args:
+            message:
+                Generic message to be displayed in the elicitation. This message can be
+                appended with a warning regarding the chosen path.
+            ctx:
+                MCP context.
+            response_type_factory:
+                Function creating a response_type to be passed to the elicitation. The
+                function takes one optional parameter - the elicitation data. It should
+                return a tuple - the path and the response type. The path comes either
+                from the initial value or from a filed in the provided elicitation data.
+            expected_status:
+                Optional parameter used by the deletion tools. For these tools, the
+                chosen path must point to an existing file or directory.
+        """
         path, response_type = response_type_factory()
         path_status = self._get_path_status(path)
         while True:
@@ -130,11 +153,8 @@ class BucketFsTools:
                     )
                 else:
                     # The chosen path must point to an existing file or directory,
-                    # as per the request, and we need an explicit confirmation for
-                    # this path.
-                    good_to_go = (path_status == expected_status) and (
-                        accepted_path == path
-                    )
+                    # as per the request.
+                    good_to_go = path_status == expected_status
                 if not good_to_go:
                     # At this point, we go for another elicitation.
                     path = accepted_path
@@ -246,7 +266,8 @@ class BucketFsTools:
         The path is relative to the root location. An existing file will be overwritten.
         Elicitation is required. If the path is modified in elicitation and there is an
         existing file at the modified path, the elicitation is repeated, to get an
-        explicit confirmation that the existing file can be deleted.
+        explicit confirmation that the existing file can be deleted. Writing a file
+        in place of existing directory is not allowed.
         """
 
         def response_type_factory(data=None):
@@ -294,8 +315,8 @@ class BucketFsTools:
     ) -> None:
         """
         Downloads a file from a given url and writes to a file at the provided path in
-        BucketFS. The path is relative to the root location. The file overwrites an
-        existing file.
+        BucketFS. The path is relative to the root location. The same rules apply in
+        regard to the path as in the ``write_text_to_file`` tool.
         """
 
         response_type_factory = self._create_response_type_factory(path)

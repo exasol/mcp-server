@@ -613,11 +613,6 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                     action="accept",
                     data={"file_path": "Species/Rodents/Squirrel/Eastern_Chipmunk"},
                 ),
-                ElicitationData(
-                    path_status=PathStatus.FileExists,
-                    action="accept",
-                    data={},
-                ),
             ],
         ),
         WriteTestCase(
@@ -636,11 +631,6 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                         "file_path": "Species/Even-toed_Ungulates/Deer/White-tailed_Deer"
                     },
                 ),
-                ElicitationData(
-                    path_status=PathStatus.FileExists,
-                    action="accept",
-                    data={},
-                ),
             ],
         ),
         WriteTestCase(
@@ -656,11 +646,6 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
                     path_status=PathStatus.DirExists,
                     action="accept",
                     data={"file_path": "Species/Even-toed_Ungulates/Deer/Elk"},
-                ),
-                ElicitationData(
-                    path_status=PathStatus.FileExists,
-                    action="accept",
-                    data={},
                 ),
             ],
         ),
@@ -722,11 +707,6 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                     action="accept",
                     data={"file_path": "Species/Rodents"},
                 ),
-                ElicitationData(
-                    path_status=PathStatus.DirExists,
-                    action="accept",
-                    data={},
-                ),
             ],
         ),
         WriteTestCase(
@@ -742,11 +722,6 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                     path_status=PathStatus.Invalid,
                     action="accept",
                     data={"file_path": "Species/Carnivores/Dog"},
-                ),
-                ElicitationData(
-                    path_status=PathStatus.DirExists,
-                    action="accept",
-                    data={},
                 ),
             ],
         ),
@@ -764,11 +739,6 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
                     path_status=PathStatus.FileExists,
                     action="accept",
                     data={"file_path": "Species/Carnivores/Dog"},
-                ),
-                ElicitationData(
-                    path_status=PathStatus.DirExists,
-                    action="accept",
-                    data={},
                 ),
             ],
         ),
