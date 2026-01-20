@@ -589,6 +589,6 @@ def test_get_table_comment(case_sensitive) -> None:
 def test_get_sql_types() -> None:
     query = collapse_spaces(ExasolMetaQuery.get_sql_types())
     expected_query = collapse_spaces(
-        'SELECT "TYPE_NAME", "CREATE_PARAMS" FROM SYS.EXA_SQL_TYPES'
+        'SELECT "TYPE_NAME", "CREATE_PARAMS", "PRECISION" FROM SYS.EXA_SQL_TYPES'
     )
     assert query == expected_query

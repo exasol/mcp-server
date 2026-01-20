@@ -451,7 +451,11 @@ class ExasolMetaQuery:
         """
         query = (
             exp.Select()
-            .select(exp.column("TYPE_NAME"), exp.column("CREATE_PARAMS"))
+            .select(
+                exp.column("TYPE_NAME"),
+                exp.column("CREATE_PARAMS"),
+                exp.column("PRECISION"),
+            )
             .from_(exp.Table(this="EXA_SQL_TYPES", db="SYS"))
         )
         return query.sql(dialect="exasol", identify=True)
