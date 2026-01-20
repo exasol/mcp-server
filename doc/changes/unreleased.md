@@ -2,4 +2,4 @@
 
 ## Features
 
-* #135: Add SQL type resource.
+* #135: Added SQL type resource.
