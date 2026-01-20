@@ -16,7 +16,10 @@ from exasol.ai.mcp.server.generic_auth import (
     str_to_bool,
 )
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
-from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.server_settings import (
+    ExaDbResult,
+    McpServerSettings,
+)
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
@@ -311,6 +314,15 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_delete_directory(mcp_server)
 
 
+def register_resources(mcp_server: ExasolMCPServer) -> None:
+    @mcp_server.resource(
+        uri="dialect://sql-types",
+        description="List of Exasol SQL types and their parameters.",
+    )
+    def list_sql_types() -> ExaDbResult:
+        return mcp_server.list_sql_types()
+
+
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """
     Configures the root logger using the info in the provided configuration dictionary.
@@ -405,6 +417,7 @@ def create_mcp_server(
         **kwargs,
     )
     register_tools(mcp_server_, config)
+    register_resources(mcp_server_)
     return mcp_server_
 
 

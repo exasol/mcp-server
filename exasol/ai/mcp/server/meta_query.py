@@ -442,3 +442,16 @@ class ExasolMetaQuery:
         ]
         query = exp.Union(this=queries[0], expression=queries[1]).limit(1)
         return query.sql(dialect="exasol", identify=True)
+
+    @staticmethod
+    def get_sql_types() -> str:
+        """
+        The query returns a list of primary SQL types defined in the EXA_SQL_TYPES
+        table. It selects the "TYPE_NAME" and "CREATE_PARAMS" columns.
+        """
+        query = (
+            exp.Select()
+            .select(exp.column("TYPE_NAME"), exp.column("CREATE_PARAMS"))
+            .from_(exp.Table(this=f"EXA_SQL_TYPES", db="SYS"))
+        )
+        return query.sql(dialect="exasol", identify=True)

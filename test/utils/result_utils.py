@@ -17,20 +17,22 @@ def get_result_content(result) -> str:
     return result.content[0].text
 
 
-def get_result_json(result) -> dict[str, Any]:
-    return cast(dict[str, Any], json.loads(get_result_content(result)))
+def get_result_json(result, content_extractor=get_result_content) -> dict[str, Any]:
+    return cast(dict[str, Any], json.loads(content_extractor(result)))
 
 
-def get_sort_result_json(result) -> dict[str, Any]:
-    result_json = get_result_json(result)
+def get_sort_result_json(
+    result, content_extractor=get_result_content
+) -> dict[str, Any]:
+    result_json = get_result_json(result, content_extractor)
     return {
         key: sorted(val, key=result_sort_func) if isinstance(val, list) else val
         for key, val in result_json.items()
     }
 
 
-def get_list_result_json(result) -> ExaDbResult:
-    result_json = get_result_json(result)
+def get_list_result_json(result, content_extractor=get_result_content) -> ExaDbResult:
+    result_json = get_result_json(result, content_extractor)
     unsorted = ExaDbResult(**result_json)
     if isinstance(unsorted.result, list):
         return ExaDbResult(sorted(unsorted.result, key=result_sort_func))
