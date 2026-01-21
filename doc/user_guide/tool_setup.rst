@@ -15,8 +15,8 @@ To enable Data Modification and Data Definition queries set ``enable_write_query
 to true. This option should be used with caution, as it can cause unintended loss of data.
 Before the query is executed, the user will be asked to review the query and modify it if needed.
 This is done through the elicitation mechanism. If the client application does not support
-elicitation, the tool will return an error, unless the elicitation is explicitly disabled
-(see :ref:`disable-elicitation`).
+elicitation, the tool will return an error, unless the elicitation
+is :ref:`explicitly disabled <disable-elicitation>`.
 
 .. code-block:: json
 
@@ -38,7 +38,7 @@ BucketFS writing operation is executed, the user will be asked to check the path
 file is going to be saved. If a file or directory exists at this path, the user must explicitly
 confirm the deletion of the old file. This, again, is done through the elicitation mechanism.
 If the client application does not support elicitation, the tool will return an error, unless
-the elicitation is explicitly disabled (see :ref:`disable-elicitation`).
+the elicitation is :ref:`explicitly disabled <disable-elicitation>`.
 
 .. code-block:: json
 
@@ -48,6 +48,7 @@ the elicitation is explicitly disabled (see :ref:`disable-elicitation`).
     }
 
 .. _disable-elicitation:
+
 Enable writing operations without elicitation
 ---------------------------------------------
 
