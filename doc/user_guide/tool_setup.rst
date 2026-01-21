@@ -53,8 +53,10 @@ Enable writing operations without elicitation
 ---------------------------------------------
 
 The MCP Server provides an option to execute any SQL query or write data to the BucketFS
-without elicitation. This option should only be enabled in a testing/experimental environment,
-where a loss of data is tolerable. **Never use this option in a production environment!**
+without elicitation. We recommend enabling this option only in a testing/experimental environment,
+where a loss of data is tolerable. **Use extreme caution before disabling elicitation in a
+production environment!** You inherit the risk of an LLM hallucinating and performing unexpected
+(and irreversible) actions.
 
 To disable elicitation, add the following line:
 
