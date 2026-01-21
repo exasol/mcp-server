@@ -270,7 +270,7 @@ def test_get_schema_metadata(meta_params):
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_get_object_metadata(case_sensitive) -> str:
+def test_get_object_metadata(case_sensitive) -> None:
     config = McpServerSettings(case_sensitive=case_sensitive)
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(
@@ -521,7 +521,7 @@ def test_find_tables_and_views(meta_params) -> None:
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_columns(case_sensitive) -> str:
+def test_describe_columns(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_columns("my'_schema", "my'_table"))
     expected_query = collapse_spaces(
@@ -540,7 +540,7 @@ def test_describe_columns(case_sensitive) -> str:
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_constraints(case_sensitive) -> str:
+def test_describe_constraints(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_constraints("my_schema", "my_table"))
     expected_query = collapse_spaces(
@@ -566,7 +566,7 @@ def test_describe_constraints(case_sensitive) -> str:
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_get_table_comment(case_sensitive) -> str | None:
+def test_get_table_comment(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
     query = collapse_spaces(meta_query.get_table_comment("my_schema", "my_table"))
     expected_query = collapse_spaces(
@@ -582,5 +582,13 @@ def test_get_table_comment(case_sensitive) -> str | None:
             {_column_predicate("VIEW_NAME", "my_table", case_sensitive)}
         LIMIT 1
         """
+    )
+    assert query == expected_query
+
+
+def test_get_sql_types() -> None:
+    query = collapse_spaces(ExasolMetaQuery.get_sql_types())
+    expected_query = collapse_spaces(
+        'SELECT "TYPE_NAME", "CREATE_PARAMS", "PRECISION" FROM SYS.EXA_SQL_TYPES'
     )
     assert query == expected_query
