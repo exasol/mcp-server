@@ -329,3 +329,7 @@ class ExasolMCPServer(FastMCP):
             raise InterruptedError("The query execution is declined by the user.")
         else:  # cancel
             raise InterruptedError("The query execution is cancelled by the user.")
+
+    def list_sql_types(self) -> ExaDbResult:
+        query = ExasolMetaQuery.get_sql_types()
+        return self._execute_meta_query(query)
