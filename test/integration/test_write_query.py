@@ -148,3 +148,18 @@ def test_execute_write_query_not_accepted(
                 schema=schema,
                 table=new_table,
             )
+
+
+def test_execute_write_query_no_elicitation(
+    pyexasol_connection, setup_database, db_schemas, new_table
+) -> None:
+    config = McpServerSettings(enable_write_query=True, disable_elicitation=True)
+    for schema in db_schemas:
+        _validate_table_creation(
+            connection=pyexasol_connection,
+            config=config,
+            command=CORRECT_COMMAND,
+            action=None,
+            schema=schema,
+            table=new_table,
+        )

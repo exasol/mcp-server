@@ -133,6 +133,9 @@ class BucketFsTools:
                 chosen path must point to an existing file or directory.
         """
         path, response_type = response_type_factory()
+        if self.config.disable_elicitation:
+            # If elicitation is disabled emulate the acceptance of the default data.
+            return response_type()
         path_status = self._get_path_status(path)
         while True:
             warning = get_path_warning(path_status, expected_status)
