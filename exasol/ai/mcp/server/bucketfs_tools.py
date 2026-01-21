@@ -134,7 +134,8 @@ class BucketFsTools:
         """
         path, response_type = response_type_factory()
         if self.config.disable_elicitation:
-            # If elicitation is disabled emulate the acceptance of the default data.
+            # If elicitation is disabled, then emulate the acceptance of the
+            # default data.
             return response_type()
         path_status = self._get_path_status(path)
         while True:

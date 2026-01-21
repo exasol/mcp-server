@@ -15,7 +15,8 @@ To enable Data Modification and Data Definition queries set ``enable_write_query
 to true. This option should be used with caution, as it can cause unintended loss of data.
 Before the query is executed, the user will be asked to review the query and modify it if needed.
 This is done through the elicitation mechanism. If the client application does not support
-elicitation, the tool will return an error, unless the elicitation is explicitly disabled.
+elicitation, the tool will return an error, unless the elicitation is explicitly disabled
+(see :ref:`disable-elicitation`).
 
 .. code-block:: json
 
@@ -37,7 +38,7 @@ BucketFS writing operation is executed, the user will be asked to check the path
 file is going to be saved. If a file or directory exists at this path, the user must explicitly
 confirm the deletion of the old file. This, again, is done through the elicitation mechanism.
 If the client application does not support elicitation, the tool will return an error, unless
-the elicitation is explicitly disabled.
+the elicitation is explicitly disabled (see :ref:`disable-elicitation`).
 
 .. code-block:: json
 
@@ -46,14 +47,15 @@ the elicitation is explicitly disabled.
         "enable_write_bucketfs": true
     }
 
+.. _disable-elicitation:
 Enable writing operations without elicitation
 ---------------------------------------------
 
 The MCP Server provides an option to execute any SQL query or write data to the BucketFS
-without elicitation. This option should only be enabled in a testing/experimental environment
+without elicitation. This option should only be enabled in a testing/experimental environment,
 where a loss of data is tolerable. **Never use this option in a production environment!**
 
-To disable elicitation add the following line:
+To disable elicitation, add the following line:
 
 .. code-block:: json
 
@@ -166,7 +168,7 @@ Alternatively, the settings can be written in a json file. In this case, the
 Default server settings
 -----------------------
 
-The following json shows the default settings.
+The following JSON shows the default settings.
 
 .. code-block:: json
 
