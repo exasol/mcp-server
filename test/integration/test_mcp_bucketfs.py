@@ -109,6 +109,7 @@ async def _run_tool_async(
     tool_name: str,
     elicitation: list[ElicitationData] | None,
     expected_status: PathStatus | None,
+    config: McpServerSettings | None,
     **kwargs,
 ):
     elicit_count = 0
@@ -134,7 +135,10 @@ async def _run_tool_async(
 
     db_connection = DbConnection(connection_factory, num_retries=1)
 
-    config = McpServerSettings(enable_read_bucketfs=True, enable_write_bucketfs=True)
+    if config is None:
+        config = McpServerSettings(
+            enable_read_bucketfs=True, enable_write_bucketfs=True
+        )
     exa_server = create_mcp_server(db_connection, config, bucketfs_location)
     elicit_handler = elicitation_handler if elicitation is not None else None
     async with Client(exa_server, elicitation_handler=elicit_handler) as client:
@@ -146,11 +150,12 @@ def _run_tool(
     tool_name: str,
     elicitation: list[ElicitationData] | None = None,
     expected_status: PathStatus | None = None,
+    config: McpServerSettings | None = None,
     **kwargs,
 ):
     return asyncio.run(
         _run_tool_async(
-            bucketfs_location, tool_name, elicitation, expected_status, **kwargs
+            bucketfs_location, tool_name, elicitation, expected_status, config, **kwargs
         )
     )
 
@@ -216,6 +221,11 @@ def bucketfs_location(backend_aware_bucketfs_params, setup_bucketfs):
     Will delete this fixture from here. once it becomes available in the pytest-plugin.
     """
     return bfs.path.build_path(**backend_aware_bucketfs_params)
+
+
+@pytest.fixture
+def no_elicit_config() -> McpServerSettings:
+    return McpServerSettings(enable_write_bucketfs=True, disable_elicitation=True)
 
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
@@ -779,3 +789,65 @@ def test_delete_directory_not_accepted(bucketfs_location, action) -> None:
         )
     bfs_path = bucketfs_location.joinpath(path)
     assert bfs_path.exists()
+
+
+def test_write_file_no_elicitation(bucketfs_location, no_elicit_config) -> None:
+    path = "No_elicitation/new_created_file"
+    with tmp_path_write(bucketfs_location.joinpath(path)):
+        _run_tool(
+            bucketfs_location,
+            "write_text_to_file",
+            config=no_elicit_config,
+            path=path,
+            content=_human,
+        )
+        result = _run_tool(bucketfs_location, "read_file", path=path)
+        content = get_result_content(result)
+        assert content == _human
+
+
+def test_download_file_no_elicitation(
+    bucketfs_location, httpserver, no_elicit_config
+) -> None:
+    path = "No_elicitation/new_downloaded_file"
+    url = "/fake_science"
+    httpserver.expect_request(url).respond_with_data(_human)
+    with tmp_path_write(bucketfs_location.joinpath(path)):
+        _run_tool(
+            bucketfs_location,
+            "download_file",
+            config=no_elicit_config,
+            url=httpserver.url_for(url),
+            path=path,
+        )
+        result = _run_tool(bucketfs_location, "read_file", path=path)
+        content = get_result_content(result)
+        assert content == _human
+
+
+def test_delete_file_no_elicitation(bucketfs_location, no_elicit_config) -> None:
+    path = "Species/Even-toed_Ungulates/Deer/Elk"
+    abs_path = bucketfs_location.joinpath(path)
+    assert abs_path.exists()
+    with tmp_path_write(abs_path):
+        _run_tool(
+            bucketfs_location,
+            "delete_file",
+            config=no_elicit_config,
+            path=path,
+        )
+        assert not abs_path.exists()
+
+
+def test_delete_directory_no_elicitation(bucketfs_location, no_elicit_config) -> None:
+    path = "Species/Carnivores/Dog"
+    abs_path = bucketfs_location.joinpath(path)
+    assert abs_path.exists()
+    with tmp_path_write(abs_path):
+        _run_tool(
+            bucketfs_location,
+            "delete_directory",
+            config=no_elicit_config,
+            path=path,
+        )
+        assert not abs_path.exists()

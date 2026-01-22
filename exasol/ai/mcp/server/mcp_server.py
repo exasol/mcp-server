@@ -303,6 +303,10 @@ class ExasolMCPServer(FastMCP):
                 "Data Manipulation queries is disabled."
             )
 
+        if self.config.disable_elicitation:
+            self.connection.execute_query(query, snapshot=False)
+            return None
+
         class QueryElicitation(BaseModel):
             sql: str = Field(default=query)
 

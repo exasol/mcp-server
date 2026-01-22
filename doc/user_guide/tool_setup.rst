@@ -15,7 +15,8 @@ To enable Data Modification and Data Definition queries set ``enable_write_query
 to true. This option should be used with caution, as it can cause unintended loss of data.
 Before the query is executed, the user will be asked to review the query and modify it if needed.
 This is done through the elicitation mechanism. If the client application does not support
-elicitation, the tool will return an error.
+elicitation, the tool will return an error, unless the elicitation
+is :ref:`explicitly disabled <disable-elicitation>`.
 
 .. code-block:: json
 
@@ -36,14 +37,33 @@ a provided URL and deleting a file, set ``enable_write_bucketfs`` property to tr
 BucketFS writing operation is executed, the user will be asked to check the path where the new
 file is going to be saved. If a file or directory exists at this path, the user must explicitly
 confirm the deletion of the old file. This, again, is done through the elicitation mechanism.
-Currently, the writing file operations are only possible if the client application supports
-elicitation.
+If the client application does not support elicitation, the tool will return an error, unless
+the elicitation is :ref:`explicitly disabled <disable-elicitation>`.
 
 .. code-block:: json
 
     {
         "enable_read_bucketfs": true,
         "enable_write_bucketfs": true
+    }
+
+.. _disable-elicitation:
+
+Enable writing operations without elicitation
+---------------------------------------------
+
+The MCP Server provides an option to execute any SQL query or write data to the BucketFS
+without elicitation. We recommend enabling this option only in a testing/experimental environment,
+where a loss of data is tolerable. **Use extreme caution before disabling elicitation in a
+production environment!** You inherit the risk of an LLM hallucinating and performing unexpected
+(and irreversible) actions.
+
+To disable elicitation, add the following line:
+
+.. code-block:: json
+
+    {
+        "disable_elicitation": true
     }
 
 Set DB object listing filters
@@ -151,7 +171,7 @@ Alternatively, the settings can be written in a json file. In this case, the
 Default server settings
 -----------------------
 
-The following json shows the default settings.
+The following JSON shows the default settings.
 
 .. code-block:: json
 
@@ -183,6 +203,9 @@ The following json shows the default settings.
         },
         "enable_read_query": false,
         "enable_write_query": false,
+        "enable_read_bucketfs": false,
+        "enable_write_bucketfs": false,
+        "disable_elicitation": false,
         "language": ""
     }
 

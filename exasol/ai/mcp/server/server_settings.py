@@ -197,6 +197,7 @@ class McpServerSettings(BaseModel):
     enable_write_query: bool = False
     enable_read_bucketfs: bool = False
     enable_write_bucketfs: bool = False
+    disable_elicitation: bool = False
 
     language: str = ""
     """
