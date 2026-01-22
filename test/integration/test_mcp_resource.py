@@ -31,16 +31,53 @@ def _get_resource_content(result) -> str:
     return result[0].text
 
 
-def test_list_sql_types(pyexasol_connection):
-    result = _read_resource(pyexasol_connection, "dialect://sql-types")
+def _verify_resource_table(
+    pyexasol_connection: ExaConnection,
+    resource_uri: str,
+    key_column: str,
+    other_columns: list[str],
+    expected_keys: list[str],
+) -> None:
+    result = _read_resource(pyexasol_connection, resource_uri)
     result_json = get_list_result_json(result, _get_resource_content)
-    test_types = ["CHAR", "VARCHAR", "DECIMAL"]
     test_data = list(
-        filter(lambda row: row["TYPE_NAME"] in test_types, result_json.result)
+        filter(lambda row: row[key_column] in expected_keys, result_json.result)
     )
-    # Verify that all test types are present in the output.
-    assert {row["TYPE_NAME"] for row in test_data} == set(test_types)
+    # Verify that all expected keys are present in the output.
+    assert {row[key_column] for row in test_data} == set(expected_keys)
     # Verify that there are values in all other expected columns.
-    for col_name in ["CREATE_PARAMS", "PRECISION"]:
+    for col_name in other_columns:
         for row in test_data:
-            assert row[col_name], f'{col_name} is empty for type {row["TYPE_NAME"]}'
+            assert row[col_name], f"{col_name} is empty for {row[col_name]}"
+
+
+def test_list_sql_types(pyexasol_connection):
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="dialect://sql-types",
+        key_column="TYPE_NAME",
+        other_columns=["CREATE_PARAMS", "PRECISION"],
+        expected_keys=["CHAR", "VARCHAR", "DECIMAL"],
+    )
+
+
+def test_list_system_tables(pyexasol_connection):
+    conf = McpServerSettings().tables
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="system://system-tables",
+        key_column=conf.name_field,
+        other_columns=[conf.schema_field, conf.comment_field],
+        expected_keys=["EXA_ALL_COLUMNS", "EXA_CLUSTERS"],
+    )
+
+
+def test_list_statistics_tables(pyexasol_connection):
+    conf = McpServerSettings().tables
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="system://statistics-tables",
+        key_column=conf.name_field,
+        other_columns=[conf.schema_field, conf.comment_field],
+        expected_keys=["EXA_SQL_DAILY", "EXA_DBA_AUDIT_SESSIONS"],
+    )
