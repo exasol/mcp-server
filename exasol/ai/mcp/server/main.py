@@ -336,6 +336,13 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     def list_statistics_tables() -> ExaDbResult:
         return mcp_server.list_statistics_tables()
 
+    @mcp_server.resource(
+        uri="dialect://reserved-keywords",
+        description="List of Exasol reserved keywords.",
+    )
+    def list_reserved_keywords() -> ExaDbResult:
+        return mcp_server.list_reserved_keywords()
+
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """

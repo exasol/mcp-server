@@ -490,3 +490,17 @@ class ExasolMetaQuery:
             .where(exp.column("SCHEMA_NAME").eq(exp.Literal.string(info_type.value)))
         )
         return query.sql(dialect="exasol", identify=True)
+
+    @staticmethod
+    def get_reserved_keywords() -> str:
+        """
+        The query returns a list of reserved words.
+        """
+        query = (
+            exp.Select()
+            .select(exp.column("KEYWORD"))
+            .from_(exp.Table(this="EXA_SQL_KEYWORDS", db="SYS"))
+            .where(exp.column("RESERVED").eq(exp.Boolean(this=True)))
+            .order_by(exp.column("RESERVED"))
+        )
+        return query.sql(dialect="exasol", identify=True)
