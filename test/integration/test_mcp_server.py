@@ -12,9 +12,12 @@ from test.utils.db_objects import (
     ExaTable,
 )
 from test.utils.result_utils import (
+    ToolHints,
     get_list_result_json,
     get_result_json,
     get_sort_result_json,
+    get_tool_hints,
+    list_tools,
     result_sort_func,
 )
 from typing import Any
@@ -51,20 +54,10 @@ async def _run_tool_async(
         return await client.call_tool(tool_name, kwargs)
 
 
-async def _list_tools_async(connection: ExaConnection, config: McpServerSettings):
-    exa_server = create_mcp_server(connection, config)
-    async with Client(exa_server) as client:
-        return await client.list_tools()
-
-
 def _run_tool(
     connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
 ):
     return asyncio.run(_run_tool_async(connection, config, tool_name, **kwargs))
-
-
-def _list_tools(connection: ExaConnection, config: McpServerSettings):
-    return asyncio.run(_list_tools_async(connection, config))
 
 
 def _get_expected_json(
@@ -208,7 +201,7 @@ def test_tool_disabled(
     """
     config_dict = {meta_type: {"enable": False} for meta_type in meta_types}
     config = McpServerSettings.model_validate(config_dict)
-    result = _list_tools(pyexasol_connection, config)
+    result = list_tools(pyexasol_connection, config)
     tool_list = [tool.name for tool in result]
     assert tool_name not in tool_list
 
@@ -860,3 +853,40 @@ def test_execute_query_error(
                 _run_tool(
                     pyexasol_connection, config, tool_name="execute_query", query=query
                 )
+
+
+def test_tool_hints(pyexasol_connection) -> None:
+    """
+    This test validates hints the tool annotations.
+    """
+    enable_meta_list = MetaListSettings(enable=True)
+    config = McpServerSettings(
+        schemas=enable_meta_list,
+        tables=enable_meta_list,
+        views=enable_meta_list,
+        functions=enable_meta_list,
+        scripts=enable_meta_list,
+        columns=MetaColumnSettings(enable=True),
+        parameters=MetaParameterSettings(enable=True),
+        enable_read_query=True,
+        enable_write_query=True,
+    )
+    result = list_tools(pyexasol_connection, config)
+
+    tool_list = {get_tool_hints(tool) for tool in result}
+    expected_tool_list = {
+        ToolHints(tool_name="list_schemas", read_only=True),
+        ToolHints(tool_name="find_schemas", read_only=True),
+        ToolHints(tool_name="list_tables", read_only=True),
+        ToolHints(tool_name="find_tables", read_only=True),
+        ToolHints(tool_name="list_functions", read_only=True),
+        ToolHints(tool_name="find_functions", read_only=True),
+        ToolHints(tool_name="list_scripts", read_only=True),
+        ToolHints(tool_name="find_scripts", read_only=True),
+        ToolHints(tool_name="describe_table", read_only=True),
+        ToolHints(tool_name="describe_function", read_only=True),
+        ToolHints(tool_name="describe_script", read_only=True),
+        ToolHints(tool_name="execute_query", read_only=True),
+        ToolHints(tool_name="execute_write_query", destructive=True),
+    }
+    assert tool_list == expected_tool_list

@@ -11,8 +11,11 @@ from test.utils.db_objects import (
     ExaBfsObject,
 )
 from test.utils.result_utils import (
+    ToolHints,
     get_list_result_json,
     get_result_content,
+    get_tool_hints,
+    list_tools,
     result_sort_func,
 )
 from unittest.mock import (
@@ -851,3 +854,24 @@ def test_delete_directory_no_elicitation(bucketfs_location, no_elicit_config) ->
             path=path,
         )
         assert not abs_path.exists()
+
+
+def test_bucketfs_tool_hints(pyexasol_connection, bucketfs_location) -> None:
+    """
+    This test validates hints the tool annotations.
+    """
+    config = McpServerSettings(enable_read_bucketfs=True, enable_write_bucketfs=True)
+    result = list_tools(pyexasol_connection, config, bucketfs_location)
+
+    tool_list = {get_tool_hints(tool) for tool in result}
+    expected_tool_list = {
+        ToolHints(tool_name="list_directories", read_only=True),
+        ToolHints(tool_name="list_files", read_only=True),
+        ToolHints(tool_name="find_files", read_only=True),
+        ToolHints(tool_name="read_file", read_only=True),
+        ToolHints(tool_name="write_text_to_file", destructive=True),
+        ToolHints(tool_name="download_file", destructive=True),
+        ToolHints(tool_name="delete_file", destructive=True),
+        ToolHints(tool_name="delete_directory", destructive=True),
+    }
+    assert tool_list.issuperset(expected_tool_list)
