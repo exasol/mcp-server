@@ -681,6 +681,29 @@ def test_describe_table(
             assert result_json == expected_json
 
 
+def test_describe_system_table(pyexasol_connection) -> None:
+    """
+    Test the `describe_table` tool, passing the name of a system table to it.
+    """
+    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    result = _run_tool(
+        pyexasol_connection,
+        config,
+        "describe_table",
+        schema_name="SYS",
+        table_name="EXA_ALL_COLUMNS",
+    )
+    result_json = get_result_json(result)
+    column_names = [
+        col[config.columns.name_field]
+        for col in result_json[config.columns.columns_field]
+    ]
+    assert all(
+        expected_column in column_names
+        for expected_column in ["COLUMN_NAME", "COLUMN_TYPE", "COLUMN_COMMENT"]
+    )
+
+
 @pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_view_comment(
     pyexasol_connection, setup_database, db_schemas, db_views, case_sensitive

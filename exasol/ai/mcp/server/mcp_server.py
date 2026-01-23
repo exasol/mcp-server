@@ -27,6 +27,8 @@ from exasol.ai.mcp.server.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
     MetaType,
+    SysInfoType,
+    is_system_schema,
 )
 from exasol.ai.mcp.server.parameter_parser import (
     FuncParameterParser,
@@ -262,15 +264,20 @@ class ExasolMCPServer(FastMCP):
 
         conf = self.config.columns
         columns = self.describe_columns(schema_name, table_name)
-        constraints = self.describe_constraints(schema_name, table_name)
-        table_comment = self.get_table_comment(schema_name, table_name)
-
-        return {
+        result = {
             conf.columns_field: columns.result,
-            conf.constraints_field: constraints.result,
-            conf.table_comment_field: table_comment,
             conf.usage_field: TABLE_USAGE,
         }
+
+        # There is no constraints for a system table. The comment is also not needed,
+        # as it should be in the resource, where the name of the system table came from.
+        if not is_system_schema(schema_name):
+            constraints = self.describe_constraints(schema_name, table_name)
+            table_comment = self.get_table_comment(schema_name, table_name)
+            result[conf.constraints_field] = constraints.result
+            result[conf.table_comment_field] = table_comment
+
+        return result
 
     def describe_function(
         self, schema_name: SCHEMA_NAME_TYPE, func_name: FUNCTION_NAME_TYPE
@@ -332,4 +339,12 @@ class ExasolMCPServer(FastMCP):
 
     def list_sql_types(self) -> ExaDbResult:
         query = ExasolMetaQuery.get_sql_types()
+        return self._execute_meta_query(query)
+
+    def list_system_tables(self) -> ExaDbResult:
+        query = self.meta_query.get_system_tables(SysInfoType.SYSTEM)
+        return self._execute_meta_query(query)
+
+    def list_statistics_tables(self) -> ExaDbResult:
+        query = self.meta_query.get_system_tables(SysInfoType.STATISTICS)
         return self._execute_meta_query(query)

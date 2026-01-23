@@ -7,6 +7,7 @@ from exasol.ai.mcp.server.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
     MetaType,
+    SysInfoType,
 )
 from exasol.ai.mcp.server.server_settings import (
     McpServerSettings,
@@ -590,5 +591,23 @@ def test_get_sql_types() -> None:
     query = collapse_spaces(ExasolMetaQuery.get_sql_types())
     expected_query = collapse_spaces(
         'SELECT "TYPE_NAME", "CREATE_PARAMS", "PRECISION" FROM SYS.EXA_SQL_TYPES'
+    )
+    assert query == expected_query
+
+
+@pytest.mark.parametrize("info_type", [SysInfoType.SYSTEM, SysInfoType.STATISTICS])
+def test_get_system_tables(info_type) -> None:
+    config = McpServerSettings()
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(meta_query.get_system_tables(info_type))
+    expected_query = collapse_spaces(
+        f"""
+        SELECT
+            "SCHEMA_NAME" AS "{config.tables.schema_field}",
+            "OBJECT_NAME" AS "{config.tables.name_field}",
+            "OBJECT_COMMENT" AS "{config.tables.comment_field}"
+        FROM SYS.EXA_SYSCAT
+        WHERE "SCHEMA_NAME" = '{info_type.value}'
+    """
     )
     assert query == expected_query

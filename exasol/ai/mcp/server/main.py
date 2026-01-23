@@ -344,6 +344,20 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     def list_sql_types() -> ExaDbResult:
         return mcp_server.list_sql_types()
 
+    @mcp_server.resource(
+        uri="system://system-tables",
+        description="List of Exasol system tables.",
+    )
+    def list_system_tables() -> ExaDbResult:
+        return mcp_server.list_system_tables()
+
+    @mcp_server.resource(
+        uri="system://statistics-tables",
+        description="List of Exasol statistics tables.",
+    )
+    def list_statistics_tables() -> ExaDbResult:
+        return mcp_server.list_statistics_tables()
+
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """
