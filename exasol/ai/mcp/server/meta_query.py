@@ -30,6 +30,11 @@ class MetaType(Enum):
     COLUMN = "COLUMN"
 
 
+class SysInfoType(Enum):
+    SYSTEM = "SYS"
+    STATISTICS = "EXA_STATISTICS"
+
+
 @cache
 def _get_group_concat_pattern() -> re.Pattern:
     return re.compile(
@@ -128,6 +133,10 @@ def _info_concat_func() -> exp.Expression:
         exp.func(GROUP_CONCAT, exp.Distinct(expressions=[exp.column("OBJ_INFO")])),
         exp.Literal.string("]"),
     ).as_(INFO_COLUMN)
+
+
+def is_system_schema(schema_name: str) -> bool:
+    return schema_name.upper() in ["SYS", "EXA_STATISTICS"]
 
 
 class ExasolMetaQuery:
@@ -360,6 +369,11 @@ class ExasolMetaQuery:
         Gathers a list of columns in a given table.
         """
         conf = self._config.columns
+        # The table where the colum information should be pulled from is different for
+        # user tables and system tables.
+        source = (
+            "EXA_SYS_COLUMNS" if is_system_schema(schema_name) else "EXA_ALL_COLUMNS"
+        )
         query = (
             exp.Select()
             .select(
@@ -367,7 +381,7 @@ class ExasolMetaQuery:
                 exp.column("COLUMN_TYPE").as_(conf.type_field),
                 exp.column("COLUMN_COMMENT").as_(conf.comment_field),
             )
-            .from_(exp.Table(this="EXA_ALL_COLUMNS", db="SYS"))
+            .from_(exp.Table(this=source, db="SYS"))
             .where(
                 exp.and_(
                     self._get_column_eq_predicate("COLUMN_SCHEMA", schema_name),
@@ -457,5 +471,22 @@ class ExasolMetaQuery:
                 exp.column("PRECISION"),
             )
             .from_(exp.Table(this="EXA_SQL_TYPES", db="SYS"))
+        )
+        return query.sql(dialect="exasol", identify=True)
+
+    def get_system_tables(self, info_type: SysInfoType) -> str:
+        """
+        Collects names and comments for the system or statistics tables and views.
+        """
+        conf = self._config.tables
+        query = (
+            exp.Select()
+            .select(
+                exp.column("SCHEMA_NAME").as_(conf.schema_field),
+                exp.column("OBJECT_NAME").as_(conf.name_field),
+                exp.column("OBJECT_COMMENT").as_(conf.comment_field),
+            )
+            .from_(exp.Table(this="EXA_SYSCAT", db="SYS"))
+            .where(exp.column("SCHEMA_NAME").eq(exp.Literal.string(info_type.value)))
         )
         return query.sql(dialect="exasol", identify=True)
