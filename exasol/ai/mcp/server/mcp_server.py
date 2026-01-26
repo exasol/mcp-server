@@ -348,3 +348,7 @@ class ExasolMCPServer(FastMCP):
     def list_statistics_tables(self) -> ExaDbResult:
         query = self.meta_query.get_system_tables(SysInfoType.STATISTICS)
         return self._execute_meta_query(query)
+
+    def list_reserved_keywords(self) -> ExaDbResult:
+        query = ExasolMetaQuery.get_reserved_keywords()
+        return self._execute_meta_query(query)

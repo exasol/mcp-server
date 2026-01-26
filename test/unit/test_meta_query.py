@@ -611,3 +611,12 @@ def test_get_system_tables(info_type) -> None:
     """
     )
     assert query == expected_query
+
+
+def test_get_reserved_keywords() -> None:
+    query = collapse_spaces(ExasolMetaQuery.get_reserved_keywords())
+    expected_query = collapse_spaces(
+        'SELECT "KEYWORD" FROM SYS.EXA_SQL_KEYWORDS WHERE "RESERVED" = TRUE '
+        'ORDER BY "RESERVED"'
+    )
+    assert query == expected_query

@@ -45,10 +45,11 @@ def _verify_resource_table(
     )
     # Verify that all expected keys are present in the output.
     assert {row[key_column] for row in test_data} == set(expected_keys)
-    # Verify that there are values in all other expected columns.
-    for col_name in other_columns:
-        for row in test_data:
-            assert row[col_name], f"{col_name} is empty for {row[col_name]}"
+    if other_columns:
+        # Verify that there are values in all other expected columns.
+        for col_name in other_columns:
+            for row in test_data:
+                assert row[col_name], f"{col_name} is empty for {row[col_name]}"
 
 
 def test_list_sql_types(pyexasol_connection):
@@ -80,4 +81,14 @@ def test_list_statistics_tables(pyexasol_connection):
         key_column=conf.name_field,
         other_columns=[conf.schema_field, conf.comment_field],
         expected_keys=["EXA_SQL_DAILY", "EXA_DBA_AUDIT_SESSIONS"],
+    )
+
+
+def test_list_reserved_keywords(pyexasol_connection):
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="dialect://reserved-keywords",
+        key_column="KEYWORD",
+        other_columns=[],
+        expected_keys=["ALL", "BEFORE", "CONDITION", "FINAL"],
     )
