@@ -1,0 +1,2820 @@
+[
+    {
+        "name": "ABS",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the absolute sum of numbers n.",
+        "example": "SELECT ABS(-123) ABS;"
+    },
+    {
+        "name": "ACOS",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the arccosine of number n. The result is between 0 and π.",
+        "example": "SELECT ACOS(0.5) ACOS;"
+    },
+    {
+        "name": "ADD_DAYS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of days to a date or timestamp.",
+        "usage-notes": [
+            "Decimals are rounded before adding the number.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT ADD_DAYS(DATE '2000-02-28', 1) AD1, ADD_DAYS(TIMESTAMP '2001-02-28 12:00:00', 1) AD2;"
+    },
+    {
+        "name": "ADD_HOURS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of hours to a timestamp.",
+        "usage-notes": [
+            "Decimals are rounded before adding the number.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated internally within UTC before the result is transformed to the session time zone."
+        ],
+        "example": "SELECT ADD_HOURS(TIMESTAMP '2000-01-01 00:00:00', 1) AH1, ADD_HOURS(TIMESTAMP '2000-01-01 12:23:45', -1) AH2;"
+    },
+    {
+        "name": "ADD_MINUTES",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of minutes to a timestamp.",
+        "usage-notes": [
+            "Decimals are rounded before adding that number.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated internally within UTC before the result is transformed to the session time zone."
+        ],
+        "example": "SELECT ADD_MINUTES(TIMESTAMP '2000-01-01 00:00:00',-1) AM1, ADD_MINUTES(TIMESTAMP '2000-01-01 00:00:00',+2) AM2;"
+    },
+    {
+        "name": "ADD_MONTHS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of months to a date or timestamp.",
+        "usage-notes": [
+            "Decimals are rounded before adding that number.",
+            "If the resulting month has fewer days than the day of the date of entry, the last day of the month is returned.",
+            "If the input date is the last day of a month, then the last day of the resulting month is returned.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT ADD_MONTHS(DATE '2006-01-31', 1) AM1, ADD_MONTHS(TIMESTAMP '2006-01-31 12:00:00', 2) AM2;"
+    },
+    {
+        "name": "ADD_SECONDS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of seconds to a timestamp.",
+        "example": "SELECT ADD_SECONDS(TIMESTAMP '2000-01-01 00:00:00',-1) AS1, ADD_SECONDS(TIMESTAMP '2000-01-01 00:00:00',+1.234) AS2;"
+    },
+    {
+        "name": "ADD_WEEKS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of weeks to a date or timestamp.",
+        "usage-notes": [
+            "ADD_WEEKS(x,n) is similar to ADD_DAYS(x,n*7).",
+            "Decimals are rounded before adding the number.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE, this function is calculated within the session time zone."
+        ],
+        "example": "SELECT ADD_WEEKS(DATE '2000-02-29', 1) AW1, ADD_WEEKS(TIMESTAMP '2005-01-31 12:00:00', -1) AW2;"
+    },
+    {
+        "name": "ADD_YEARS",
+        "types": [
+            "date-time"
+        ],
+        "description": "Adds a specified number of years to a date or timestamp.",
+        "usage-notes": [
+            "Decimals are rounded before adding the number.",
+            "If the resulting month has fewer days than the day of the date of entry, the last day of this month is returned.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE, this function is calculated within the session time zone."
+        ],
+        "example": "SELECT ADD_YEARS(DATE '2000-02-29', 1) AY1,ADD_YEARS(TIMESTAMP '2005-01-31 12:00:00', -1) AY2;"
+    },
+    {
+        "name": "ANY",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns TRUE if the value expr is true for at least one row in the window or group of input rows. Otherwise, this function returns FALSE.",
+        "usage-notes": [
+            "This function returns the value NULL if the window of rows is empty.",
+            "It only accepts an operand of type bool.",
+            "DISTINCT has no effect."
+        ],
+        "example": "SELECT id, department, age, ANY(age < 30) OVER (PARTITION BY department ORDER BY age) ANY_ FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "APPROXIMATE_COUNT_DISTINCT",
+        "types": [
+            "aggregate"
+        ],
+        "description": "Returns the approximate number of distinct elements (without NULL).",
+        "usage-notes": [
+            "The result is not exact as it is with function COUNT, but it can be computed a lot faster.",
+            "For the calculation, the algorithm HyperLogLog is used internally."
+        ],
+        "example": "SELECT COUNT(DISTINCT customer_id) COUNT_EXACT, APPROXIMATE_COUNT_DISTINCT (customer_id) COUNT_APPR FROM orders WHERE price > 1000;"
+    },
+    {
+        "name": "ASCII",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the numeric value of character in the ASCII character set.",
+        "example": "SELECT ASCII('X');"
+    },
+    {
+        "name": "ASIN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the arcsine of numbers n. The result is between -π/2 and π/2.",
+        "example": "SELECT ASIN(1);"
+    },
+    {
+        "name": "ATAN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the arctangent of number n. The result is between -π/2 and π/2.",
+        "example": "SELECT ATAN(1);"
+    },
+    {
+        "name": "ATAN2",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the arctangent of two numbers n and m. The expression is equivalent to ATAN(n/m)",
+        "example": "SELECT ATAN2(1,1) ATAN2;"
+    },
+    {
+        "name": "AVG",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the mean value",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "This function accepts operands of types numeric and interval."
+        ],
+        "example": "SELECT id, department, hire_date, starting_salary, AVG(starting_salary) OVER (PARTITION BY department ORDER BY hire_date) AVG FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "BIT_AND",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Computes the bitwise AND operation of two numerical values.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which means, positive numbers between 0 and 18446744073709551615.",
+            "The result data type is DECIMAL(20,0).",
+            "If one of the parameters is NULL, the result is NULL."
+        ],
+        "example": "SELECT BIT_AND(9,3);"
+    },
+    {
+        "name": "BIT_CHECK",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Checks whether a certain bit of a numerical value is set. The position parameter starts from 0, which means the lowest bit.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The value pos may be between 0 and 63."
+        ],
+        "example": "SELECT BIT_CHECK(3,0) B0, BIT_CHECK(3,1) B1, BIT_CHECK(3,2) B2, BIT_CHECK(3,3) B3;"
+    },
+    {
+        "name": "BIT_LENGTH",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the bit length of a string. If only ASCII characters are used, then this function is equivalent to CHARACTER_ LENGTH * 8.",
+        "example": "SELECT BIT_LENGTH('aou') BIT_LENGTH; SELECT BIT_LENGTH('äöü') BIT_LENGTH;"
+    },
+    {
+        "name": "BIT_LROTATE",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Rotates the bits of a number by the specified number to the left.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The second parameter can be between 0 and 63.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_LROTATE(1024,63);"
+    },
+    {
+        "name": "BIT_LSHIFT",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Shifts the bits of a number by the specified number to the left.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The second parameter can be between 0 and 63.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_LSHIFT(1,10);"
+    },
+    {
+        "name": "BIT_NOT",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Computes the bitwise negation of a single numerical value.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The result data type is DECIMAL(20,0).",
+            "If the parameter is NULL, the result is NULL."
+        ],
+        "example": "SELECT BIT_NOT(0), BIT_NOT(18446744073709551615), BIT_AND( BIT_NOT(1), 5);"
+    },
+    {
+        "name": "BIT_OR",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Computes the bitwise OR operation of two numerical values.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The result data type is DECIMAL(20,0).",
+            "If one of the parameters is NULL, the result is NULL."
+        ],
+        "example": "SELECT BIT_OR(9,3);"
+    },
+    {
+        "name": "BIT_RROTATE",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Rotates the bits of a number by the specified number to the right.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The second parameter can be between 0 and 63.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_RROTATE(1024,63);"
+    },
+    {
+        "name": "BIT_RSHIFT",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Shifts the bits of a number by the specified number to the right.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The second parameter can be between 0 and 63.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_RSHIFT(1024,10);"
+    },
+    {
+        "name": "BIT_SET",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Sets a certain bit of a numerical value. The position parameter starts from 0, which is the lowest bit.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The value pos may be between 0 and 63.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_SET(8,0);"
+    },
+    {
+        "name": "BIT_TO_NUM",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Creates a numerical value out of a list of single bits.",
+        "usage-notes": [
+            "Each function argument must evaluate to 0 or 1.",
+            "The first argument is interpreted as the biggest bit.",
+            "The number of arguments is limited to 64, which means you can create positive numbers between 0 and 18446744073709551615."
+        ],
+        "example": "SELECT BIT_TO_NUM(1,1,0,0);"
+    },
+    {
+        "name": "BIT_XOR",
+        "types": [
+            "bitwise"
+        ],
+        "description": "Computes the bitwise exclusive OR operation of two numerical values. The result in each position is , if the two corresponding bits are different.",
+        "usage-notes": [
+            "Bit functions are limited to 64 bits, which is positive numbers between 0 and 18446744073709551615.",
+            "The result data type is DECIMAL(20,0)."
+        ],
+        "example": "SELECT BIT_XOR(9,3);"
+    },
+    {
+        "name": "CASE",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "With the help of the CASE function, an IF THEN ELSE logic can be expressed within the SQL language.",
+        "usage-notes": [
+            "With the simple_case_expr, the expr is compared with the specified alternatives. The THEN part of the first match defines the result.",
+            "With the searched_case_expr, the row is evaluated using all of the conditions until one equates to the TRUE value. The THEN part of this condition is the result.",
+            "If none of the options apply, the ELSE value is returned. If this was not specified, the NULL value is returned."
+        ],
+        "example": "SELECT name, CASE WHEN turnover>1000 THEN 'PREMIUM' ELSE 'STANDARD' END AS CLASS FROM customer;"
+    },
+    {
+        "name": "CAST",
+        "types": [
+            "conversion"
+        ],
+        "description": "Converts an expression into the specified data type.",
+        "usage-notes": [
+            "CONVERT is an alias for this function.",
+            "For information about data types and the conversion rules, refer to Type Conversion Rules."
+        ],
+        "example": "SELECT CAST('ABC' AS CHAR(15)) STRINGCAST; SELECT CAST('2006-01-01' AS DATE) DATECAST;"
+    },
+    {
+        "name": "CEILING",
+        "alias": "CEIL",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the smallest whole number that is larger or equal to the given number.",
+        "usage-notes": [
+            "For more information on the FLOOR() and ROUND() functions, see FLOOR and ROUND (number)."
+        ],
+        "example": "SELECT CEIL(0.234) CEIL;"
+    },
+    {
+        "name": "CHAR",
+        "alias": "CHAR",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the ASCII character whose ordinal number is the given integer",
+        "usage-notes": [
+            "The number n must be between 0 and 127.",
+            "CHR(0) returns NULL."
+        ],
+        "example": "SELECT CEIL(0.234) CEIL;"
+    },
+    {
+        "name": "CHARACTER_LENGTH",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the length of a string in characters.",
+        "example": "SELECT CHARACTER_LENGTH('aeiouäöü') C_LENGTH;"
+    },
+    {
+        "name": "COALESCE",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the first value from the argument list which is not NULL.If all of the values are NULL, the function returns NULL",
+        "usage-notes": [
+            "The minimum number of arguments is 2.",
+            "The COALESCE(expr1,expr2) function is equivalent to the CASE expression CASE WHEN expr1 IS NOT NULL THEN expr1 ELSE expr2 END."
+        ],
+        "example": "SELECT COALESCE(NULL,'abc',NULL,'xyz') COALES;"
+    },
+    {
+        "name": "COLOGNE_PHONETIC",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a phonetic representation of a string.",
+        "usage-notes": [
+            "For a description for the algorithm used, see Kölner_Phonetik and Cologne Phonetics.",
+            "The result is a string of digits, whose length has as maximum the double length of the input string.",
+            "This function is similar to SOUNDEX, but is more appropriate for German words.",
+            "To calculate the difference between two strings, you can use the function EDIT_DISTANCE."
+        ],
+        "example": "SELECT COLOGNE_PHONETIC('schmitt'), COLOGNE_PHONETIC('Schmidt');"
+    },
+    {
+        "name": "CONCAT",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the concatenation of a number of strings.",
+        "example": "SELECT CONCAT('abc','def') CONCAT;"
+    },
+    {
+        "name": "CONNECT_BY_ISCYCLE",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns whether a row causes a cycle for a CONNECT BY query.",
+        "example": "SELECT CONNECT_BY_ISCYCLE, SYS_CONNECT_BY_PATH(last_name, '/') \"PATH\" FROM employees WHERE last_name = 'Clark' CONNECT BY NOCYCLE PRIOR employee_id = manager_id START WITH last_name = 'Clark';"
+    },
+    {
+        "name": "CONNECT_BY_ISLEAF",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns whether a row is a leaf within the tree for a CONNECT BY query.",
+        "example": "SELECT last_name, CONNECT_BY_ISLEAF, SYS_CONNECT_BY_PATH(last_name, '/') \"PATH\" FROM employees CONNECT BY PRIOR employee_id = manager_id START WITH last_name = 'Clark';"
+    },
+    {
+        "name": "CONVERT",
+        "types": [
+            "conversion"
+        ],
+        "description": "Converts an expression into the specified data type if this is possible.",
+        "usage-notes": [
+            "This function is an alias for CAST. For more information, refer to CAST function."
+        ],
+        "example": "SELECT CONVERT( CHAR(15), 'ABC' ) STRINGCAST; SELECT CONVERT( DATE, '2006-01-01' ) DATECAST;"
+    },
+    {
+        "name": "CONVERT_TZ",
+        "types": [
+            "date-time"
+        ],
+        "description": "Converts a timestamp from one time zone into another one.",
+        "usage-notes": [
+            "The timezones that are supported in Exasol are located in the system table EXA_TIME_ZONES. The following statement will return a list of all supported timezones: Copy select * from EXA_TIME_ZONES;",
+            "If the input value has type TIMESTAMP WITH LOCAL TIME ZONE, then this function is only allowed if the session time zone ( SESSIONTIMEZONE) is identical to the parameter from_tz. However, the result type is still the TIMESTAMP data type.",
+            "The optional fourth parameter (string) specifies options how problematic input data due to time shifts should be handled. The following alternatives exist:'INVALID SHIFT AMBIGUOUS ST''INVALID SHIFT AMBIGUOUS DST''INVALID SHIFT AMBIGUOUS NULLIFY''INVALID SHIFT AMBIGUOUS REJECT' 'INVALID ADJUST AMBIGUOUS ST''INVALID ADJUST AMBIGUOUS DST''INVALID ADJUST AMBIGUOUS NULLIFY''INVALID ADJUST AMBIGUOUS REJECT''INVALID NULLIFY AMBIGUOUS ST''INVALID NULLIFY AMBIGUOUS DST''INVALID NULLIFY AMBIGUOUS NULLIFY''INVALID NULLIFY AMBIGUOUS REJECT''INVALID REJECT AMBIGUOUS ST''INVALID REJECT AMBIGUOUS DST''INVALID REJECT AMBIGUOUS NULLIFY''INVALID REJECT AMBIGUOUS REJECT''ENSURE REVERSIBILITY'",
+            "For more information about the options, refer to the Date and time data types data types in the Data Types section.",
+            "ENSURE REVERSIBILITY is a special option to ensure the reversibility of the conversion. An exception is thrown if the input data is invalid or ambiguous and the resulting timestamp is ambiguous, since this means that the timestamp cannot be converted back without loss of information.",
+            "When omitting the fourth parameter, the default behavior is defined by the session value TIME_ZONE_BEHAVIOR (additionally, see ALTER SESSION)."
+        ],
+        "example": "SELECT CONVERT_TZ(TIMESTAMP '2012-05-10 12:00:00','UTC','Europe/Berlin') CONVERT_TZ; SELECT CONVERT_TZ(TIMESTAMP '2012-03-25 02:30:00','Europe/Berlin','UTC','INVALID REJECT AMBIGUOUS REJECT') CONVERT_TZ;"
+    },
+    {
+        "name": "CORR",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the coefficient of correlation of a set of number pairs (a type of relation measure).",
+        "usage-notes": [
+            "If either expr1 or expr2 is the value NULL, Exasol removes the corresponding row from the window before the computation of the function.",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section."
+        ],
+        "example": "SELECT id, department, age, current_salary, CORR(age, current_salary) OVER (PARTITION BY department order by age) CORR FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "COS",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the cosine of number n.",
+        "example": "SELECT COS(PI()/3);"
+    },
+    {
+        "name": "COSH",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the hyperbolic cosine of number n.",
+        "example": "SELECT COSH(1);"
+    },
+    {
+        "name": "COT",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the cotangent of number n.",
+        "example": "SELECT COT(1);"
+    },
+    {
+        "name": "COUNT",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the number of rows in the result set of a SQL query.",
+        "usage-notes": [
+            "If * is specified, Exasol counts all the rows.",
+            "If COUNT contains one or more expressions expr, Exasol does not count the NULL values. If you use tuples of several expression, Exasol does not count tuples that consist only of NULL values.",
+            "Exasol counts duplicate values of these expr or tuple of expressions only once with DISTINCT. It counts all occurrences with ALL. The default behavior is ALL if  neither ALL nor DISTINCT is specified.",
+            "A fast, but not exact alternative to COUNT(DISTINCT) is the function APPROXIMATE_COUNT_DISTINCT."
+        ],
+        "example": "SELECT id department, COUNT(*) OVER (PARTITION BY department order by age) COUNT FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "COVAR_POP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the population covariance of a set of number pairs (a type of relation measure).",
+        "usage-notes": [
+            "If either expr1 or expr2 is NULL, Exasol removes the corresponding row from the window before the computation of the function.",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section."
+        ],
+        "example": "SELECT id department, age, current_salary, COVAR_POP(age, current_salary) OVER (PARTITION BY department ORDER BY age) COVAR_POP FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "COVAR_SAMP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the sample covariance of a set of number pairs (a type of relation measure).",
+        "usage-notes": [
+            "If either expr1 or expr2 is the value NULL, Exasol removes the corresponding row from the window before the computation of the function.",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section."
+        ],
+        "example": "SELECT id department, age, current_salary, COVAR_SAMP(age, current_salary) OVER (PARTITION BY department ORDER BY age) COVAR_SAMP FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "CUME_DIST",
+        "types": [
+            "analytic"
+        ],
+        "description": "Calculates the cumulative distribution of a value in a group of values.",
+        "usage-notes": [
+            "CUME_DIST is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "This function returns values in the range (0, 1].",
+            "CUME_DIST does not allow the use of a window_frame_clause. It uses the entire partition as window for the computation of the result."
+        ],
+        "example": "SELECT id department, current_salary, CUME_DIST() OVER (PARTITION BY department ORDER BY current_salary) CUME_DIST FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "CURDATE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current date by evaluating TO_DATE(CURRENT_TIMESTAMP).",
+        "example": "SELECT CURDATE() CURDATE;"
+    },
+    {
+        "name": "CURRENT_CLUSTER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the name of the database cluster that on which the current session is running.",
+        "example": "SELECT CURRENT_CLUSTER;"
+    },
+    {
+        "name": "CURRENT_DATE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current date by evaluating TO_DATE(CURRENT_TIMESTAMP).",
+        "example": "SELECT CURRENT_DATE;"
+    },
+    {
+        "name": "CURRENT_SCHEMA",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the schema that is currently open. If a schema is not open, a NULL value is returned.",
+        "example": "SELECT CURRENT_SCHEMA;"
+    },
+    {
+        "name": "CURRENT_SESSION",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the id of the current session.",
+        "example": "SELECT CURRENT_SESSION;"
+    },
+    {
+        "name": "CURRENT_STATEMENT",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the current id of the statements which is serially numbered within the current session.",
+        "example": "SELECT CURRENT_STATEMENT;"
+    },
+    {
+        "name": "CURRENT_TIMESTAMP",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current timestamp, interpreted in the current session time zone.",
+        "usage-notes": [
+            "The return value is of data type TIMESTAMP(precision) WITH LOCAL TIME ZONE. If no precision is given, the data type is TIMESTAMP(3) WITH LOCAL TIME ZONE.",
+            "The return value is limited to microsecond precision, even if precision is greater than 6.",
+            "The function NOW is an alias for CURRENT_TIMESTAMP(3).",
+            "Other functions for the current moment: LOCALTIMESTAMP, SYSTIMESTAMP."
+        ],
+        "example": "SELECT CURRENT_TIMESTAMP, CURRENT_TIMESTAMP(6);"
+    },
+    {
+        "name": "CURRENT_USER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the current user.",
+        "example": "SELECT CURRENT_USER;"
+    },
+    {
+        "name": "DATE_TRUNC",
+        "types": [
+            "date-time"
+        ],
+        "description": "This is a PostgreSQL compatible function to round down date and timestamp values.",
+        "usage-notes": [
+            "As format you can use one of the following elements: 'microseconds', 'milliseconds', 'second', 'minute', 'hour', 'day', 'week', 'month', 'quarter', 'year', 'decade', 'century', 'millennium'.",
+            "The first day of a week (for format element 'week') is defined by the parameter NLS_FIRST_DAY_OF_WEEK (also see ALTER SESSION and ALTER SYSTEM).",
+            "A similar functionality provides the Oracle compatible function TRUNC[ATE] (datetime).",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT DATE_TRUNC('month', DATE '2006-12-31') DATE_TRUNC; SELECT DATE_TRUNC('minute', TIMESTAMP '2006-12-31 23:59:59') DATE_TRUNC;"
+    },
+    {
+        "name": "DAY",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the day of a date.",
+        "usage-notes": [
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT DAY(DATE '2010-10-20');"
+    },
+    {
+        "name": "DAYS_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of days between two date values.",
+        "usage-notes": [
+            "If a timestamp is entered, only the date contained therein is applied for the computation.",
+            "If the first date value is earlier than the second date value, the result is negative.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT DAYS_BETWEEN(DATE '1999-12-31',DATE '2000-01-01') DB1,DAYS_BETWEEN(TIMESTAMP '2000-01-01 12:00:00',TIMESTAMP '1999-12-31 00:00:00') DB2;"
+    },
+    {
+        "name": "DBTIMEZONE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the database time zone which is set system-wide and represents the local time zone of the Exasol servers.",
+        "usage-notes": [
+            "After setting the cluster time , you must restart the entire cluster before the DBTIMEZONE value is updated.",
+            "For more information, see SESSIONTIMEZONE function."
+        ],
+        "example": "SELECT DBTIMEZONE;"
+    },
+    {
+        "name": "DECODE",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the result value for which the expression, expr, matches the expression, search. If no match is found, NULL or − if specified − the default value is returned.",
+        "usage-notes": [
+            "Decode is similar to CASE, but has slightly different functionality (to be compliant to other databases):The expression expr can be directly compared with value NULL. For example, DECODE(my_column, NULL, 0, my_column)).",
+            "String comparisons are done \"non-padded\". For example,  DECODE(my_column, 'abc', TRUE, FALSE) on a CHAR(10) column always returns false."
+        ],
+        "example": "SELECT DECODE('abc', 'xyz', 1, 'abc', 2, 3);"
+    },
+    {
+        "name": "DEGREES",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the corresponding angle in degrees for an angle specified in radians.",
+        "usage-notes": [
+            "The input variable can be any number.",
+            "For more information, see function RADIANS."
+        ],
+        "example": "SELECT DEGREES(PI());"
+    },
+    {
+        "name": "DENSE_RANK",
+        "types": [
+            "analytic"
+        ],
+        "description": "Returns the rank of a row within an ordered partition.",
+        "usage-notes": [
+            "DENSE_RANK is only available as an analytic function (i.e., in combination with over_clause). For more information, refer to Analytic Functions section.",
+            "The over_clause has to contain an order_clause part and must not contain a window_frame_clause.",
+            "The same value is returned for rows with equal ranking. However, there are no gaps in the function results after duplicate values. This is different from RANK."
+        ],
+        "example": "SELECT id department, current_salary, DENSE_RANK() OVER (PARTITION BY department ORDER BY current_salary) DENSE_RANK FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "DIV",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the integer quotient of m and n.",
+        "example": "SELECT DIV(15,6) DIV;"
+    },
+    {
+        "name": "DUMP",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the byte length and the character set of string, as well as the internal representation of the characters specified by start position start and length as length.",
+        "usage-notes": [
+            "The argument format specifies the format of the return value. There are four valid format-values:8: Octal notation",
+            "10: Decimal notation (default)",
+            "16: Hexadecimal notation",
+            "17: ASCII characters are directly printed, multi-byte-characters are printed in hexadecimal format."
+        ],
+        "example": "SELECT DUMP('123abc') DUMP; SELECT DUMP('üäö45',16) DUMP;"
+    },
+    {
+        "name": "EDIT_DISTANCE",
+        "types": [
+            "string"
+        ],
+        "description": "Defines the distance between two strings, indicating their similarity.",
+        "usage-notes": [
+            "To check the phonetic equivalence of strings you can use the functions SOUNDEX and COLOGNE_PHONETIC.",
+            "The number of changes is calculated which need to be done to convert one string into the other.",
+            "The result is a number between 0 and the length of the wider string."
+        ],
+        "example": "SELECT EDIT_DISTANCE('schmitt', 'Schmidt');"
+    },
+    {
+        "name": "EVERY",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns TRUE if the value of expr is true for all rows in the window or group of input rows. Otherwise, this function returns FALSE.",
+        "usage-notes": [
+            "This function returns NULL, if the window of rows is empty.",
+            "DISTINCT has no effect."
+        ],
+        "example": "SELECT id department, age, EVERY(age >= 30) OVER (PARTITION BY department ORDER BY age) EVERY FROM employee_table ORDER BY department, age;"
+    },
+    {
+        "name": "EXP",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the number e (Euler's number) to the power of n.",
+        "example": "SELECT EXP(1);"
+    },
+    {
+        "name": "EXTRACT",
+        "types": [
+            "date-time"
+        ],
+        "description": "Extracts specific values from a timestamp, date or interval.",
+        "usage-notes": [
+            "Valid parameters for the different data types:",
+            "When extracting seconds, the milliseconds contained in the timestamp or interval are also extracted.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE, this function is calculated within the session time zone."
+        ],
+        "example": "SELECT EXTRACT(SECOND FROM TIMESTAMP '2000-10-01 12:22:59.123') EXS, EXTRACT(MONTH FROM DATE '2000-10-01') EXM,EXTRACT(HOUR FROM INTERVAL '1 23:59:30.123' DAY TO SECOND) EXH;"
+    },
+    {
+        "name": "FIRST_VALUE",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the result of expr from the first row in the window.",
+        "usage-notes": [
+            "Due to the fact that Exasol distributes all rows across the cluster, FIRST_VALUE is non-deterministic as an aggregate function. Accordingly, FIRST_VALUE serves primarily as a help function in the event where only the same elements are present in a group.",
+            "FIRST_VALUE as aggregate function ignores the RESPECT NULLS option.",
+            "FIRST_VALUE is also non-deterministic as analytic function if the over_clause does not contain an order_clause. For more information, refer to Analytic Functions section."
+        ],
+        "example": "SELECT id department, hire_date, FIRST_VALUE(id) OVER (PARTITION BY department ORDER BY hire_date) FIRST_ FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "FLOOR",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the largest whole number that is smaller or equal to n",
+        "usage-notes": [
+            "For more information on the CEIL() and ROUND() functions, see CEIL[ING] and ROUND (number)."
+        ],
+        "example": "SELECT FLOOR(4.567) FLOOR;"
+    },
+    {
+        "name": "FROM_POSIX_TIME",
+        "types": [
+            "date-time"
+        ],
+        "description": "Converts the Posix Time (that means a numerical value) to a timestamp.",
+        "usage-notes": [
+            "FROM_POSIX_TIME(<number>) is equivalent to the function call ADD_SECONDS('1970-01-01 00:00:00',<number>), if the session time zone is set to UTC.",
+            "If you pass a negative number, the function will return timestamps before January 1, 1970 (UTC).",
+            "Using the function POSIX_TIME you can compute the Posix time, that means you can convert a datetime value into a numeric value."
+        ],
+        "example": "ALTER SESSION SET TIME_ZONE='UTC'; SELECT FROM_POSIX_TIME(1) FPT1,FROM_POSIX_TIME(1234567890) FPT2;"
+    },
+    {
+        "name": "GREATEST",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the largest of the specified expressions.",
+        "usage-notes": [
+            "The data type BOOLEAN is not supported.",
+            "If one of the arguments is NULL, the function returns NULL."
+        ],
+        "example": "SELECT GREATEST(1,5,3) GREATEST;"
+    },
+    {
+        "name": "GROUP_CONCAT",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns a concatenated string of values of expr from all rows in the window or group.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once.",
+            "The order_clause as function argument specifies the sorting order of the rows within the window or group.",
+            "The SEPARATOR value can be any string constant. Concatenated string constants are also valid.   By default the value for SEPARATOR is a single comma ','.",
+            "The order_clause in the over_clause is also optional.",
+            "It is only possible to specify the order_clause once, either in the function arguments or as part of the over_clause. For more information, refer to Analytic Functions section.",
+            "An overflow occurs if the result string is longer than the maximum length supported by type VARCHAR (2 million characters). If such an overflow occurs, Exasol raises an error."
+        ],
+        "example": "SELECT id department, hire_date, GROUP_CONCAT(id ORDER BY hire_date SEPARATOR ',') OVER (PARTITION BY department rows between 1 preceding and 1 following) GROUP_CONCAT_RESULT FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "GROUPING_ID",
+        "alias": "GROUPING",
+        "types": [
+            "aggregate"
+        ],
+        "description": "Distinguishes between regular result rows and superaggregate rows which are created in case of GROUPING SETS, CUBE or ROLLUP clauses.",
+        "usage-notes": [
+            "Each argument must be similar to an expression within the GROUP BY clause.",
+            "In case of a single argument the result value is 0 if the corresponding grouping considers this expression, otherwise 1 (superaggregation).",
+            "In case of multiple arguments the result value is a number whose binary representation is similar to GROUPING(arg1), GROUPING(arg2),..., GROUPING(argn). For example, the following is true: GROUPING(a,b,c) = 4xGROUPING(a) + 2xGROUPING(b) + 1xGROUPING(c)",
+            "For more information on GROUPING SETS, CUBE and ROLLUP, refer to the SELECT statement in the Query language (DQL) section."
+        ],
+        "example": "SELECT SUM(volume) revenue, y, m, DECODE(GROUPING(y,m),1,'yearly',3,'total',NULL) superaggregate FROM sales GROUP BY ROLLUP(y,m) ORDER BY y,revenue;"
+    },
+    {
+        "name": "HASH_MD5",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the MD5 algorithm (128 Bit).",
+        "usage-notes": [
+            "Return values have data type CHAR(32) and contain hex characters.",
+            "The data types of the input parameters are significant. That is why HASH_MD5(123) is different to HASH_MD5('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASH_MD5('abc');"
+    },
+    {
+        "name": "HASH_SHA1",
+        "alias": "HASH_SHA",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA1 algorithm (160 Bit).",
+        "usage-notes": [
+            "Return values have data type CHAR(40) and contain hex characters.",
+            "The data types of the input parameters are significant. That is why HASH_SHA1(123) is different to HASH_SHA1('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed. HASH_SHA1(c1,c2) is not similar to HASH_SHA1(c1||c2).",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASH_SHA1('abc');"
+    },
+    {
+        "name": "HASH_SHA256",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA256 algorithm (256 Bit).",
+        "usage-notes": [
+            "Return values have data type CHAR(64) and contain hex characters.",
+            "The data types of the input parameters are significant. That is why HASH_SHA256(123) is different from HASH_SHA256('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASH_SHA256('abc');"
+    },
+    {
+        "name": "HASH_SHA512",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA512 algorithm (512 Bit).",
+        "usage-notes": [
+            "Return values have data type CHAR(128) and contain hex characters.",
+            "The data types of the input parameters are significant. That is why HASH_SHA512(123) is different from HASH_SHA512('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASH_SHA512('abc');"
+    },
+    {
+        "name": "HASH_TIGER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the tiger algorithm (192 Bit).",
+        "usage-notes": [
+            "Return values have data type CHAR(48) and contain hex characters.",
+            "The data types of the input parameters are significant. That is why HASH_TIGER(123) is different to HASH_TIGER('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASH_TIGER('abc');"
+    },
+    {
+        "name": "HASHTYPE_MD5",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the MD5 algorithm (128 Bit).",
+        "usage-notes": [
+            "Return values have data type HASHTYPE(16 byte).",
+            "The data types of the input parameters are significant. That is why HASHTYPE_MD5(123) is different to HASHTYPE_MD5('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASHTYPE_MD5('abc');"
+    },
+    {
+        "name": "HASHTYPE_SHA1",
+        "alias": "HASHTYPE_SHA",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA1 algorithm (160 Bit).",
+        "usage-notes": [
+            "Return values have data type HASHTYPE(20 byte).",
+            "The data types of the input parameters are significant. That is why HASHTYPE_SHA1(123) is different to HASHTYPE_SHA1('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed. HASHTYPE_SHA1(c1,c2) is not similar to HASHTYPE_SHA1(c1||c2).",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASHTYPE_SHA1('abc');"
+    },
+    {
+        "name": "HASHTYPE_SHA256",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA256 algorithm (256 Bit).",
+        "usage-notes": [
+            "Return values have data type HASHTYPE(32 byte).",
+            "The data types of the input parameters are significant. That is why HASHTYPE_SHA256(123) is different from HASHTYPE_SHA256('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASHTYPE_SHA256('abc');"
+    },
+    {
+        "name": "HASHTYPE_SHA512",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the SHA512 algorithm (512 Bit).",
+        "usage-notes": [
+            "Return values have data type HASHTYPE(64 byte).",
+            "The data types of the input parameters are significant. That is why HASHTYPE_SHA512(123) is different from HASHTYPE_SHA512('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASHTYPE_SHA512('abc');"
+    },
+    {
+        "name": "HASHTYPE_TIGER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Computes a hash value by using the tiger algorithm (192 Bit).",
+        "usage-notes": [
+            "Return values have data type HASHTYPE(24 byte).",
+            "The data types of the input parameters are significant. That is why HASHTYPE_TIGER(123) is different to HASHTYPE_TIGER('123').",
+            "Multiple input expressions are concatenated (in their internal byte representation) before the hash value is computed.",
+            "The function returns NULL if all input expressions are NULL."
+        ],
+        "example": "SELECT HASHTYPE_TIGER('abc');"
+    },
+    {
+        "name": "HOUR",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the hours of a timestamp.",
+        "usage-notes": [
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT HOUR(TIMESTAMP '2010-10-20 11:59:40.123');"
+    },
+    {
+        "name": "HOURS_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of hours between timestamp timestamp1 and timestamp timestamp2",
+        "usage-notes": [
+            "If timestamp timestamp1 is earlier than timestamp timestamp2, then the result is negative.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated internally within UTC."
+        ],
+        "example": "SELECT HOURS_BETWEEN(TIMESTAMP '2000-01-01 12:00:00',TIMESTAMP '2000-01-01 11:01:05.1') HB;"
+    },
+    {
+        "name": "INITCAP",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the specified string, with the first letter of each word in uppercase, all other letters is lowercase.",
+        "example": "SELECT INITCAP('ExAsOl is great') INITCAP;"
+    },
+    {
+        "name": "INSERT",
+        "types": [
+            "string"
+        ],
+        "description": "Replaces the substring of string, with length length beginning at position, with string new_string",
+        "usage-notes": [
+            "The first character of string has position 1. If the variable position is 0 or outside the string, then the string is not changed. If it is negative, then the function counts backwards from the end.",
+            "If length=0, then new_string is just inserted and nothing is replaced.",
+            "If position+length>length(string) or if length<0, then the string is replaced beginning from position.",
+            "If one of the parameters is NULL, then NULL is returned."
+        ],
+        "example": "SELECT INSERT('abc',2,2,'xxx'), INSERT('abcdef',3,2,'CD');"
+    },
+    {
+        "name": "INSTR",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the position in string at which search_string appears. If this is not contained, the value 0 is returned.",
+        "usage-notes": [
+            "The optional parameter position defines the search direction and at which position the search shall start:   If position is positive, the string is searched from the beginning to the end, starting at the character position counted from the beginning (the first character has position 1).",
+            "If position is negative, the string is searched from the end to the beginning, starting at character position counted from the end (the last character has position -1). The return value is counted from the beginning to the end, so the function will never return a negative value. Example: INSTR(string,'abc',-3) will search backwards starting from the third last character in the string."
+        ],
+        "example": "SELECT INSTR('abcabcabc','cab') INSTR1,INSTR('user1,user2,user3,user4,user5','user', -1, 2) INSTR2;"
+    },
+    {
+        "name": "IPROC",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the local node number within the cluster.",
+        "usage-notes": [
+            "The result value is an integer between 0 and NPROC-1.",
+            "Only active database nodes are counted, not reserve nodes.",
+            "In this context, please also note functions NPROC and VALUE2PROC."
+        ],
+        "example": "SELECT c1, IPROC() IPROC FROM t ORDER BY c1;"
+    },
+    {
+        "name": "IS_BOOLEAN",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to a BOOLEAN.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned."
+        ],
+        "example": "SELECT IS_BOOLEAN('xyz') IS_BOOLEAN;"
+    },
+    {
+        "name": "IS_DATE",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to a DATE.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned.",
+            "If a format is specified, then the rules of the TO_DATE function apply."
+        ],
+        "example": "SELECT IS_DATE('12.13.2011', 'DD.MM.YYYY') IS_DATE;"
+    },
+    {
+        "name": "IS_DSINTERVAL",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to an INTERVAL DAY TO SECOND.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned."
+        ]
+    },
+    {
+        "name": "IS_NUMBER",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to a DECIMAL OR DOUBLE.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned.",
+            "If a format is specified, then the rules of the TO_NUMBER function apply."
+        ],
+        "example": "SELECT IS_NUMBER('+12.34') IS_NUMBER;"
+    },
+    {
+        "name": "IS_TIMESTAMP",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to a TIMESTAMP.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned.",
+            "If a format is specified, then the rules of the TO_TIMESTAMP function apply."
+        ]
+    },
+    {
+        "name": "IS_YMINTERVAL",
+        "types": [
+            "conversion"
+        ],
+        "description": "Returns TRUE if string can be converted to an INTERVAL YEAR TO MONTH.",
+        "usage-notes": [
+            "If the argument is NULL, then NULL is returned."
+        ]
+    },
+    {
+        "name": "JSON_EXTRACT",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Extracts one or more SQL values from a valid JSON string.",
+        "usage-notes": [
+            "The parameter json_expr defines the input JSON string for the function. Exasol accepts an arbitrary expression of type (VAR)CHAR. To return an SQL value, json_expr has to follow the syntax rules on JSON.org.",
+            "JSON_EXTRACT is based on the Exasol UDF framework and behaves like a SCALAR EMITS UDF. Thus, the same restrictions apply (for example, there is no Virtual Schema pushdown). Although JSON_EXTRACT relies on the UDF framework, internally, it uses a fast native JSON processing framework.",
+            "Each json_path_expr parameter defines a single JSON path for JSON_EXTRACT. The function accepts an arbitrary expression of type (VAR)CHAR for each path. For the path syntax rules in Exasol, refer to the JSON Path Expressions section.",
+            "JSON_EXTRACT supports an arbitrary number of json_path_expr parameters. For each json_path_expr, the EMITS clause has to define a column_name and a data_type for the JSON values it returns. The order of the columns in the EMITS clause corresponds to the order of the json_path_expr parameters. Thus, the first column_name and data_type belongs to the first json_path_expr.",
+            "If any json_path_expr does not identify an SQL value, JSON_EXTRACT throws an error. Thus, ERROR ON EMPTY is the default for each json_path_expr.",
+            "If any error occurs during the JSON processing, JSON_EXTRACT throws an error by default. Thus, ERROR ON ERROR is the default for each json_path_expr.",
+            "If the last json_path_expr parameter is the string literal '$.error()', the error behavior of JSON_EXTRACT changes to LOG ON EMPTY and LOG ON ERROR for all json_path_expr parameters.",
+            "If '$.error()' is present, the EMITS clause requires an extra 'error column' with data_type (VAR)CHAR to log all occurring errors. It is possible to freely choose the column_name and (VAR)CHAR size for the 'error column' in the EMITS clause.",
+            "To specify the ON EMPTY and ON ERROR behavior for each path separately, refer to the JSON Path Expressions section.",
+            "If the error behavior for a path is LOG ON EMPTY and the path does not identify an SQL value, JSON_EXTRACT returns NULL for the path and writes the problem into the 'error column'.",
+            "If the error behavior for a path is LOG ON ERROR and an error occurs during the JSON processing, JSON_EXTRACT returns NULL for the path and writes the problem into the 'error column'.",
+            "To learn more about the different possible errors, refer to the JSON Error Handling section.",
+            "With JSON_EXTRACT, it is possible to extract several rows from a single json_expr. This makes it possible to create an extra row for each element in a JSON array. To extract several rows, the json_path_expr has to contain a '#' character to split up all expressions identified by a nested path into several rows.",
+            "All nested path prefixes ending with a '#' character must be a prefix of the longest nested path."
+        ],
+        "example": "CREATE OR REPLACE TABLE json_input2(id INT, json VARCHAR(2000000)); INSERT INTO json_input2 VALUES(1, '{\"data\" : [{\"country\" : \"United Kingdom\", \"customers\" : [{\"name\" : \"John Doe\", \"phone numbers\" : [{\"type\" : \"private\", \"number\" : \"+4412345678\"}]}]}]}'); INSERT INTO json_input2 VALUES(2, '{\"data\" : [{\"country\" : \"Germany\", \"customers\" : [{\"name\" : \"Hans Meier\", \"phone numbers\" : [{\"type\" : \"private\", \"number\" : \"+4912345678\"}, {\"type\" : \"mobile\", \"number\" : \"+49987654321\"}]} ,{\"name\" : \"Achim Schmidt\", \"phone numbers\" : [{\"type\" : \"private\", \"number\" : \"+49214365879\"}, {\"type\" : \"mobile\", \"number\" : \"+4989674523\"}]}]}]}'); SELECT id, JSON_EXTRACT(json,'$.data.country','$.data.customers#.name','$.data.customers#.\"phone numbers\"#.type','$.data.customers#.\"phone numbers\"#.number') EMITS(country VARCHAR(100),name VARCHAR(100),phone_number_type VARCHAR(100),phone_number VARCHAR(100)) FROM json_input2ORDER BY id, name, phone_number;"
+    },
+    {
+        "name": "JSON_VALUE",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Extracts a single SQL value at a given path from a valid JSON string.",
+        "usage-notes": [
+            "The parameter json_expr defines the input JSON string for the function. Exasol accepts an arbitrary expression of type (VAR)CHAR. To return an SQL value, json_expr has to follow the syntax rules on JSON.org.",
+            "The parameter json_path_expr defines the JSON path for the function. Exasol accepts an arbitrary expression of type (VAR)CHAR.  For the information on path syntax rules in Exasol, refer to the JSON Path Expressions section.",
+            "The optional RETURNING data_type clause allows the specification of the SQL return type. The default type is VARCHAR(2000000).",
+            "If JSON_VALUE contains ERROR ON EMPTY, it throws an error if the path does not identify an SQL value.",
+            "If JSON_VALUE contains NULL ON EMPTY, it returns NULL if the path does not identify an SQL value. This is the default behavior.",
+            "If JSON_VALUE contains DEFAULT expr ON EMPTY, it returns expr if the path does not identify an SQL value.",
+            "If JSON_VALUE contains ERROR ON ERROR, it throws an error if an error occurs during the JSON processing.",
+            "If JSON_VALUE contains NULL ON ERROR, it returns NULL if an error occurs during the JSON processing. This is the default behavior.",
+            "If JSON_VALUE contains DEFAULT expr ON ERROR, it returns expr if an error occurs during the JSON processing.",
+            "To learn more about the different possible errors, refer to the JSON Error Handling section."
+        ],
+        "example": "CREATE OR REPLACE TABLE json_input(id INT, json VARCHAR(2000000)); INSERT INTO json_input VALUES(1, '{\"name\" : \"Smith\"}'); INSERT INTO json_input VALUES(2, '{\"surname\" : \"Smith\"}'); INSERT INTO json_input VALUES(3, '{\"name\" : 1'); INSERT INTO json_input VALUES(4, '{\"name\" : \"Doe\"}'); SELECT id, JSON_VALUE(json, '$.name' NULL ON EMPTY DEFAULT 'invalid name' ON ERROR) as \"JSON value\" FROM json_input;"
+    },
+    {
+        "name": "LAG",
+        "types": [
+            "analytic"
+        ],
+        "description": "Computes the result of expr on the row that is precisely offset rows prior to the current row in the partition.",
+        "usage-notes": [
+            "LAG is only available as an analytic function (i.e., in combination with an over_clause). For more information,  refer to Analytic Functions section.",
+            "The over_clause has to contain an order_clause and must not contain a window_frame_clause.",
+            "If the order_clause does not define an unique sort order, the result is non-deterministic.",
+            "The offset parameter has to be a numeric value greater than or equal to 0. Without offset, Exasol uses the default value 1.",
+            "If there are less than offset number of rows before the current row in the partition, LAG returns the default value for the row. Without specified default, Exasol uses NULL.",
+            "If the function contains IGNORE NULLS, Exasol skips rows with NULL during the search for the previous row in the partition. It does not skip any rows with RESPECT NULLS. If the function contains neither IGNORE NULLS nor RESPECT NULLS the default is RESPECT NULLS. The use of IGNORE NULLS is computationally more expensive than RESPECT NULLS.",
+            "To access following rows you can use the function LEAD."
+        ],
+        "example": "SELECT id department, hire_date, LAG(id, 1) OVER (PARTITION BY department ORDER BY hire_date) LAG FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "LAST_VALUE",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the result of expr from the first row in the window.",
+        "usage-notes": [
+            "Due to the fact that Exasol distributes all rows across the cluster, LAST_VALUE is non-deterministic as an aggregate function. Accordingly, LAST_VALUE serves primarily as a help function in the event where only the same elements are present in a group.",
+            "LAST_VALUE as aggregate function ignores the RESPECT NULLS option.",
+            "LAST_VALUE is also non-deterministic as analytic function if the over_clause does not contain an order_clause. For more information, refer to Analytic Functions section."
+        ],
+        "example": "SELECT id department, hire_date, LAST_VALUE(id) OVER (PARTITION BY department ORDER BY hire_date) LAST_ FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "LCASE",
+        "types": [
+            "string"
+        ],
+        "description": "Converts the specified string into lowercase letters.",
+        "example": "SELECT LCASE('AbCdEf') LCASE;"
+    },
+    {
+        "name": "LEAD",
+        "types": [
+            "analytic"
+        ],
+        "description": "Computes the result of expr on the row that is precisely offset rows following current row in the partition.",
+        "usage-notes": [
+            "LEAD is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "The over_clause has to contain an order_clause and must not contain a window_frame_clause.",
+            "If the order_clause does not define an unique sort order, the result is non-deterministic.",
+            "The offset parameter has to be a numeric value greater than or equal to 0. Without offset, Exasol uses the default value 1.",
+            "If there are less than offset number of rows following the current row, LEAD returns the default value for the row. Without specified default, Exasol uses NULL.",
+            "If the function contains IGNORE NULLS, Exasol skips rows with NULL during the search for the leading row in the partition. It does not skip any rows with RESPECT NULLS. If the function contains neither IGNORE NULLS nor RESPECT NULLS the default is RESPECT NULLS. The use of IGNORE NULLS is computationally more expensive than RESPECT NULLS.",
+            "To access preceding rows you can use the function LAG."
+        ],
+        "example": "SELECT id department, hire_date, LEAD(id, 1) OVER (PARTITION BY department ORDER BY hire_date) LEAD FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "LEAST",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the smallest of the specified expressions.",
+        "usage-notes": [
+            "The data type BOOLEAN is not supported.",
+            "If one of the arguments is NULL, the function returns NULL."
+        ],
+        "example": "SELECT LEAST(3,1,5) LEAST;"
+    },
+    {
+        "name": "LEFT",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the left-aligned substring of string with length length",
+        "usage-notes": [
+            "If either length or string is NULL, then NULL is returned.",
+            "Also if length is greater than the length of string, the original string is returned. If length is negative or 0, then NULL is returned.",
+            "Additionally, refer to functions SUBSTR[ING], MID and RIGHT for more information."
+        ],
+        "example": "SELECT LEFT('abcdef',3) LEFT_SUBSTR;"
+    },
+    {
+        "name": "LENGTH",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the length of a string in characters.",
+        "example": "SELECT LENGTH('abc') LENGTH;"
+    },
+    {
+        "name": "LEVEL",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns for CONNECT BY queries the level of a node within the tree.",
+        "example": "SELECT last_name, LEVEL, SYS_CONNECT_BY_PATH(last_name, '/') \"PATH\" FROM employees CONNECT BY PRIOR employee_id = manager_id START WITH last_name = 'Clark';"
+    },
+    {
+        "name": "LISTAGG",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns a concatenated string of values of expr from all rows in the window or group.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT the default is ALL.",
+            "The default value for delimiter is an empty string (no delimiter).",
+            "The WITHIN GROUP clause is optional. It specifies the order_clause for the sorting order of the rows within the window or group.",
+            "It is only possible to specify the order_clause once, either in the WITHIN GROUP clause or as part of the over_clause. For more information, refer to Analytic Functions section.",
+            "The ON OVERFLOW specifies the behavior in case of an overflow. An overflow occurs if the result string is longer than the maximum length supported by type VARCHAR (2 million characters).",
+            "Without specification of an ON OVERFLOW clause, the default behavior is ON OVERFLOW ERROR. In this setting, Exasol raises an error if an overflow occurs.",
+            "With the specification of ON OVERFLOW TRUNCATE clause, Exasol prevents an error in case of an overflow. Instead, it truncates the result string and appends the truncation_filler to remain within the data type size boundaries. Without the specification of truncation_filler, Exasol uses the default string value '...'.",
+            "In combination with the WITH COUNT clause, the result string is concatenated with the count (i.e., the number of rows that were truncated) in the case of an overflow. The count is enclosed in parentheses. Exasol reserves 22 characters within the data type size boundaries for the count. This also includes the parentheses."
+        ],
+        "example": "CREATE OR REPLACE TABLE t (p DECIMAL(6, 0), o DECIMAL(6, 0), v VARCHAR(2000000)); INSERT INTO T VALUES (1, 1, 'abcd'); INSERT INTO T VALUES (1, 2, 'efgh'); INSERT INTO T VALUES (1, 3, repeat('z', 1999995)); INSERT INTO T VALUES (1, 4, 'ijkl'); INSERT INTO T VALUES (2, 1, '123'); INSERT INTO T VALUES (2, 2, '456'); INSERT INTO T VALUES (2, 2, '789'); SELECTpart, ord, LISTAGG(v, ', ' ON OVERFLOW TRUNCATE WITH COUNT) OVER (PARTITION BY part ORDER BY ord) LISTAGG_RES FROM t ORDER BY part, ord;"
+    },
+    {
+        "name": "LN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the natural logarithm of number n. The function LN(n) is equivalent to LOG(EXP(1),n)",
+        "example": "SELECT LN(100) LN;"
+    },
+    {
+        "name": "LOCALTIMESTAMP",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current timestamp, interpreted in the current session time zone.",
+        "usage-notes": [
+            "The return value is of data type TIMESTAMP(precision). If no precision is given, the data type is TIMESTAMP(3).",
+            "The return value is limited to microsecond precision, even if precision is greater than 6.",
+            "Other functions for the current moment: CURRENT_TIMESTAMP or NOW, SYSTIMESTAMP."
+        ],
+        "example": "SELECT LOCALTIMESTAMP, LOCALTIMESTAMP(6);"
+    },
+    {
+        "name": "LOCATE",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the position in string at which search_string appears. If this is not contained, the value 0 is returned.",
+        "usage-notes": [
+            "The optional parameter position defines the search direction and at which position the search shall start:   If position is positive, the string is searched from the beginning to the end, starting at the character position counted from the beginning (the first character has position 1).",
+            "If position is negative, the string is searched from the end to the beginning, starting at character position counted from the end (the last character has position -1). The return value is counted from the beginning to the end, so the function will never return a negative value. Example: LOCATE(string,'abc',-3) will search backwards starting from the third last character in the string."
+        ],
+        "example": "SELECT LOCATE('cab','abcabcabc') LOCATE1,LOCATE('user','user1,user2,user3,user4,user5', -1) LOCATE2;"
+    },
+    {
+        "name": "LOG",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the logarithm of n with base base",
+        "usage-notes": [
+            "The number base must be positive and must not be 1.",
+            "The number n must be positive."
+        ],
+        "example": "SELECT LOG(2,1024);"
+    },
+    {
+        "name": "LOG2",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the logarithm of n with base 2.",
+        "example": "SELECT LOG2(1024) LOG2;"
+    },
+    {
+        "name": "LOG10",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the logarithm of n with base 10.",
+        "example": "SELECT LOG10(10000) LOG10;"
+    },
+    {
+        "name": "LOWER",
+        "types": [
+            "string"
+        ],
+        "description": "Converts the specified string into lowercase letters.",
+        "example": "SELECT LOWER('AbCdEf');"
+    },
+    {
+        "name": "LPAD",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a string of length n, which is string, filled from the left with expression padding",
+        "usage-notes": [
+            "If the variable padding is not specified, spaces are used.",
+            "If the string is longer than n  characters, then the first n characters of the string are returned.",
+            "Even if n is greater than 2,000,000, the result string is truncated to 2,000,000 characters.",
+            "For filling a string from the right, please refer to function RPAD."
+        ],
+        "example": "SELECT LPAD('abc',5,'X');"
+    },
+    {
+        "name": "LTRIM",
+        "types": [
+            "string"
+        ],
+        "description": "Deletes all of the characters specified in the expression trim_chars from the left border of string.",
+        "usage-notes": [
+            "If parameter trim_chars is not specified, spaces are deleted."
+        ],
+        "example": "SELECT LTRIM('ab cdef',' ab');"
+    },
+    {
+        "name": "MAX",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the maximum value of expr from the window or group of rows.",
+        "example": "SELECT id department, hire_date, current_salary, MAX(current_salary) OVER (PARTITION BY department ORDER BY hire_date) MAX_CURRENT_SALARY FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "MEDIAN",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the middle value or an interpolated value which would be the middle value once the elements are sorted (NULL values are ignored).",
+        "usage-notes": [
+            "MEDIAN(expr) is an alias for PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY expr).",
+            "For inverse distribution functions, refer to PERCENTILE_CONT and PERCENTILE_DISC.",
+            "MEDIAN does not allow the use of a window_frame_clause. It uses the entire partition as window for the computation of the result.",
+            "Specifying ALL has no effect since it is already used by default.",
+            "The over_clause must not contain an order_clause.",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section."
+        ],
+        "example": "SELECT id department, age, MEDIAN(age) OVER (PARTITION BY department) MEDIAN_AGE FROM employee_table ORDER BY department;"
+    },
+    {
+        "name": "MID",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a substring of length length from position position out of the string string.",
+        "example": "SELECT MID('abcdef',2,3) S1,MID('abcdef',-3) S2,MID('abcdef',7) S3,MID('abcdef',-7) S4;"
+    },
+    {
+        "name": "MIN",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the minimum value of expr from the window or group of rows.",
+        "example": "SELECT id department, hire_date, current_salary, MIN(current_salary) OVER (PARTITION BY department ORDER BY hire_date) MIN_CURRENT_SALARY FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "MINUTE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the minutes of a timestamp.",
+        "usage-notes": [
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT MINUTE(TIMESTAMP '2010-10-20 11:59:40.123');"
+    },
+    {
+        "name": "MINUTES_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of minutes between two timestamps timestamp1 and timestamp2.",
+        "usage-notes": [
+            "If the first timestamp timestamp1 is earlier than the second timestamp timestamp2, then the result is negative.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated internally within UTC."
+        ],
+        "example": "SELECT MINUTES_BETWEEN(TIMESTAMP '2000-01-01 12:01:00', TIMESTAMP '2000-01-01 12:00:02') MINUTES;"
+    },
+    {
+        "name": "MIN_SCALE",
+        "types": [
+            "numeric"
+        ],
+        "description": "This function returns the minimum scale needed to represent the value exactly.",
+        "example": "SELECT MIN_SCALE(123.00000) S1, MIN_SCALE(9.99999999999) S2,MIN_SCALE(-0.0045600) S3;"
+    },
+    {
+        "name": "MOD",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the remainder of the division of m by n.",
+        "example": "SELECT MOD(15,6) MODULO;"
+    },
+    {
+        "name": "MONTH",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the month of a date.",
+        "usage-notes": [
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT MONTH(DATE '2010-10-20');"
+    },
+    {
+        "name": "MONTHS_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of months between two date values.",
+        "usage-notes": [
+            "If a timestamp is entered, only the date contained therein is applied for the computation.",
+            "If the days are identical or both are the last day of a month, the result is an integer.",
+            "If the first date value is earlier than the second date value, the result is negative.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT MONTHS_BETWEEN(DATE '2000-01-01', DATE '1999-12-15') MB1,MONTHS_BETWEEN(TIMESTAMP '2000-01-01 12:00:00',TIMESTAMP '1999-06-01 00:00:00') MB2;"
+    },
+    {
+        "name": "MUL",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the product of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "This function supports only arguments of type numeric.",
+            "The return type of this function is always DOUBLE PRECISION."
+        ],
+        "example": "SELECT relevant_year, MUL(annual_inflation) OVER (ORDER BY relevant_year ASC ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) inflation_last_five_years FROM inflation_rates;"
+    },
+    {
+        "name": "NOW",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current timestamp, interpreted in the current session time zone.",
+        "usage-notes": [
+            "The return value is of data type TIMESTAMP(3) WITH LOCAL TIME ZONE.",
+            "This function is an alias for CURRENT_TIMESTAMP(3).",
+            "Other functions for the current moment: LOCALTIMESTAMP, SYSTIMESTAMP."
+        ],
+        "example": "SELECT NOW() NOW;"
+    },
+    {
+        "name": "NPROC",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the number of database nodes in the cluster.",
+        "usage-notes": [
+            "Only active database nodes are counted. No reserve nodes are counted.",
+            "In addition to this function, also refer to functions IPROC and VALUE2PROC."
+        ],
+        "example": "SELECT NPROC() NPROC;"
+    },
+    {
+        "name": "NTH_VALUE",
+        "types": [
+            "analytic"
+        ],
+        "description": "Returns the value of expr of the nth row in the window specified by the over_clause",
+        "usage-notes": [
+            "NTH_VALUE is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "The default value of the FROM configuration is FROM FIRST.",
+            "The default value of the null treatment is RESPECT NULLS.",
+            "The value of n has to be NULL or a DECIMAL value greater than 0.If the value of n is NULL, the result of the function is NULL.",
+            "If the value of n is less than or equal to 0, Exasol returns an error.",
+            "If the value of n is greater than the number of rows in the window, the result of NTH_VALUE is NULL."
+        ],
+        "example": "SELECT id department, hire_date, NTH_VALUE(id, 3) FROM LAST RESPECT NULLS OVER (PARTITION BY department ORDER BY hire_date) NTH_VAL FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "NTILE",
+        "types": [
+            "analytic"
+        ],
+        "description": "Distributes the rows of an ordered partition into a specified number of buckets. For each row, this function returns the index of the bucket to which the row belongs.",
+        "usage-notes": [
+            "NTILE is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "The expr has to be a numeric value with scale 0. The expr has to be constant within a partition. This implies that expr may depend on the partitioning attribute. Thus expr may vary in different partitions but must remain constant for all rows within a partition. Exasol returns an error if this condition is not satisfied.",
+            "NTILE requires an order_clause.",
+            "NTILE does not allow the use of a window_frame_clause. It uses the entire partition as window for the computation of the result."
+        ],
+        "example": "SELECT id department, hire_date, NTILE(3) OVER (PARTITION BY department ORDER BY hire_date) NTILE FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "NULLIF",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the value NULL, if two expressions are identical. Otherwise, the first expression is returned.",
+        "example": "SELECT NULLIF(1,2) NULLIF1, NULLIF(1,1) NULLIF2;"
+    },
+    {
+        "name": "NULLIFZERO",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the value NULL if number has value 0. Otherwise, a number is returned.",
+        "usage-notes": [
+            "The NULLIFZERO function is equivalent to the CASE expression CASE WHEN number=0 THEN NULL ELSE number END.",
+            "Additionally, refer to ZEROIFNULL."
+        ],
+        "example": "SELECT NULLIFZERO(0) NIZ1, NULLIFZERO(1) NIZ2;"
+    },
+    {
+        "name": "NUMTODSINTERVAL",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a numerical value n into an interval of type INTERVAL DAY TO SECOND.",
+        "usage-notes": [
+            "The parameter interval_unit can be either DAY, HOUR, MINUTE or SECOND.",
+            "For additional information, see NUMTOYMINTERVAL, TO_DSINTERVAL, and TO_YMINTERVAL."
+        ],
+        "example": "SELECT NUMTODSINTERVAL(3.2,'HOUR') NUMTODSINTERVAL;"
+    },
+    {
+        "name": "NUMTOYMINTERVAL",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a numerical value n into an interval of type INTERVAL YEAR TO MONTH.",
+        "usage-notes": [
+            "The parameter interval_unit is either YEAR or MONTH.",
+            "For additional information, see NUMTODSINTERVAL, TO_DSINTERVAL, and TO_YMINTERVAL."
+        ],
+        "example": "SELECT NUMTOYMINTERVAL(3.5,'YEAR') NUMTOYMINTERVAL;"
+    },
+    {
+        "name": "NVL",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Replaces NULL values with the expression, expr2.",
+        "usage-notes": [
+            "If expr1 is NULL, expr2 is returned, otherwise expr1 is returned.",
+            "The abbreviation NVL stands for \"Null Value\".",
+            "For additional information, see ZEROIFNULL."
+        ],
+        "example": "SELECT NVL(NULL, 'abc') NVL_1, NVL('xyz', 'abc') NVL_2;"
+    },
+    {
+        "name": "NVL2",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Replaces NULL values with expr3, otherwise it uses expr2.",
+        "usage-notes": [
+            "If expr1 is NULL, then expr3 is returned, otherwise expr2 is returned.",
+            "The abbreviation NVL stands for \"Null Value\".",
+            "If there is no legal type conversion between expr2 and expr3, then the function returns an error.",
+            "For additional information, see NVL."
+        ],
+        "example": "SELECT NVL2(NULL, 2, 3) NVL_1, NVL2(1, 2, 3) NVL_2;"
+    },
+    {
+        "name": "OCTET_LENGTH",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the octet length of a string.",
+        "example": "SELECT OCTET_LENGTH('abcd') OCT_LENGTH; SELECT OCTET_LENGTH('äöü') OCT_LENGTH;"
+    },
+    {
+        "name": "PERCENT_RANK",
+        "types": [
+            "analytic"
+        ],
+        "description": "Computes the relative rank of each row in the partition.",
+        "usage-notes": [
+            "PERCENT_RANK is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "PERCENT_RANK does not allow the use of a window_frame_clause. It uses the entire partition as window for the computation of the result."
+        ],
+        "example": "SELECT id department, current_salary, PERCENT_RANK() OVER (PARTITION BY department ORDER BY current_salary) PERCENT_RANK FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "PERCENTILE_CONT",
+        "types": [
+            "analytic"
+        ],
+        "description": "This is an inverse distribution function and expects as an input parameter a percentile value and a sorting specification which defines the rank of each element within a group. Returns the percentile of the sort order.",
+        "usage-notes": [
+            "NULL values are ignored for the computation.",
+            "The expr must be a numeric value between 0 and 1. The expr must be constant within a partition. This implies that expr may depend on the partitioning attribute, so that it may vary in different partitions but must remain constant for all rows within a partition. Exasol returns an error when this condition is not satisfied.",
+            "The order_clause is necessary for PERCENTILE_CONT function.",
+            "The over_clause must not contain an order_clause and must not contain a window_frame_clause.",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section.",
+            "For additional information, also refer to the inverse distribution functions PERCENTILE_DISC and MEDIAN."
+        ],
+        "example": "SELECT id department, current_salary, PERCENTILE_CONT(0.7) WITHIN GROUP (ORDER BY current_salary) OVER (PARTITION BY department) PERCENTILE_CONT FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "PERCENTILE_DISC",
+        "types": [
+            "analytic"
+        ],
+        "description": "Returns the value from the group set which has the smallest cumulative distribution value (corresponding to the given sort order), which is larger than or equal to the specified percentile value.",
+        "usage-notes": [
+            "NULL values are ignored for the computation.",
+            "The expr must be a numeric value between 0 and 1. The expr must be constant within a partition. This implies that expr may depend on the partitioning attribute, so that it may vary in different partitions but must remain constant for all rows within a partition. Exasol returns an error when this condition is not satisfied.",
+            "The order_clause is necessary for PERCENTILE_DISC function.",
+            "The over_clause must not contain an order_clause and must not contain a window_frame_clause.The specified percentile value must be constant (between 0 and 1).",
+            "For information about the over_clause and analytic functions in general, refer to the Analytic Functions section.",
+            "For additional information, also refer to the inverse distribution functions PERCENTILE_CONT and MEDIAN."
+        ],
+        "example": "SELECT id department, current_salary, PERCENTILE_DISC(0.7) WITHIN GROUP (ORDER BY current_salary) OVER (PARTITION BY department) PERCENTILE_DISC FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "PI",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the value of the mathematical constant π (pi).",
+        "example": "SELECT PI();"
+    },
+    {
+        "name": "POSITION",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the position in the string, string, at which the string, search_string first appears.",
+        "usage-notes": [
+            "If one of the arguments is NULL, then NULL is returned.",
+            "The functions INSTR and LOCATE are similar to this function."
+        ],
+        "example": "SELECT POSITION('cab' IN 'abcabcabc') POS;"
+    },
+    {
+        "name": "POSIX_TIME",
+        "types": [
+            "date-time"
+        ],
+        "description": "Convert a datetime value to a numerical value.",
+        "usage-notes": [
+            "POSIX_TIME(<datetime>) is equivalent to the function call SECONDS_BETWEEN(<datetime>, '1970-01-01 00:00:00') if the session time zone is set to UTC.",
+            "If you omit the parameter, the Posix time refers at the current moment. that is, CURRENT_TIMESTAMP.",
+            "For datetime values before January 1, 1970 (UTC), this function will return negative numbers.",
+            "Using the function FROM_POSIX_TIME you can convert a numerical value into a datetime value."
+        ],
+        "example": "ALTER SESSION SET TIME_ZONE='UTC'; SELECT POSIX_TIME('1970-01-01 00:00:01') PT1,POSIX_TIME('2009-02-13 23:31:30') PT2;"
+    },
+    {
+        "name": "POWER",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the power of two numbers.",
+        "example": "SELECT POWER(2,10) POWER;"
+    },
+    {
+        "name": "RADIANS",
+        "types": [
+            "numeric"
+        ],
+        "description": "Converts the number n from degrees to radians.",
+        "example": "SELECT RADIANS(180) RADIANS;"
+    },
+    {
+        "name": "RANDOM",
+        "alias": "RAND",
+        "types": [
+            "numeric"
+        ],
+        "description": "Generates a random number.",
+        "usage-notes": [
+            "The result is always a DOUBLE.",
+            "When specifying the optional parameters, a random number within the interval [min,max] is created. Without any parameters this interval is [0,1]."
+        ],
+        "example": "SELECT RANDOM() RANDOM_1, RANDOM(5,20) RANDOM_2;"
+    },
+    {
+        "name": "RANK",
+        "types": [
+            "analytic"
+        ],
+        "description": "Computes the rank for each row by adding 1 (one) to the number of rows that precede the current row and are not peers of the current row.",
+        "usage-notes": [
+            "RANK can only be used as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "The over_clause has to contain an order_clause and must not contain a window_frame_clause.",
+            "This function returns the same value for rows with equal ranking. Therefore, the computed results may contain gaps (as opposed to DENSE_RANK)."
+        ],
+        "example": "SELECT id department, current_salary, RANK() OVER (PARTITION BY department ORDER BY current_salary) RANK FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "RATIO_TO_REPORT",
+        "types": [
+            "analytic"
+        ],
+        "description": "Computes the ratio of a value to the overall sum.",
+        "usage-notes": [
+            "RATIO_TO_REPORT is only available as an analytic function (i.e., in combination with an over_clause). For more information, refer to Analytic Functions section.",
+            "The over_clause must not include an order_clause or a window_frame_clause. For more information, refer to Analytic Functions section."
+        ],
+        "example": "SELECT id department, current_salary, RATIO_TO_REPORT(current_salary) OVER (PARTITION BY department) RATIO_TO_REPORT FROM employee_table ORDER BY department, current_salary;"
+    },
+    {
+        "name": "REGEXP_INSTR",
+        "types": [
+            "string"
+        ],
+        "description": "Searches the regular expression pattern in the string. If this is not contained, the value 0 is returned, otherwise the corresponding position of the match.",
+        "usage-notes": [
+            "For more details and examples on regular expression, refer to the Regular expressions section.",
+            "The optional parameter position defines from which position the search should begin (starting with 1).",
+            "The optional positive number occurrence defines which occurrence should be searched.",
+            "The optional parameter return_opt defines the result of the function in case of a match:",
+            "REGEXP_INSTR(string,pattern) is similar to REGEXP_INSTR(string,pattern,1,1).",
+            "For additional information, see INSTR, REGEXP_REPLACE, and REGEXP_SUBSTR and the predicate[NOT] REGEXP_LIKE."
+        ],
+        "example": "SELECT REGEXP_INSTR('Phone: +497003927877678','\\+?\\d+') REGEXP_INSTR1,REGEXP_INSTR('From: my_mail@yahoo.com - To: SERVICE@EXASOL.COM','(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,4}',1,2) REGEXP_INSTR2;"
+    },
+    {
+        "name": "REGEXP_REPLACE",
+        "types": [
+            "string"
+        ],
+        "description": "Replaces the occurrences of pattern in a string by replace_string.",
+        "usage-notes": [
+            "For details and examples for regular expressions, refer to Regular Expressions section.",
+            "If pattern is NULL, string is returned.",
+            "If replace_string is omitted or NULL, the matches of pattern are deleted in the result.",
+            "In replace_string you can use captures by \\1, \\2, ..., \\9 or \\g<name> which are defined by pattern.",
+            "The optional parameter position defines from which position the search shall begin (starting with 1).",
+            "The optional positive number occurrence defines which occurrence shall be searched for.",
+            "For additional information, see functions REPLACE, REGEXP_INSTR, and REGEXP_SUBSTR, and the predicate [NOT] REGEXP_LIKE."
+        ],
+        "example": "SELECT REGEXP_REPLACE('From: my_mail@yahoo.com','(?i)^From: ([a-z0-9._%+-]+)@([a-z0-9.-]+\\.[a-z]{2,4}$)','Name: \\1 - Domain: \\2') REGEXP_REPLACE;"
+    },
+    {
+        "name": "REGEXP_SUBSTR",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a substring of the parameter string",
+        "usage-notes": [
+            "For details and examples for regular expressions, refer to Regular Expressions section.",
+            "This function is similar to the function REGEXP_INSTR, but it returns the whole matching substring instead of returning the position of the match.",
+            "The parameter pattern defines a regular expression to be searched for. If no match is found, NULL is returned. Otherwise the corresponding substring is returned.",
+            "The optional parameter position defines from which position the search shall begin (starting with 1).",
+            "The optional positive number occurrence defines which occurrence shall be searched for. Please note that the search of the second occurrence begins at the first character after the first occurrence.",
+            "REGEXP_SUBSTR(string,pattern) is similar to REGEXP_SUBSTR(string,pattern,1,1).",
+            "For additional information, see functions SUBSTR[ING], REGEXP_INSTR, and REGEXP_REPLACE and the predicate [NOT] REGEXP_LIKE."
+        ],
+        "example": "SELECT REGEXP_SUBSTR('My mail address is my_mail@yahoo.com', '(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,4}') EMAIL;"
+    },
+    {
+        "name": "REGR_FUNCTIONS",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "With the help of the linear regression functions you can determine a least-square regression line.",
+        "example": "SELECT id department, hire_date, REGR_SLOPE(starting_salary, current_salary) OVER (PARTITION BY department ORDER BY hire_date) REGR_SLOPE FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "REPEAT",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the concatenation of n copies of a string.",
+        "usage-notes": [
+            "If one of the arguments is NULL or if n equals to 0, then NULL is returned.",
+            "Parameter n must be a positive integer between 0 and 999999999.",
+            "The result string may not contain more than 2000000 characters.",
+            "If the input parameters is no string, it is automatically converted to a string.",
+            "For more information, refer to function SPACE."
+        ],
+        "example": "SELECT REPEAT('abc',3);"
+    },
+    {
+        "name": "REPLACE",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the string that emerges if in the string all occurrences of search_string are replaced by replace_string.",
+        "usage-notes": [
+            "If replace_string is omitted or if it is NULL, all occurrences of search_string are deleted from the result.",
+            "If search_string is NULL, string is returned.",
+            "If the input parameters are not strings, they will be automatically converted to strings.",
+            "The return type is always a string, even if all of the parameters possess another type."
+        ],
+        "example": "SELECT REPLACE('Apple juice is great','Apple','Orange') REPLACE_1;"
+    },
+    {
+        "name": "REVERSE",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the reverse of a string value.",
+        "usage-notes": [
+            "If string is NULL, the function returns NULL.",
+            "If the input parameter is not a string, it is automatically converted to a string.",
+            "The return type is always a string which has the length of the input parameter."
+        ],
+        "example": "SELECT REVERSE('abcde') REVERSE;"
+    },
+    {
+        "name": "RIGHT",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the right-aligned substring of string with length length.",
+        "usage-notes": [
+            "If either length or string is NULL, then NULL is returned.",
+            "Also if length is greater than the length of string, the original string is returned. If length is negative or 0, then NULL is returned.",
+            "For more information, see functions SUBSTR[ING], MID and LEFT."
+        ],
+        "example": "SELECT RIGHT('abcdef',3) RIGHT_SUBSTR;"
+    },
+    {
+        "name": "ROUND",
+        "types": [
+            "numeric"
+        ],
+        "description": "Rounds number n to integer digits behind the decimal point (round to nearest, in case of a tie away of the zero).",
+        "usage-notes": [
+            "If the second argument is not specified or NULL, rounding is conducted to an integer.",
+            "If the second argument is negative, rounding is conducted to integer digits in front of the decimal point.",
+            "If the second argument is a positive integer s, then the scale of the resulting data type will be s.",
+            "If the data type of n is DOUBLE, then the result data type is also DOUBLE. Due to the problem of representation for DOUBLE values, the result could contain numbers with more digits after the decimal point than you would expect because of the rounding. Therefore we recommend that you always cast the result to an appropriate DECIMAL data type.",
+            "For more information on the CEIL() and FLOOR() functions, see CEIL[ING] and FLOOR."
+        ],
+        "example": "SELECT ROUND(123.456,2) ROUND;"
+    },
+    {
+        "name": "ROUND",
+        "types": [
+            "date-time"
+        ],
+        "description": "Rounds a date or timestamp value to the specified unit.",
+        "usage-notes": [
+            "The following elements can be used as format: CC, SCC - Century; YYYY, SYYY, YEAR, SYEAR, YYY, YY, Y - Year; IYYY, IYY, IY, I - Year in accordance with international standard, ISO 8601; Q - Quarter; MONTH, MON, MM, RM - Month; WW - Same day of the week as the first day of the year; IW - Same day of the week as the first day of the ISO year; W - Same day of the week as the first day of the month; DDD, DD, J - Day; DAY, DY, D - Starting day of the week, the first day of a week is defined by the parameter NLS_FIRST_DAY_OF_WEEK (refer to ALTER SESSION and ALTER SYSTEM); HH, HH24, HH12 - Hour; MI - Minute; SS - Seconds.",
+            "Rounding-up is as follows: years from July 1, months from the 16th of a month, days from noon, hours from 30 minutes, minutes from 30 seconds and seconds from 500 milliseconds. Otherwise, values are rounded down.",
+            "If a format is not specified, the value is rounded to days.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT ROUND(DATE '2006-12-31', 'YYYY') ROUND; SELECT ROUND(TIMESTAMP '2006-12-31 12:34:58', 'MI') ROUND;"
+    },
+    {
+        "name": "ROWNUM",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "This is a pseudo column which numbers the records of a table or subselect , beginning with 1. Has certain restrictions on usage.",
+        "usage-notes": [
+            "ROWNUM cannot be combined with other conditions in the WHERE clause. Anything you put into the WHERE clause of a statement filters input data. To avoid confusion and seemingly wrong results, we only allow ROWNUM in situations where the result is in line with Oracle's semantic.",
+            "ROWNUM cannot be used in combination with the PRIMARY KEY, UNIQUE, and FOREIGN KEY statements.",
+            "ROWNUM (in uppercase) is a reserved column name, which means that columns in tables or SELECT statements cannot be named ROWNUM, even when delimited with quotes as \"ROWNUM\". However, any variation in case will allow the name to be used. For example, the delimited name \"rownum\" is accepted, even if the system value SQL_IDENTIFIER_COMPARISON is set to IGNORE CASE."
+        ],
+        "example": "SELECT SALES_ID, ROWNUM FROM SALES WHERE ROWNUM <10;"
+    },
+    {
+        "name": "ROW_NUMBER",
+        "types": [
+            "analytic"
+        ],
+        "description": "Returns the number of a row in an ordered partition.",
+        "usage-notes": [
+            "ROW_NUMBER can only be used as an analytic function, (i.e., in combination with over_clause). For more information, refer to Analytic Functions section.",
+            "The over_clause must not contain a window_frame_clause.",
+            "The value is non-deterministic with rows of equal ranking."
+        ],
+        "example": "SELECT id department, hire_date, ROW_NUMBER() OVER (PARTITION BY department ORDER BY hire_date) ROW_NUMBER FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "ROWID",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Every row of a base table in the database has a unique address, the so-called ROWID. Read access to this address can be obtained through the ROWID pseudo column (DECIMAL(36.0) data type).",
+        "example": "SELECT ROWID, i FROM t; DELETE FROM t WHERE NOT EXISTS (SELECT r FROM (SELECT MIN(ROWID) r FROM t GROUP BY i) hWHERE t.ROWID=h.r); CREATE VIEW v AS SELECT ROWID r, i FROM t; SELECT * FROM v;"
+    },
+    {
+        "name": "RPAD",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a string of the length n, which is string, filled from the right with expression padding.",
+        "usage-notes": [
+            "If the parameter padding is not specified, spaces are used.",
+            "If the string is longer than n characters, then the first n characters of the string are returned",
+            "Even if n is greater than 2,000,000, the result string is truncated to 2,000,000 characters.",
+            "For filling a string from the left, please refer to function LPAD."
+        ],
+        "example": "SELECT RPAD('abc',5,'X');"
+    },
+    {
+        "name": "RTRIM",
+        "types": [
+            "string"
+        ],
+        "description": "Deletes all of the characters specified in the expression trim_chars from the right border of string.",
+        "example": "SELECT RTRIM('abcdef','afe');"
+    },
+    {
+        "name": "SCOPE_USER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the current scope user within a query, which is either identical to CURRENT_USER or the owner of the view or the virtual table if the function refers to one.",
+        "example": "CREATE VIEW scope_view AS SELECT SCOPE_USER; SELECT * FROM scope_view;"
+    },
+    {
+        "name": "SECOND",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the seconds of a timestamp",
+        "usage-notes": [
+            "The optional second parameter defines the number of digits after the decimal point.",
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT SECOND(TIMESTAMP '2010-10-20 11:59:40.123', 2);"
+    },
+    {
+        "name": "SECONDS_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of seconds between two timestamps.",
+        "example": "SELECT SECONDS_BETWEEN(TIMESTAMP '2000-01-01 12:01:02.345',TIMESTAMP '2000-01-01 12:00:00') SB;"
+    },
+    {
+        "name": "SESSION_PARAMETER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the session parameter value of a given session and a parameter name.",
+        "usage-notes": [
+            "A user can only query session parameters from the user's own session, unless the user has the SELECT ANY DICTIONARY privilege. The session parameters are available in the EXA_PARAMETERS system table.",
+            "If the session id is illegal, the function returns NULL.",
+            "The return type depends on the parameter."
+        ],
+        "example": "SELECT SESSION_PARAMETER(current_session, 'NLS_FIRST_DAY_OF_WEEK') AS SESSION_VALUE; SELECT SESSION_PARAMETER(current_session, 'NLS_TIMESTAMP_FORMAT') AS SESSION_VALUE; SELECT SUM(SESSION_PARAMETER(session_id, 'SESSION_TEMP_DB_RAM_LIMIT')) AS TOTAL_TEMP_DB_RAM from exa_all_sessions;"
+    },
+    {
+        "name": "SESSIONTIMEZONE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the session time zone which was set using ALTER SESSION.",
+        "example": "SELECT SESSIONTIMEZONE;"
+    },
+    {
+        "name": "SIGN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the signum of number n as one of -1, 0, 1.",
+        "example": "SELECT SIGN(-123);"
+    },
+    {
+        "name": "SIN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the sine of number n",
+        "example": "SELECT SIN(PI()/6);"
+    },
+    {
+        "name": "SINH",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the hyperbolic sine of number n",
+        "example": "SELECT SINH(0) SINH;"
+    },
+    {
+        "name": "SOME",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "This is an alias for ANY."
+    },
+    {
+        "name": "SOUNDEX",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a phonetic representation of a string",
+        "usage-notes": [
+            "For the computation of SOUNDEX the algorithm is used which is described in: Donald Knuth, The Art of Computer Programming, Vol. 3.",
+            "The result is always a string with 4 characters (1 letter and 3 digits).",
+            "This function is similar to COLOGNE_PHONETIC, which is more appropriate for German words."
+        ],
+        "example": "SELECT SOUNDEX('smythe'), SOUNDEX('Smith');"
+    },
+    {
+        "name": "SPACE",
+        "types": [
+            "string"
+        ],
+        "description": "Creates a string consisting of n spaces.",
+        "usage-notes": [
+            "n must be an integer value greater than 0.",
+            "For additional information, see REPEAT."
+        ],
+        "example": "SELECT 'x'||SPACE(5)||'x' my_string;"
+    },
+    {
+        "name": "SQRT",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the square root of number n.",
+        "example": "SELECT SQRT(2);"
+    },
+    {
+        "name": "STDDEV",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the standard deviation within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "If a window or group has only one row, then the result of this function is 0."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, STDDEV(current_salary) OVER (PARTITION BY department ORDER BY hire_date) STDDEV FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "STDDEV_POP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the standard deviation of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "If a window or group has only one row, then the result of this function is 0."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, STDDEV_POP(current_salary) OVER (PARTITION BY department ORDER BY hire_date) STDDEV_POP FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "STDDEV_SAMP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the standard deviation of expr within a window or group of rows.",
+        "usage-notes": [
+            "STDDEV_SAMP is identical to the STDDEV function. However, if a window or group has only one row, then the result of this function is NULL instead of 0.",
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "If ALL or nothing is specified, then all of the entries are considered. If DISTINCT is specified, duplicate entries are only accounted for once.",
+            "For the OVER() clause and analytic functions in general, refer to the Analytic Functions section."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, STDDEV_SAMP(current_salary) OVER (PARTITION BY department ORDER BY hire_date) STDDEV_SAMP FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "ST_X",
+        "types": [
+            "geospatial"
+        ],
+        "description": "X coordinate of a Point."
+    },
+    {
+        "name": "ST_Y",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Y coordinate of a Point."
+    },
+    {
+        "name": "ST_ENDPOINT",
+        "types": [
+            "geospatial"
+        ],
+        "description": "End point of a LineString."
+    },
+    {
+        "name": "ST_ISCLOSED",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether all contained LineStrings are closed rings (their start and end points are identical)."
+    },
+    {
+        "name": "ST_ISRING",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether a LineString is a closed ring (its start and end points are identical)."
+    },
+    {
+        "name": "ST_LENGTH",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Length of a LineString or the sum of lengths of all objects of a MultiLineString."
+    },
+    {
+        "name": "ST_NUMPOINTS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Number of Points within the LineString."
+    },
+    {
+        "name": "ST_POINTN",
+        "types": [
+            "geospatial"
+        ],
+        "description": "The nth point of a LineString, starting with 1. Returns NULL if ST_NUMPOINTS (ls) < n."
+    },
+    {
+        "name": "ST_STARTPOINT",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Start point of a LineString."
+    },
+    {
+        "name": "ST_AREA",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Area of a Polygon, or sum of areas of all objects of a MultiPolygon."
+    },
+    {
+        "name": "ST_EXTERIORRING",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Outer ring of the object."
+    },
+    {
+        "name": "ST_INTERIORRINGN",
+        "types": [
+            "geospatial"
+        ],
+        "description": "The nth hole of a Polygon, starting with 1. Returns NULL if ST_NUMINTERIORRINGS(pg) < n."
+    },
+    {
+        "name": "ST_NUMINTERIORRINGS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Number of holes within a Polygon."
+    },
+    {
+        "name": "ST_GEOMETRYN",
+        "types": [
+            "geospatial"
+        ],
+        "description": "The nth object of a GeometryCollection, starting with 1. Returns NULL if ST_NUMGEOMETRIES(gc) < n."
+    },
+    {
+        "name": "ST_NUMGEOMETRIES",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Number of objects within a collection of geometry objects."
+    },
+    {
+        "name": "ST_BOUNDARY",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Geometric boundary of a geospatial object (for example, the end points of a LineString or the outer LinearRing of a Polygon)."
+    },
+    {
+        "name": "ST_BUFFER",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Returns a geospatial object whose points have maximal distance n to the first argument g. This is similar to an extension of the borders of an object. A divided circle, approximated by a number of points, is created around the edges of the object."
+    },
+    {
+        "name": "ST_CENTROID",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Geometric center of mass of an object."
+    },
+    {
+        "name": "ST_CONTAINS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether the first object fully contains the second one."
+    },
+    {
+        "name": "ST_CONVEXHULL",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Convex hull of a geospatial object."
+    },
+    {
+        "name": "ST_CROSSES",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether the two objects cross each other. This is the case if: a) The intersection is not empty and not equal to one of the objects; or b) The dimension of the intersection is smaller than the maximal dimension of both arguments."
+    },
+    {
+        "name": "ST_DIFFERENCE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Difference set of two geospatial objects."
+    },
+    {
+        "name": "ST_DIMENSION",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Dimension of a geospatial object. For example, 0 for Points, 1 for LineStrings, and 2 for Polygons."
+    },
+    {
+        "name": "ST_DISJOINT",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether two geospatial objects are disjointed (their intersection is empty)."
+    },
+    {
+        "name": "ST_DISTANCE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Minimal distance between two geospatial objects."
+    },
+    {
+        "name": "ST_ENVELOPE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Smallest rectangle that contains the geospatial object."
+    },
+    {
+        "name": "ST_EQUALS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether two geospatial objects describe the same geometric object. For two objects g1 and g2 this is the case if ST_WITHIN(g1,g2) and ST_WITHIN(g2,g1)."
+    },
+    {
+        "name": "ST_FORCE2D",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Makes a two-dimensional object out of a three-dimensional object by ignoring the third coordinate. This function is sometimes needed as Exasol does not support three-dimensional objects."
+    },
+    {
+        "name": "ST_GEOMETRYTYPE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "The type of the geospatial object, as a string. For example, 'POINT' or 'MULTIPOLYGON'."
+    },
+    {
+        "name": "ST_INTERSECTION",
+        "types": [
+            "geospatial",
+            "aggregate"
+        ],
+        "description": "Intersection of two geospatial objects."
+    },
+    {
+        "name": "ST_INTERSECTION",
+        "types": [
+            "geospatial",
+            "aggregate"
+        ],
+        "description": "Intersection of two geospatial objects (aggregated)."
+    },
+    {
+        "name": "ST_INTERSECTS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether an intersection of two geospatial objects exists."
+    },
+    {
+        "name": "ST_ISEMPTY",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether the geospatial object is an empty geometry. See Examples for an example of usage."
+    },
+    {
+        "name": "ST_ISSIMPLE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether a geospatial object is simple: POINT - always simple; MULTIPOINT - simple if no points are identical; LINESTRING - simple if it does not pass through the same Point twice (except start and end points); MULTILINESTRING - simple if all LineStrings are simple and the intersections are within the boundaries of both objects; POLYGON - always simple; MULTIPOLYGON - always simple."
+    },
+    {
+        "name": "ST_OVERLAPS",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether two geospatial objects overlap. This is the case if the objects are not identical, their intersection is not empty, and the intersection has the same dimension as the two objects."
+    },
+    {
+        "name": "ST_SETSRID",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Sets the SRID for a geometry object. For more information, see EXA_SPATIAL_REF_SYS."
+    },
+    {
+        "name": "ST_SYMDIFFERENCE",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Symmetric difference set of two geospatial objects."
+    },
+    {
+        "name": "ST_TOUCHES",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether two geospatial objects touch each other. This is the case if the intersection is not empty and is only located on the boundaries of the objects. for more information, see ST_BOUNDARY."
+    },
+    {
+        "name": "ST_TRANSFORM",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Converts a geospatial object into the given spatial reference coordinate system. For more information, see EXA_SPATIAL_REF_SYS ."
+    },
+    {
+        "name": "ST_UNION",
+        "types": [
+            "geospatial",
+            "aggregate"
+        ],
+        "description": "Union set of two geospatial objects."
+    },
+    {
+        "name": "ST_WITHIN",
+        "types": [
+            "geospatial"
+        ],
+        "description": "Defines whether the first object is fully contained by the second one (the opposite of ST_CONTAINS)."
+    },
+    {
+        "name": "SUBSTRING",
+        "alias": "SUBSTR",
+        "types": [
+            "string"
+        ],
+        "description": "Returns a substring of the length length from the position position, out of the string string.",
+        "usage-notes": [
+            "If length is not specified, all of the characters to the end of the string are used.",
+            "If position is negative, counting begins at the end of the string.",
+            "If position is 0 or 1, the result begins from the first character of the string.",
+            "If position is before the start or after the end of the string, the result is NULL.",
+            "For additional information, refer to the functions RIGHT, LEFT, and REGEXP_SUBSTR.",
+            "MID is an alias for this function."
+        ],
+        "example": "SELECT SUBSTR('abcdef',2,3) S1, SUBSTRING('abcdef' FROM 4 FOR 2) S2, SUBSTR('abcdef',-3) S3, SUBSTR('abcdef',7) S4, SUBSTR('abcdef',-7) S5;"
+    },
+    {
+        "name": "SUM",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "returns the sum of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "This function supports arguments of types numeric and interval."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, SUM(current_salary) OVER (PARTITION BY department ORDER BY hire_date) SUM_SALARY FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "SYS_CONNECT_BY_PATH",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns a string containing the full path from the root node to the current node.",
+        "example": "SELECT SYS_CONNECT_BY_PATH(last_name, '/') \"PATH\" FROM employees WHERE last_name = 'Johnson' CONNECT BY PRIOR employee_id = manager_id START WITH last_name = 'Clark';"
+    },
+    {
+        "name": "SYS_GUID",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns a system wide unique hexadecimal of type CHAR(48).",
+        "example": "SELECT SYS_GUID();"
+    },
+    {
+        "name": "SYSDATE",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current system date by evaluating TO_DATE(SYSTIMESTAMP), interpreted in the current database time zone.",
+        "example": "SELECT SYSDATE;"
+    },
+    {
+        "name": "SYSTIMESTAMP",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the current timestamp, interpreted in the current database time zone.",
+        "usage-notes": [
+            "The return value is of data type TIMESTAMP(precision). If no precision is given, the data type is TIMESTAMP(3).",
+            "The return value is limited to microsecond precision, even if precision is greater than 6.",
+            "For more information about the database time zone, refer to the function DBTIMEZONE.",
+            "Other functions for the current time: CURRENT_TIMESTAMP or NOW, LOCALTIMESTAMP"
+        ],
+        "example": "SELECT SYSTIMESTAMP, SYSTIMESTAMP(6);"
+    },
+    {
+        "name": "TAN",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the tangent of number n.",
+        "example": "SELECT TAN(PI()/4);"
+    },
+    {
+        "name": "TANH",
+        "types": [
+            "numeric"
+        ],
+        "description": "Returns the hyperbolic tangent of number n.",
+        "example": "SELECT TANH(0) TANH;"
+    },
+    {
+        "name": "TO_CHAR",
+        "types": [
+            "numeric",
+            "string",
+            "conversion"
+        ],
+        "description": "Converts a number into a string.",
+        "example": "SELECT TO_CHAR(12345.6789) TO_CHAR; SELECT TO_CHAR(12345.67890, '9999999.999999999') TO_CHAR; SELECT TO_CHAR(-12345.67890, '000G000G000D000000MI') TO_CHAR;"
+    },
+    {
+        "name": "TO_CHAR",
+        "types": [
+            "string",
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a date, timestamp or interval into a string.",
+        "usage-notes": [
+            "The standard format is used if no format is specified, this is defined in session parameter ALTER SESSION or ALTER SESSION.",
+            "By the optional third parameter you can specify the language setting for the format (for example, NLS_DATE_LANGUAGE).",
+            "Supported languages are German (DEU, DEUTSCH or GERMAN) and English (ENG or ENGLISH).",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone.",
+            "Results for variable-length format masks such as MONTH and DATE will be padded with spaces to their longest possible value."
+        ],
+        "example": "SELECT TO_CHAR(DATE '1999-12-31') TO_CHAR; SELECT TO_CHAR(TIMESTAMP '1999-12-31 23:59:00', 'HH24:MI:SS DD-MM-YYYY') TO_CHAR; SELECT TO_CHAR(DATE '2013-12-16', 'DD. MON YYYY', 'NLS_DATE_LANGUAGE=DEU') TO_CHAR;"
+    },
+    {
+        "name": "TO_DATE",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a string into a date.",
+        "usage-notes": [
+            "If no format is specified, the standard format is used to interpret string, this is defined in session parameter NLS_DATE_FORMAT.",
+            "For information, refer to the Date/time format models.",
+            "ISO formats (IYYY, IW, ID) may not be mixed with non-ISO formats.",
+            "If single elements are omitted, then their minimum values are assumed (for example, TO_DATE('1999-12', 'YYYY-MM') is interpreted as December 1st, 1999).",
+            "Session parameter NLS_DATE_FORMAT defines the output of the date."
+        ],
+        "example": "SELECT TO_DATE('1999-12-31') TO_DATE; SELECT TO_DATE('31-12-1999', 'DD-MM-YYYY') TO_DATE;"
+    },
+    {
+        "name": "TO_DSINTERVAL",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a string value into an interval (INTERVAL DAY TO SECOND).",
+        "usage-notes": [
+            "The string has always format [+|-]DD HH:MI:SS[.FF]. Valid values are 0-999999999 for days (DD), 0-23 for hours (HH), 0-59 for minutes (MI) and 0-59.999 for seconds (SS[.FF]).",
+            "For additional information, refer to TO_YMINTERVAL, NUMTODSINTERVAL and NUMTOYMINTERVAL."
+        ],
+        "example": "SELECT TO_DSINTERVAL('3 10:59:59.123') TO_DSINTERVAL;"
+    },
+    {
+        "name": "TO_NUMBER",
+        "types": [
+            "numeric",
+            "string",
+            "conversion"
+        ],
+        "description": "Converts a string into a number.",
+        "usage-notes": [
+            "The format has no influence on the value, but simply its representation.",
+            "If a format is specified, the corresponding string may only contain digits as well as the characters - plus, minus, NLS_NUMERIC_CHARACTERS, decimal point (decimal separator), and comma (group separator). However, plus and minus may only be used at the beginning of the string.",
+            "The format for every digit in the string must contain format element nine or zero at least once. For information, refer to Numeric format models. If the string contains a decimal separator, the format must also contain the corresponding decimal separator element (D or '.').",
+            "If the data type of parameter string is no string, then the value is implicitly converted.",
+            "The data type of the result of this function is dependent on the format, but typically a DECIMAL type. If no format is specified, the result type is DECIMAL(1,0) in case of a boolean input parameter, and DOUBLE in any other case."
+        ],
+        "example": "SELECT TO_NUMBER('+123') TO_NUMBER1,TO_NUMBER('-123.45', '99999.999') TO_NUMBER2;"
+    },
+    {
+        "name": "TO_TIMESTAMP",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts the string into a timestamp.",
+        "usage-notes": [
+            "The standard format is used if no format is specified, this is defined in session parameter NLS_TIMESTAMP_FORMAT.",
+            "For information, refer to the Date/time format models.",
+            "Session parameter NLS_TIMESTAMP_FORMAT defines the output of the timestamp."
+        ],
+        "example": "SELECT TO_TIMESTAMP('1999-12-31 23:59:00') TO_TIMESTAMP; SELECT TO_TIMESTAMP('23:59:00 31-12-1999','HH24:MI:SS DD-MM-YYYY') TO_TIMESTAMP;"
+    },
+    {
+        "name": "TO_YMINTERVAL",
+        "types": [
+            "date-time",
+            "conversion"
+        ],
+        "description": "Converts a string value into an interval (INTERVAL YEAR TO MONTH).",
+        "usage-notes": [
+            "The string always has format [+|-]YY-MM. Valid values are 0 to 999999999 for years (YY) and 0 to 11 for months (MM).",
+            "For additional information, refer to TO_DSINTERVAL, NUMTODSINTERVAL, and NUMTOYMINTERVAL."
+        ],
+        "example": "SELECT TO_YMINTERVAL('3-11') TO_YMINTERVAL;"
+    },
+    {
+        "name": "TRANSLATE",
+        "types": [
+            "string"
+        ],
+        "description": "Replaces the characters out of from_string with the corresponding character out of to_string in the string, expr.",
+        "usage-notes": [
+            "The characters in expr which do not exist in from_string are not replaced.",
+            "If from_string is longer than to_string, then the relevant characters are deleted and not replaced.",
+            "If to_string is longer than from_string, the relevant characters are ignored during the replacement process.",
+            "If one of the parameters is the empty string, then the result is NULL."
+        ],
+        "example": "SELECT TRANSLATE('abcd','abc','xy') TRANSLATE;"
+    },
+    {
+        "name": "TRIM",
+        "types": [
+            "string"
+        ],
+        "description": "Deletes all of the characters specified in the expression, trim_string, from both the right and left border of string.",
+        "usage-notes": [
+            "If trim_string is not specified, then the spacing characters are deleted.",
+            "You can use either of the syntax diagrams."
+        ],
+        "example": "SELECT TRIM('abcdef', 'acf') \"TRIM\"; SELECTTRIM(LEADING '1' FROM '1234567891'); SELECTTRIM(TRAILING '1' FROM '1234567891'); SELECTTRIM(BOTH '1' FROM '1234567891');"
+    },
+    {
+        "name": "TRUNCATE",
+        "alias": "TRUNC",
+        "types": [
+            "numeric"
+        ],
+        "description": "Trims number n to integer places behind the decimal point.",
+        "usage-notes": [
+            "If the second argument is not specified, trimming is conducted to a whole number.",
+            "If the second argument is negative, trimming is conducted to integer digits in front of the decimal point."
+        ],
+        "example": "SELECT TRUNC(123.456,2) TRUNC;"
+    },
+    {
+        "name": "TRUNCATE",
+        "alias": "TRUNC",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns a date and/or a timestamp, which is trimmed following the format definition.",
+        "usage-notes": [
+            "The following elements can be used as format: CC, SCC - Century; YYYY, SYYY, YEAR, SYEAR, YYY, YY, Y - Year; IYYY, IYY, IY, I - Year in accordance with international standard, ISO 8601; Q - Quarter; MONTH, MON, MM, RM - Month; WW - Same day of the week as the first day of the year; IW - Same day of the week as the first day of the ISO year; W - Same day of the week as the first day of the month; DDD, DD, J - Day; DAY, DY, D - Starting day of the week, the first day of a week is defined by the parameter NLS_FIRST_DAY_OF_WEEK (refer to ALTER SESSION and ALTER SYSTEM); HH, HH24, HH12 - Hour; MI - Minute; SS - Seconds.",
+            "A similar functionality provides the PostgreSQL compatible function DATE_TRUNC.",
+            "If a format is not specified, the value is truncated to days.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT TRUNC(DATE '2006-12-31', 'MM') TRUNC; SELECT TRUNC(TIMESTAMP '2006-12-31 23:59:59', 'MI') TRUNC;"
+    },
+    {
+        "name": "TYPEOF",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the type of the SQL expression.",
+        "usage-notes": [
+            "Returns a normalized version of the type. For example, if a column is defined using the data type alias INT, TYPEOF returns DECIMAL(18,0).",
+            "The type of any SQL expression is constant and the same for each row. Therefore, TYPEOF(expr) returns the same result for all rows, independent of the actual values of expression.",
+            "The return type of function TYPEOF is VARCHAR(40) UTF8."
+        ],
+        "example": "CREATE SCHEMA TYPEOF_EXAMPLE; CREATE TABLE TYPE_TABLE (int_colINT, char_col CHAR(5)); INSERT INTO TYPE_TABLE VALUES (NULL, NULL); SELECT TYPEOF(int_col) AS type FROM TYPE_TABLE; SELECT TYPEOF(char_col) AS type FROM TYPE_TABLE; SELECT TYPEOF(TYPEOF(int_col)) FROM TYPE_TABLE; select TYPEOF(1 * 0.1), TYPEOF(0.1 * 1);"
+    },
+    {
+        "name": "UCASE",
+        "types": [
+            "string"
+        ],
+        "description": "Converts the specified string into uppercase letters.",
+        "example": "SELECT UCASE('AbCdEf') UCASE;"
+    },
+    {
+        "name": "UNICODE",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the numeric unicode value of a character.",
+        "example": "SELECT UNICODE('ä') UNICODE;"
+    },
+    {
+        "name": "UNICODECHR",
+        "types": [
+            "string"
+        ],
+        "description": "Returns the unicode character which equates to the numeric value n",
+        "example": "SELECT UNICODECHR(252) UNICODECHR;"
+    },
+    {
+        "name": "UPPER",
+        "types": [
+            "string"
+        ],
+        "description": "Converts the specified string into uppercase letters.",
+        "example": "SELECT UPPER('AbCdEf') UPPER;"
+    },
+    {
+        "name": "USER",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the current user.",
+        "example": "SELECT USER;"
+    },
+    {
+        "name": "VALUE2PROC",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns the corresponding database node for a certain value.",
+        "usage-notes": [
+            "This function can be used to understand the actual data distribution across the cluster nodes which can be achieved with the ALTER TABLE (Distribution/Partitioning).",
+            "The return value is an integer between 0 and (NPROC - 1).",
+            "In context to this functions, also refer to functions IPROC and NPROC for more information."
+        ],
+        "example": "SELECT IPROC(),c1, VALUE2PROC(c1) V2P_1,c2, VALUE2PROC(c2) V2P_2 FROM t;"
+    },
+    {
+        "name": "VAR_POP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the variance of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "If a window or group has only one row, then the result of this function is 0."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, VAR_POP(current_salary) OVER (PARTITION BY department ORDER BY hire_date) VAR_POP FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "VAR_SAMP",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the variance of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "VAR_SAMP function is identical to VARIANCE. However, if a window or group has only one row, then the result of this function is NULL instead of 0."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, VAR_SAMP(current_salary) OVER (PARTITION BY department ORDER BY hire_date) VAR_SAMP FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "VARIANCE",
+        "types": [
+            "aggregate",
+            "analytic"
+        ],
+        "description": "Returns the variance of expr within a window or group of rows.",
+        "usage-notes": [
+            "With DISTINCT, the function considers duplicate values of expr only once. It considers all occurrences with ALL. If the function contains neither ALL nor DISTINCT, the default is ALL.",
+            "If a window or group has only one row, then the result of this function is 0."
+        ],
+        "example": "SELECT id department, hire_date, current_salary, VARIANCE(current_salary) OVER (PARTITION BY department ORDER BY hire_date) VARIANCE FROM employee_table ORDER BY department, hire_date;"
+    },
+    {
+        "name": "WEEK",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the week of a date (values 1-53, specified in ISO-8601 standard).",
+        "usage-notes": [
+            "A new week begins with Monday.",
+            "The first week of a year starts from January 1st, if it is a Monday, Tuesday, Wednesday or Thursday - otherwise on the following Monday.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT WEEK(DATE '2012-01-05') WEEK;"
+    },
+    {
+        "name": "YEAR",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the year of a date.",
+        "usage-notes": [
+            "This function can also be applied on strings, in contrast to function EXTRACT.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT YEAR(DATE '2010-10-20');"
+    },
+    {
+        "name": "YEARS_BETWEEN",
+        "types": [
+            "date-time"
+        ],
+        "description": "Returns the number of years between two date values.",
+        "usage-notes": [
+            "If a timestamp is entered, only the date contained therein is applied for the computation.",
+            "If the months and days are identical, the result is an integer.",
+            "If the first date value is earlier than the second date value, the result is negative.",
+            "For data type TIMESTAMP WITH LOCAL TIME ZONE this function is calculated within the session time zone."
+        ],
+        "example": "SELECT YEARS_BETWEEN(DATE '2001-01-01', DATE '2000-06-15') YB1, YEARS_BETWEEN(TIMESTAMP '2001-01-01 12:00:00',TIMESTAMP '2000-01-01 00:00:00') YB2;"
+    },
+    {
+        "name": "ZEROIFNULL",
+        "types": [
+            "other-scalar"
+        ],
+        "description": "Returns 0 if number has value NULL. Otherwise, number is returned.",
+        "usage-notes": [
+            "The ZEROIFNULL function is equivalent to the CASE expression - CASE WHEN number is NULL THEN 0 ELSE number END.",
+            "Additionally, refer to NULLIFZERO."
+        ],
+        "example": "SELECT ZEROIFNULL(NULL) ZIN1, ZEROIFNULL(1) ZIN2;"
+    }
+]

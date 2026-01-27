@@ -1,7 +1,10 @@
 import asyncio
 from collections.abc import Generator
 from contextlib import contextmanager
-from test.utils.result_utils import get_list_result_json
+from test.utils.result_utils import (
+    get_list_result_json,
+    verify_result_table,
+)
 
 from fastmcp import Client
 from pyexasol import ExaConnection
@@ -40,16 +43,7 @@ def _verify_resource_table(
 ) -> None:
     result = _read_resource(pyexasol_connection, resource_uri)
     result_json = get_list_result_json(result, _get_resource_content)
-    test_data = list(
-        filter(lambda row: row[key_column] in expected_keys, result_json.result)
-    )
-    # Verify that all expected keys are present in the output.
-    assert {row[key_column] for row in test_data} == set(expected_keys)
-    if other_columns:
-        # Verify that there are values in all other expected columns.
-        for col_name in other_columns:
-            for row in test_data:
-                assert row[col_name], f"{col_name} is empty for {row[col_name]}"
+    verify_result_table(result_json, key_column, other_columns, expected_keys)
 
 
 def test_list_sql_types(pyexasol_connection):
@@ -91,4 +85,24 @@ def test_list_reserved_keywords(pyexasol_connection):
         key_column="KEYWORD",
         other_columns=[],
         expected_keys=["ALL", "BEFORE", "CONDITION", "FINAL"],
+    )
+
+
+def test_list_builtin_functions(pyexasol_connection):
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="dialect://built-in-functions/list/numeric",
+        key_column="name",
+        other_columns=["description"],
+        expected_keys=["CEILING", "DEGREES"],
+    )
+
+
+def test_describe_builtin_function(pyexasol_connection):
+    _verify_resource_table(
+        pyexasol_connection,
+        resource_uri="dialect://built-in-functions/details/to_date",
+        key_column="name",
+        other_columns=["description", "types", "usage-notes", "example"],
+        expected_keys=["TO_DATE"],
     )
