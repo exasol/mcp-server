@@ -38,5 +38,5 @@ def describe_builtin_function(name: str) -> ExaDbResult:
     with importlib.resources.open_text(PACKAGE_RESOURCES, BUILTIN_FUNCTIONS_JSON) as f:
         func_list: list[dict[str, Any]] = json.load(f)
     name = name.upper()
-    selected_info = list(filter(lambda func_info: func_info["name"] == name, func_list))
+    selected_info = [func_info for func_info in func_list if func_info["name"] == name]
     return ExaDbResult(selected_info)
