@@ -16,6 +16,10 @@ from exasol.ai.mcp.server.generic_auth import (
     get_auth_kwargs,
     str_to_bool,
 )
+from exasol.ai.mcp.server.mcp_resources import (
+    describe_builtin_function,
+    list_builtin_functions,
+)
 from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
 from exasol.ai.mcp.server.server_settings import (
     ExaDbResult,
@@ -340,6 +344,7 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     @mcp_server.resource(
         uri="dialect://sql-types",
         description="List of Exasol SQL types and their parameters.",
+        annotations={"readOnlyHint": True, "idempotentHint": True},
     )
     def list_sql_types() -> ExaDbResult:
         return mcp_server.list_sql_types()
@@ -347,6 +352,7 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     @mcp_server.resource(
         uri="system://system-tables",
         description="List of Exasol system tables.",
+        annotations={"readOnlyHint": True, "idempotentHint": True},
     )
     def list_system_tables() -> ExaDbResult:
         return mcp_server.list_system_tables()
@@ -354,6 +360,7 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     @mcp_server.resource(
         uri="system://statistics-tables",
         description="List of Exasol statistics tables.",
+        annotations={"readOnlyHint": True, "idempotentHint": True},
     )
     def list_statistics_tables() -> ExaDbResult:
         return mcp_server.list_statistics_tables()
@@ -361,9 +368,33 @@ def register_resources(mcp_server: ExasolMCPServer) -> None:
     @mcp_server.resource(
         uri="dialect://reserved-keywords",
         description="List of Exasol reserved keywords.",
+        annotations={"readOnlyHint": True, "idempotentHint": True},
     )
     def list_reserved_keywords() -> ExaDbResult:
         return mcp_server.list_reserved_keywords()
+
+    @mcp_server.resource(
+        uri="dialect://built-in-functions/list/{category}",
+        description=(
+            "List of Exasol built-in functions by category. Categories: numeric, "
+            "string, date-time, geospatial, bitwise, conversion, other-scalar, "
+            "aggregate, analytic. A function can belong to more than one category."
+        ),
+        annotations={"readOnlyHint": True, "idempotentHint": True},
+    )
+    def _list_builtin_functions(category: str) -> ExaDbResult:
+        return list_builtin_functions(category)
+
+    @mcp_server.resource(
+        uri="dialect://built-in-functions/details/{name}",
+        description=(
+            "Information about a built-in function with the specified name. "
+            "May include usage notes and one or more examples."
+        ),
+        annotations={"readOnlyHint": True, "idempotentHint": True},
+    )
+    def _describe_builtin_function(name: str) -> ExaDbResult:
+        return describe_builtin_function(name)
 
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:

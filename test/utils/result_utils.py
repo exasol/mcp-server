@@ -7,6 +7,7 @@ from typing import (
 )
 
 import exasol.bucketfs as bfs
+import pytest
 from fastmcp import Client
 from mcp.types import Tool
 from pyexasol import ExaConnection
@@ -86,3 +87,27 @@ def get_tool_hints(tool: Tool) -> ToolHints:
         read_only=tool.annotations.readOnlyHint,
         destructive=tool.annotations.destructiveHint,
     )
+
+
+def verify_result_table(
+    result: ExaDbResult,
+    key_column: str,
+    other_columns: list[str],
+    expected_keys: list[str],
+) -> None:
+    test_data = list(
+        filter(lambda row: row[key_column] in expected_keys, result.result)
+    )
+    # Verify that all expected keys are present in the output.
+    keys_found = {row[key_column] for row in test_data}
+    if keys_found != set(expected_keys):
+        pytest.fail(
+            f"The expected rows {set(expected_keys).difference(keys_found)} "
+            "not found in the output"
+        )
+    if other_columns:
+        # Verify that there are values in all other expected columns.
+        for col_name in other_columns:
+            for row in test_data:
+                if not row[col_name]:
+                    pytest.fail(f"{col_name} is empty for {row[col_name]}")
