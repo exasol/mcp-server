@@ -1,3 +1,16 @@
+"""
+Builds the builtin functions resource = exasol_builtin_functions.json
+
+Requires the following packages:
+
+- Sentence Transformers
+pip install sentence-transformers
+
+- Beautiful Soup
+pip install beautifulsoup4
+This package should be installed anyway, as a dependency of sphinx-toolbox
+"""
+
 import importlib.resources
 import json
 import re
@@ -12,11 +25,17 @@ from bs4 import (
     BeautifulSoup,
     Tag,
 )
+from sentence_transformers import (
+    SentenceTransformer,
+    util,
+)
 
 from exasol.ai.mcp.server.mcp_resources import (
     BUILTIN_FUNCTIONS_JSON,
     PACKAGE_RESOURCES,
 )
+
+MAX_PURPOSE_SIMILARITY = 0.95
 
 
 @dataclass
@@ -165,14 +184,29 @@ def extract_examples(soup: BeautifulSoup) -> str | None:
     return None
 
 
-def extract_info(url: str) -> dict[str, Any]:
-    content = get_content(url)
+def extract_info(func_info: FuncInfo, model: SentenceTransformer) -> dict[str, Any]:
+    def format_func_text(text: str) -> str:
+        prefix_to_cut = "this function "
+        if text.lower().startswith(prefix_to_cut):
+            text = text[len(prefix_to_cut) :]
+        return f"{func_info.name}: {text}"
+
+    content = get_content(func_info.url)
     soup = BeautifulSoup(content, "html.parser")
-    return {
-        "purpose": extract_purpose(soup),
+    extra_info = {
         "usage-notes": extract_usage_notes(soup),
         "example": extract_examples(soup),
     }
+    purpose = extract_purpose(soup)
+    if purpose:
+        # Compare purpose to description, and add it only if it is not very similar.
+        embeddings = model.encode(
+            [format_func_text(purpose), format_func_text(func_info.description)]
+        )
+        similarity = util.cos_sim(*embeddings).item()
+        if similarity <= MAX_PURPOSE_SIMILARITY:
+            extra_info["purpose"] = purpose
+    return extra_info
 
 
 def alphabetical_list() -> dict[str, FuncInfo]:
@@ -323,6 +357,8 @@ def build_json() -> list[dict[str, Any]]:
     for fun_cat in plain_list:
         func_key_cats[fun_cat.key].append(fun_cat.category)
 
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+
     # Load the functions' information from the alphabetical summary page
     # and merge with the list of categories.
     func_infos = alphabetical_list()
@@ -336,7 +372,7 @@ def build_json() -> list[dict[str, Any]]:
                     "alias": func_info.alias,
                     "types": cats,
                     "description": func_info.description,
-                    **extract_info(func_info.url),
+                    **extract_info(func_info, model),
                 }
             )
 

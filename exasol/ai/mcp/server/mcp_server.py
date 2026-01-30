@@ -101,6 +101,10 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _take_column(column_name: str, result: ExaDbResult) -> list[str]:
+    return [row[column_name] for row in result.result]
+
+
 class ExasolMCPServer(FastMCP):
     """
     An Exasol MCP server based on FastMCP.
@@ -341,14 +345,18 @@ class ExasolMCPServer(FastMCP):
         query = ExasolMetaQuery.get_sql_types()
         return self._execute_meta_query(query)
 
-    def list_system_tables(self) -> ExaDbResult:
-        query = self.meta_query.get_system_tables(SysInfoType.SYSTEM)
+    def list_system_tables(self, info_type: SysInfoType) -> list[str]:
+        query = self.meta_query.get_system_tables(info_type)
+        return _take_column(
+            self.config.tables.name_field, self._execute_meta_query(query)
+        )
+
+    def describe_system_table(
+        self, info_type: SysInfoType, table_name: str
+    ) -> ExaDbResult:
+        query = self.meta_query.get_system_tables(info_type, table_name)
         return self._execute_meta_query(query)
 
-    def list_statistics_tables(self) -> ExaDbResult:
-        query = self.meta_query.get_system_tables(SysInfoType.STATISTICS)
-        return self._execute_meta_query(query)
-
-    def list_reserved_keywords(self) -> ExaDbResult:
-        query = ExasolMetaQuery.get_reserved_keywords()
-        return self._execute_meta_query(query)
+    def list_keywords(self, reserved: bool, letter: str) -> list[str]:
+        query = ExasolMetaQuery.get_keywords(reserved, letter)
+        return _take_column("KEYWORD", self._execute_meta_query(query))

@@ -596,7 +596,7 @@ def test_get_sql_types() -> None:
 
 
 @pytest.mark.parametrize("info_type", [SysInfoType.SYSTEM, SysInfoType.STATISTICS])
-def test_get_system_tables(info_type) -> None:
+def test_get_system_table_list(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.get_system_tables(info_type))
@@ -607,16 +607,37 @@ def test_get_system_tables(info_type) -> None:
             "OBJECT_NAME" AS "{config.tables.name_field}",
             "OBJECT_COMMENT" AS "{config.tables.comment_field}"
         FROM SYS.EXA_SYSCAT
-        WHERE "SCHEMA_NAME" = '{info_type.value}'
+        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
     """
     )
     assert query == expected_query
 
 
-def test_get_reserved_keywords() -> None:
-    query = collapse_spaces(ExasolMetaQuery.get_reserved_keywords())
+@pytest.mark.parametrize("info_type", [SysInfoType.SYSTEM, SysInfoType.STATISTICS])
+def test_get_system_table_details(info_type) -> None:
+    config = McpServerSettings()
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(meta_query.get_system_tables(info_type, "the_table"))
     expected_query = collapse_spaces(
-        'SELECT "KEYWORD" FROM SYS.EXA_SQL_KEYWORDS WHERE "RESERVED" = TRUE '
-        'ORDER BY "RESERVED"'
+        f"""
+        SELECT
+            "SCHEMA_NAME" AS "{config.tables.schema_field}",
+            "OBJECT_NAME" AS "{config.tables.name_field}",
+            "OBJECT_COMMENT" AS "{config.tables.comment_field}"
+        FROM SYS.EXA_SYSCAT
+        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
+        AND UPPER("OBJECT_NAME") = 'THE_TABLE'
+    """
+    )
+    assert query == expected_query
+
+
+@pytest.mark.parametrize("reserved", [True, False])
+def test_get_keywords(reserved) -> None:
+    query = collapse_spaces(ExasolMetaQuery.get_keywords(reserved, "a"))
+    expected_query = collapse_spaces(
+        'SELECT "KEYWORD" FROM SYS.EXA_SQL_KEYWORDS '
+        f"""WHERE "RESERVED" = {str(reserved).upper()} AND LEFT("KEYWORD", 1) = 'A' """
+        'ORDER BY "KEYWORD"'
     )
     assert query == expected_query

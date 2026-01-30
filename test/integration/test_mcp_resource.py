@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Generator
 from contextlib import contextmanager
 from test.utils.result_utils import (
@@ -57,51 +58,83 @@ def test_list_sql_types(pyexasol_connection):
 
 
 def test_list_system_tables(pyexasol_connection):
+    result = _read_resource(pyexasol_connection, "system://system-table/list")
+    result_json = json.loads(result[0].text)
+    assert all(
+        table_name in result_json for table_name in ["EXA_ALL_COLUMNS", "EXA_CLUSTERS"]
+    )
+
+
+def test_describe_system_table(pyexasol_connection):
     conf = McpServerSettings().tables
     _verify_resource_table(
         pyexasol_connection,
-        resource_uri="system://system-tables",
+        resource_uri="system://system-table/details/exa_all_columns",
         key_column=conf.name_field,
         other_columns=[conf.schema_field, conf.comment_field],
-        expected_keys=["EXA_ALL_COLUMNS", "EXA_CLUSTERS"],
+        expected_keys=["EXA_ALL_COLUMNS"],
     )
 
 
 def test_list_statistics_tables(pyexasol_connection):
+    result = _read_resource(pyexasol_connection, "system://statistics-table/list")
+    result_json = json.loads(result[0].text)
+    assert all(
+        table_name in result_json
+        for table_name in ["EXA_SQL_DAILY", "EXA_DBA_AUDIT_SESSIONS"]
+    )
+
+
+def test_describe_statistics_tables(pyexasol_connection):
     conf = McpServerSettings().tables
     _verify_resource_table(
         pyexasol_connection,
-        resource_uri="system://statistics-tables",
+        resource_uri="system://statistics-table/details/exa_sql_daily",
         key_column=conf.name_field,
         other_columns=[conf.schema_field, conf.comment_field],
-        expected_keys=["EXA_SQL_DAILY", "EXA_DBA_AUDIT_SESSIONS"],
+        expected_keys=["EXA_SQL_DAILY"],
     )
 
 
 def test_list_reserved_keywords(pyexasol_connection):
-    _verify_resource_table(
-        pyexasol_connection,
-        resource_uri="dialect://reserved-keywords",
-        key_column="KEYWORD",
-        other_columns=[],
-        expected_keys=["ALL", "BEFORE", "CONDITION", "FINAL"],
+    result = _read_resource(pyexasol_connection, "dialect://keyword/reserved/a")
+    result_json = json.loads(result[0].text)
+    assert all(keyword.startswith("A") for keyword in result_json)
+    assert all(keyword in result_json for keyword in ["ALL", "ANY", "ARE"])
+    assert all(keyword not in result_json for keyword in ["ABS", "ADD_YEARS", "ALWAYS"])
+
+
+def test_list_non_reserved_keywords(pyexasol_connection):
+    result = _read_resource(pyexasol_connection, "dialect://keyword/non-reserved/a")
+    result_json = json.loads(result[0].text)
+    assert all(keyword.startswith("A") for keyword in result_json)
+    assert all(keyword in result_json for keyword in ["ABS", "ADD_YEARS", "ALWAYS"])
+    assert all(keyword not in result_json for keyword in ["ALL", "ANY", "ARE"])
+
+
+def test_builtin_function_categories(pyexasol_connection):
+    result = _read_resource(
+        pyexasol_connection, "dialect://built-in-function/categories"
+    )
+    result_json = json.loads(result[0].text)
+    assert all(
+        expected_name in result_json
+        for expected_name in ["numeric", "string", "analytic"]
     )
 
 
 def test_list_builtin_functions(pyexasol_connection):
-    _verify_resource_table(
-        pyexasol_connection,
-        resource_uri="dialect://built-in-functions/list/numeric",
-        key_column="name",
-        other_columns=["description"],
-        expected_keys=["CEILING", "DEGREES"],
+    result = _read_resource(
+        pyexasol_connection, "dialect://built-in-function/list/numeric"
     )
+    result_json = json.loads(result[0].text)
+    assert all(expected_name in result_json for expected_name in ["CEILING", "DEGREES"])
 
 
 def test_describe_builtin_function(pyexasol_connection):
     _verify_resource_table(
         pyexasol_connection,
-        resource_uri="dialect://built-in-functions/details/to_date",
+        resource_uri="dialect://built-in-function/details/to_date",
         key_column="name",
         other_columns=["description", "types", "usage-notes", "example"],
         expected_keys=["TO_DATE"],

@@ -1,5 +1,6 @@
 import importlib.resources
 import json
+from functools import cache
 from typing import Any
 
 from exasol.ai.mcp.server.server_settings import ExaDbResult
@@ -8,25 +9,33 @@ BUILTIN_FUNCTIONS_JSON = "exasol_builtin_functions.json"
 PACKAGE_RESOURCES = f"{__package__}.resources"
 
 
-def list_builtin_functions(category: str) -> ExaDbResult:
+@cache
+def load_builtin_func_list() -> list[dict[str, Any]]:
+    with importlib.resources.open_text(PACKAGE_RESOURCES, BUILTIN_FUNCTIONS_JSON) as f:
+        return json.load(f)
+
+
+def builtin_function_categories() -> list[str]:
+    """
+    Returns a list of builtin function categories.
+    """
+    func_list = load_builtin_func_list()
+    categories: set[str] = set()
+    for func_info in func_list:
+        categories.update(func_info["types"])
+    return sorted(categories)
+
+
+def list_builtin_functions(category: str) -> list[str]:
     """
     Selects the list of builtin functions of the specified type (category), reading
-    the resource json. Only takes the name and the description fields.
+    the resource json. Returns only the function names.
     """
-    with importlib.resources.open_text(PACKAGE_RESOURCES, BUILTIN_FUNCTIONS_JSON) as f:
-        func_list: list[dict[str, Any]] = json.load(f)
-    allowed_fields = ["name", "description"]
+    func_list = load_builtin_func_list()
     category = category.lower()
-    selected_info = [
-        {
-            field_name: field_value
-            for field_name, field_value in func_info.items()
-            if field_name in allowed_fields
-        }
-        for func_info in func_list
-        if category in func_info["types"]
+    return [
+        func_info["name"] for func_info in func_list if category in func_info["types"]
     ]
-    return ExaDbResult(selected_info)
 
 
 def describe_builtin_function(name: str) -> ExaDbResult:
@@ -35,8 +44,7 @@ def describe_builtin_function(name: str) -> ExaDbResult:
     Returns all fields. Some functions, for example TO_CHAR, can have information in
     more than one row.
     """
-    with importlib.resources.open_text(PACKAGE_RESOURCES, BUILTIN_FUNCTIONS_JSON) as f:
-        func_list: list[dict[str, Any]] = json.load(f)
+    func_list = load_builtin_func_list()
     name = name.upper()
     selected_info = [func_info for func_info in func_list if func_info["name"] == name]
     return ExaDbResult(selected_info)

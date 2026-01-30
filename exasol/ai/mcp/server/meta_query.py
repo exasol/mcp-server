@@ -474,11 +474,17 @@ class ExasolMetaQuery:
         )
         return query.sql(dialect="exasol", identify=True)
 
-    def get_system_tables(self, info_type: SysInfoType) -> str:
+    def get_system_tables(
+        self, info_type: SysInfoType, table_name: str | None = None
+    ) -> str:
         """
         Collects names and comments for the system or statistics tables and views.
+        The output will be restricted to one table if it's name is specified.
         """
         conf = self._config.tables
+        predicates = [self._get_column_eq_predicate("SCHEMA_NAME", info_type.value)]
+        if table_name:
+            predicates.append(self._get_column_eq_predicate("OBJECT_NAME", table_name))
         query = (
             exp.Select()
             .select(
@@ -487,20 +493,27 @@ class ExasolMetaQuery:
                 exp.column("OBJECT_COMMENT").as_(conf.comment_field),
             )
             .from_(exp.Table(this="EXA_SYSCAT", db="SYS"))
-            .where(exp.column("SCHEMA_NAME").eq(exp.Literal.string(info_type.value)))
+            .where(*predicates)
         )
         return query.sql(dialect="exasol", identify=True)
 
     @staticmethod
-    def get_reserved_keywords() -> str:
+    def get_keywords(reserved: bool, letter: str) -> str:
         """
-        The query returns a list of reserved words.
+        The query returns a list of keywords that start from the given letter.
+        The list is restricted to keywords that are either reserved words or not
+        reserver words, as per the argument.
         """
         query = (
             exp.Select()
             .select(exp.column("KEYWORD"))
             .from_(exp.Table(this="EXA_SQL_KEYWORDS", db="SYS"))
-            .where(exp.column("RESERVED").eq(exp.Boolean(this=True)))
-            .order_by(exp.column("RESERVED"))
+            .where(
+                exp.column("RESERVED").eq(exp.Boolean(this=reserved)),
+                exp.func("LEFT", exp.column("KEYWORD"), 1).eq(
+                    exp.Literal.string(letter.upper())
+                ),
+            )
+            .order_by(exp.column("KEYWORD"))
         )
         return query.sql(dialect="exasol", identify=True)
