@@ -8,3 +8,7 @@
 * #141: Added annotations to the tools.
 * #144: Added a reserved words resource.
 * #146: Added a resource listing builtin functions.
+
+## Refactoring
+
+* #149: Optimised resources in terms of token usage.
