@@ -24,6 +24,7 @@ class ToolHints:
     tool_name: str
     read_only: bool | None = None
     destructive: bool | None = None
+    idempotent: bool | None = None
 
     def __hash__(self):
         return hash(self.tool_name)
@@ -86,6 +87,7 @@ def get_tool_hints(tool: Tool) -> ToolHints:
         tool_name=tool.name,
         read_only=tool.annotations.readOnlyHint,
         destructive=tool.annotations.destructiveHint,
+        idempotent=tool.annotations.idempotentHint,
     )
 
 

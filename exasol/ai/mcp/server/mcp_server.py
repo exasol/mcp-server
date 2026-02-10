@@ -345,18 +345,41 @@ class ExasolMCPServer(FastMCP):
         query = ExasolMetaQuery.get_sql_types()
         return self._execute_meta_query(query)
 
-    def list_system_tables(self, info_type: SysInfoType) -> list[str]:
+    def _list_system_tables(self, info_type: SysInfoType) -> list[str]:
         query = self.meta_query.get_system_tables(info_type)
         return _take_column(
             self.config.tables.name_field, self._execute_meta_query(query)
         )
 
-    def describe_system_table(
+    def list_system_tables(self) -> list[str]:
+        return self._list_system_tables(SysInfoType.SYSTEM)
+
+    def list_statistics_tables(self) -> list[str]:
+        return self._list_system_tables(SysInfoType.STATISTICS)
+
+    def _describe_system_table(
         self, info_type: SysInfoType, table_name: str
     ) -> ExaDbResult:
         query = self.meta_query.get_system_tables(info_type, table_name)
         return self._execute_meta_query(query)
 
-    def list_keywords(self, reserved: bool, letter: str) -> list[str]:
+    def describe_system_table(self, table_name: TABLE_NAME_TYPE) -> ExaDbResult:
+        return self._describe_system_table(SysInfoType.SYSTEM, table_name)
+
+    def describe_statistics_table(self, table_name: TABLE_NAME_TYPE) -> ExaDbResult:
+        return self._describe_system_table(SysInfoType.STATISTICS, table_name)
+
+    def list_keywords(
+        self,
+        reserved: Annotated[
+            bool,
+            Field(
+                description="selects reserved (True), or non-reserved (False) keywords"
+            ),
+        ],
+        letter: Annotated[
+            str, Field(description="selects keywords starting from this letter")
+        ],
+    ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
         return _take_column("KEYWORD", self._execute_meta_query(query))

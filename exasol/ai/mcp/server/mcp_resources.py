@@ -1,7 +1,12 @@
 import importlib.resources
 import json
 from functools import cache
-from typing import Any
+from typing import (
+    Annotated,
+    Any,
+)
+
+from pydantic import Field
 
 from exasol.ai.mcp.server.server_settings import ExaDbResult
 
@@ -26,7 +31,9 @@ def builtin_function_categories() -> list[str]:
     return sorted(categories)
 
 
-def list_builtin_functions(category: str) -> list[str]:
+def list_builtin_functions(
+    category: Annotated[str, Field(description="builtin function category")],
+) -> list[str]:
     """
     Selects the list of builtin functions of the specified type (category), reading
     the resource json. Returns only the function names.
@@ -38,7 +45,9 @@ def list_builtin_functions(category: str) -> list[str]:
     ]
 
 
-def describe_builtin_function(name: str) -> ExaDbResult:
+def describe_builtin_function(
+    name: Annotated[str, Field(description="builtin function name")],
+) -> ExaDbResult:
     """
     Loads details for the specified builtin function, reading the resource json.
     Returns all fields. Some functions, for example TO_CHAR, can have information in
