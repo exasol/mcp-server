@@ -33,20 +33,20 @@ from tenacity import retry
 from tenacity.stop import stop_after_attempt
 from tenacity.wait import wait_exponential
 
-from exasol.ai.mcp.server.bucketfs_tools import (
-    PATH_FIELD,
-    PathStatus,
-    get_path_warning,
-)
-from exasol.ai.mcp.server.connection_factory import env_to_bucketfs
-from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.connection_factory import env_to_bucketfs
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
     create_mcp_server,
     mcp_server,
 )
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     ExaDbResult,
     McpServerSettings,
+)
+from exasol.ai.mcp.server.tools.bucketfs_tools import (
+    PATH_FIELD,
+    PathStatus,
+    get_path_warning,
 )
 
 _human = (
@@ -233,7 +233,7 @@ def no_elicit_config() -> McpServerSettings:
 
 @pytest.mark.parametrize("enable_bucketfs", [False, True])
 @patch("exasol.ai.mcp.server.main.get_mcp_settings")
-@patch("exasol.ai.mcp.server.connection_factory.get_connection_factory")
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_connection_factory")
 def test_mcp_server_with_bucketfs(
     mock_get_conn_factory,
     mock_get_mcp_settings,

@@ -4,7 +4,7 @@ from functools import cache
 
 import sqlglot.expressions as exp
 
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pyexasol
 import pytest
 
-from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
 
 
 def _create_mock_statement(val: Any) -> pyexasol.ExaStatement:

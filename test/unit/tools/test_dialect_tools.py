@@ -1,6 +1,6 @@
 from test.utils.result_utils import verify_result_table
 
-from exasol.ai.mcp.server.mcp_resources import (
+from exasol.ai.mcp.server.tools.dialect_tools import (
     builtin_function_categories,
     describe_builtin_function,
     list_builtin_functions,

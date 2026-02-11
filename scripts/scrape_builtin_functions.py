@@ -30,7 +30,7 @@ from sentence_transformers import (
     util,
 )
 
-from exasol.ai.mcp.server.mcp_resources import (
+from exasol.ai.mcp.server.tools.dialect_tools import (
     BUILTIN_FUNCTIONS_JSON,
     PACKAGE_RESOURCES,
 )

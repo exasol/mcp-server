@@ -1,6 +1,6 @@
 import pytest
 
-from exasol.ai.mcp.server.bucketfs_tools import (
+from exasol.ai.mcp.server.tools.bucketfs_tools import (
     PATH_WARNINGS,
     PathStatus,
     get_path_warning,

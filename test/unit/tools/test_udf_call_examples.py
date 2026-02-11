@@ -1,6 +1,6 @@
 import pytest
 
-from exasol.ai.mcp.server.parameter_parser import VARIADIC_MARKER
+from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
 
 
 @pytest.mark.parametrize(

@@ -8,10 +8,10 @@ from typing import (
 
 from pydantic import Field
 
-from exasol.ai.mcp.server.server_settings import ExaDbResult
+from exasol.ai.mcp.server.setup.server_settings import ExaDbResult
 
 BUILTIN_FUNCTIONS_JSON = "exasol_builtin_functions.json"
-PACKAGE_RESOURCES = f"{__package__}.resources"
+PACKAGE_RESOURCES = f"{__package__}.data"
 
 
 @cache

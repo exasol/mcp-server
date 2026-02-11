@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from exasol.ai.mcp.server.parameter_pattern import (
+from exasol.ai.mcp.server.tools.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
     parameter_list_pattern,

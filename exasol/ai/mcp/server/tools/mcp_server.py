@@ -20,28 +20,28 @@ from sqlglot import (
 )
 from sqlglot.errors import ParseError
 
-from exasol.ai.mcp.server.bucketfs_tools import BucketFsTools
-from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.keyword_search import keyword_filter
-from exasol.ai.mcp.server.meta_query import (
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.setup.server_settings import (
+    ExaDbResult,
+    McpServerSettings,
+)
+from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
+from exasol.ai.mcp.server.tools.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
     MetaType,
     SysInfoType,
     is_system_schema,
 )
-from exasol.ai.mcp.server.parameter_parser import (
+from exasol.ai.mcp.server.tools.parameter_parser import (
     FuncParameterParser,
     ScriptParameterParser,
 )
-from exasol.ai.mcp.server.parameter_pattern import (
+from exasol.ai.mcp.server.tools.parameter_pattern import (
     parameter_list_pattern,
     regex_flags,
 )
-from exasol.ai.mcp.server.server_settings import (
-    ExaDbResult,
-    McpServerSettings,
-)
+from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
 
 TABLE_USAGE = (
     "In an SQL query, the names of database objects, such as schemas, "

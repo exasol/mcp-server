@@ -21,11 +21,11 @@ from pydantic import (
     Field,
 )
 
-from exasol.ai.mcp.server.keyword_search import keyword_filter
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     ExaDbResult,
     McpServerSettings,
 )
+from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
 
 
 class PathStatus(Enum):

@@ -7,7 +7,7 @@ from fastmcp.server.auth import (
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
-from exasol.ai.mcp.server.generic_auth import (
+from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
     AuthParameter,
     AuthProviderInfo,

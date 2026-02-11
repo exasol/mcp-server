@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from exasol.ai.mcp.server.parameter_parser import FUNCTION_USAGE
+from exasol.ai.mcp.server.tools.parameter_parser import FUNCTION_USAGE
 
 
 @pytest.mark.parametrize(
@@ -454,7 +454,9 @@ def test_script_extract_parameters(script_parameter_parser):
     assert result[script_parameter_parser.conf.comment_field] == comment
 
 
-@mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
 def test_describe(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = [
         {
@@ -485,14 +487,18 @@ def test_describe(mock_execute_query, func_parameter_parser):
     assert result == expected_result
 
 
-@mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
 def test_describe_not_found(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = []
     with pytest.raises(ValueError, match="not found"):
         func_parameter_parser.describe(schema_name="MySchema", func_name="Validate")
 
 
-@mock.patch("exasol.ai.mcp.server.parameter_parser.ParameterParser._execute_query")
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
 def test_describe_invalid_data(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = [
         {

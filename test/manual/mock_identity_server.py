@@ -2,7 +2,7 @@
 A CLI test utility that starts a mock identity server for running manual tests.
 """
 
-from test.integration.test_mcp_oidc import start_oidc_server
+from test.integration.settings.test_mcp_oidc import start_oidc_server
 from test.utils.mcp_oidc_constants import OIDC_USER_SUB
 
 if __name__ == "__main__":

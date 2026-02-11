@@ -3,16 +3,16 @@ from test.utils.text_utils import collapse_spaces
 
 import pytest
 
-from exasol.ai.mcp.server.meta_query import (
+from exasol.ai.mcp.server.setup.server_settings import (
+    McpServerSettings,
+    MetaColumnSettings,
+    MetaListSettings,
+)
+from exasol.ai.mcp.server.tools.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
     MetaType,
     SysInfoType,
-)
-from exasol.ai.mcp.server.server_settings import (
-    McpServerSettings,
-    MetaColumnSettings,
-    MetaListSettings,
 )
 
 
