@@ -99,7 +99,7 @@ from pyexasol import (
     ExaRequestError,
 )
 
-from exasol.ai.mcp.server.connection_factory import (
+from exasol.ai.mcp.server.connection.connection_factory import (
     ENV_DSN,
     ENV_PASSWORD,
     ENV_SAAS_ACCOUNT_ID,
@@ -112,16 +112,16 @@ from exasol.ai.mcp.server.connection_factory import (
     get_connection_factory,
     get_oidc_user,
 )
-from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.generic_auth import (
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.main import create_mcp_server
+from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
     AuthParameter,
     exa_parameter_env_name,
     exa_provider_name,
     get_auth_provider,
 )
-from exasol.ai.mcp.server.main import create_mcp_server
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )

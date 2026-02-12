@@ -13,7 +13,7 @@ from mcp.types import Tool
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.main import create_mcp_server
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     ExaDbResult,
     McpServerSettings,
 )

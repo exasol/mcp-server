@@ -4,7 +4,7 @@ It can run with or without the hack shortcutting the authorization UI.
 """
 
 import asyncio
-from test.integration.test_mcp_oidc import OAuthHeadless
+from test.integration.settings.test_mcp_oidc import OAuthHeadless
 
 import click
 from fastmcp import Client

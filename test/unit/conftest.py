@@ -3,13 +3,13 @@ from unittest import mock
 import pytest
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.parameter_parser import (
-    FuncParameterParser,
-    ScriptParameterParser,
-)
-from exasol.ai.mcp.server.server_settings import (
+from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaParameterSettings,
+)
+from exasol.ai.mcp.server.tools.parameter_parser import (
+    FuncParameterParser,
+    ScriptParameterParser,
 )
 
 

@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from fastmcp.server.auth import AccessToken
 
-from exasol.ai.mcp.server.connection_factory import (
+from exasol.ai.mcp.server.connection.connection_factory import (
     DEFAULT_SAAS_HOST,
     ENV_ACCESS_TOKEN,
     ENV_BUCKETFS_BUCKET,
@@ -372,7 +372,7 @@ def test_get_oidc_user_none() -> None:
     assert get_oidc_user(None) == (None, None)
 
 
-@patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
 def test_get_connection_factory_oidc_multi_user(mock_oidc_user, mock_connect) -> None:
     """
     This test validates the behaviour of the connection factory in a multi-user case.
@@ -400,7 +400,7 @@ def test_get_connection_factory_oidc_multi_user(mock_oidc_user, mock_connect) ->
     assert mock_connect.call_count == num_users
 
 
-@patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
 def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) -> None:
     """
     This is a variation of the `test_get_connection_factory_oidc_multi_user` test for
@@ -472,7 +472,7 @@ def test_get_connection_factory_early_error() -> None:
         get_connection_factory(env)
 
 
-@patch("exasol.ai.mcp.server.connection_factory.get_oidc_user")
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
 def test_get_connection_factory_late_error(mock_oidc_user, mock_connect) -> None:
     env = {ENV_DSN: "my.db.dsn", ENV_USERNAME_CLAIM: "username"}
     mock_oidc_user.return_value = ("my_user_name", "")

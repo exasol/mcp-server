@@ -12,18 +12,12 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastmcp.server.auth import RemoteAuthProvider
 
-from exasol.ai.mcp.server.connection_factory import (
+from exasol.ai.mcp.server.connection.connection_factory import (
     ENV_DSN,
     ENV_PASSWORD,
     ENV_USER,
 )
-from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.generic_auth import (
-    ENV_PROVIDER_TYPE,
-    AuthParameter,
-    exa_parameter_env_name,
-    exa_provider_name,
-)
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
     ENV_LOG_FILE,
     ENV_LOG_FORMATTER,
@@ -35,8 +29,14 @@ from exasol.ai.mcp.server.main import (
     mcp_server,
     setup_logger,
 )
-from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
-from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.setup.generic_auth import (
+    ENV_PROVIDER_TYPE,
+    AuthParameter,
+    exa_parameter_env_name,
+    exa_provider_name,
+)
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
 
 
 def _set_fake_conn(monkeypatch: MonkeyPatch) -> None:

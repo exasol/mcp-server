@@ -18,8 +18,8 @@ import fastmcp.server.dependencies as fmcp_api
 import pyexasol
 import sqlglot.expressions as exp
 
-from exasol.ai.mcp.server.generic_auth import str_to_bool
-from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
+from exasol.ai.mcp.server.setup.generic_auth import str_to_bool
+from exasol.ai.mcp.server.utils.named_object_pool import NamedObjectPool
 
 ENV_DSN = "EXA_DSN"
 """ Exasol DB server DSN """

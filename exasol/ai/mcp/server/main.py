@@ -10,21 +10,21 @@ import exasol.bucketfs as bfs
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
-import exasol.ai.mcp.server.connection_factory as cf
-from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.generic_auth import (
+import exasol.ai.mcp.server.connection.connection_factory as cf
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.setup.generic_auth import (
     get_auth_kwargs,
     str_to_bool,
 )
-from exasol.ai.mcp.server.mcp_resources import (
+from exasol.ai.mcp.server.setup.server_settings import (
+    McpServerSettings,
+)
+from exasol.ai.mcp.server.tools.dialect_tools import (
     builtin_function_categories,
     describe_builtin_function,
     list_builtin_functions,
 )
-from exasol.ai.mcp.server.mcp_server import ExasolMCPServer
-from exasol.ai.mcp.server.server_settings import (
-    McpServerSettings,
-)
+from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """

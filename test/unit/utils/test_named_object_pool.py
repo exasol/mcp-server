@@ -1,4 +1,4 @@
-from exasol.ai.mcp.server.named_object_pool import NamedObjectPool
+from exasol.ai.mcp.server.utils.named_object_pool import NamedObjectPool
 
 
 class SimpleTestClass:

@@ -5,21 +5,21 @@ from abc import (
 )
 from typing import Any
 
-from exasol.ai.mcp.server.db_connection import DbConnection
-from exasol.ai.mcp.server.meta_query import (
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.setup.server_settings import (
+    McpServerSettings,
+    MetaParameterSettings,
+)
+from exasol.ai.mcp.server.tools.meta_query import (
     ExasolMetaQuery,
     MetaType,
 )
-from exasol.ai.mcp.server.parameter_pattern import (
+from exasol.ai.mcp.server.tools.parameter_pattern import (
     exa_type_pattern,
     identifier_pattern,
     parameter_list_pattern,
     quoted_identifier_pattern,
     regex_flags,
-)
-from exasol.ai.mcp.server.server_settings import (
-    McpServerSettings,
-    MetaParameterSettings,
 )
 
 VARIADIC_MARKER = "..."

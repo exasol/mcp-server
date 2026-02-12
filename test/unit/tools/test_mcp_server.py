@@ -2,11 +2,11 @@ from textwrap import dedent
 
 import pytest
 
-from exasol.ai.mcp.server.mcp_server import (
+from exasol.ai.mcp.server.tools.mcp_server import (
     remove_info_column,
     verify_query,
 )
-from exasol.ai.mcp.server.meta_query import INFO_COLUMN
+from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
 
 
 def sample_select_query() -> str:

@@ -1,6 +1,6 @@
 import pytest
 
-from exasol.ai.mcp.server.keyword_search import (
+from exasol.ai.mcp.server.utils.keyword_search import (
     extract_words,
     get_match_scores,
     keyword_filter,

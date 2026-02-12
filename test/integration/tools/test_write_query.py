@@ -14,9 +14,9 @@ from fastmcp.client.elicitation import ElicitResult
 from fastmcp.exceptions import ToolError
 from pyexasol import ExaConnection
 
-from exasol.ai.mcp.server.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
-from exasol.ai.mcp.server.server_settings import McpServerSettings
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 
 CORRECT_COMMAND = "INSERT INTO"
 INCORRECT_COMMAND = "INSERT TO"
