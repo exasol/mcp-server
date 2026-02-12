@@ -396,5 +396,5 @@ class ExasolMCPServer(FastMCP):
                     {"status": "healthy", "service": "exasol-mcp-server"}
                 )
         except Exception:  # pylint: disable=broad-except
-            pass
+            pass  # nosec
         return JSONResponse({"status": "unhealthy", "service": "exasol-mcp-server"})
