@@ -19,6 +19,7 @@ from sqlglot import (
     parse_one,
 )
 from sqlglot.errors import ParseError
+from starlette.responses import JSONResponse
 
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.setup.server_settings import (
@@ -383,3 +384,17 @@ class ExasolMCPServer(FastMCP):
     ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
         return _take_column("KEYWORD", self._execute_meta_query(query))
+
+    def health_check(self) -> JSONResponse:
+        """
+        A simple health check, runs a trivial query to verify that the DB is accessible.
+        """
+        try:
+            result = self.connection.execute_query("SELECT 1").fetchval()
+            if result == 1:
+                return JSONResponse(
+                    {"status": "healthy", "service": "exasol-mcp-server"}
+                )
+        except Exception:  # pylint: disable=broad-except
+            pass
+        return JSONResponse({"status": "unhealthy", "service": "exasol-mcp-server"})
