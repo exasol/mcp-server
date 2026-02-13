@@ -44,7 +44,10 @@ DEFAULT_LOG_BACKUP_COUNT = 5
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_schemas,
-        name="list_exasol_schemas",
+        description=(
+            "The tool lists schemas in the Exasol Database. "
+            "For each schema, it provides the name and an optional comment."
+        ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -52,11 +55,11 @@ def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
 def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_schemas,
-        name="find_exasol_schemas",
         description=(
-            "Finds schemas by looking for the specified keywords in their "
-            "names and comments. The list of keywords should include common "
-            "inflections of each keyword."
+            "The tool finds schemas in the Exasol Database by looking for the "
+            "specified keywords in their names and comments. The list of keywords "
+            "should include common inflections of each keyword. "
+            "For each schema it finds, it provides the name and an optional comment."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
@@ -65,10 +68,10 @@ def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
 def _register_list_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_tables,
-        name="list_exasol_tables_and_views",
         description=(
-            "Lists tables and views in the specified schema of the "
-            "the Exasol Database."
+            "The tool lists tables and views in the specified schema of the "
+            "the Exasol Database. For each table and view, it provides the "
+            "name, the schema, and an optional comment."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
@@ -78,11 +81,12 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_tables,
         description=(
-            "Finds tables and views in the Exasol Database by looking "
+            "The tool finds tables and views in the Exasol Database by looking "
             "for the specified keywords in their names and comments. The list of "
             "keywords should include common inflections of each keyword. "
-            "An optional `schema_name` argument restricts the search to "
-            "tables and views in the specified schema."
+            "For each table or view the tool finds, it provides the name, the schema, "
+            "and an optional comment. An optional `schema_name` argument allows "
+            "restricting the search to tables and views in the specified schema."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
@@ -92,7 +96,7 @@ def _register_list_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_functions,
         description=(
-            "Lists functions in the specified schema of the Exasol "
+            "The tool lists functions in the specified schema of the Exasol "
             "Database. For each function, it provides the name, the schema, "
             "and an optional comment."
         ),
