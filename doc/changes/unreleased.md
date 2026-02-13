@@ -7,3 +7,4 @@
 ## Refactorings
 
 * #151: Sorted out the source files and tests into directories.
+* #158: Refined tool's input parameter signatures.

@@ -53,6 +53,35 @@ PATH_WARNINGS = {
     ),
 }
 
+DirectoryArg = (
+    Annotated[str, Field(description="Full path of the BucketFS directory")],
+)
+
+OptionalDirectoryArg = (
+    Annotated[
+        str,
+        Field(
+            description="Full path of the BucketFS directory. Defaults to bucket root.",
+            default="",
+        ),
+    ],
+)
+
+FileArg = Annotated[str, Field(description="Full path of the BucketFS file")]
+
+
+NewFileArg = (
+    Annotated[
+        str,
+        Field(
+            description=(
+                "Full path where the BucketFS file should be saved. "
+                "Spaces and colons are not allowed in the path."
+            )
+        ),
+    ],
+)
+
 
 def get_path_warning(
     path_status: PathStatus, expected_status: PathStatus | None
@@ -190,24 +219,14 @@ class BucketFsTools:
 
         return response_type_factory
 
-    def list_directories(
-        self,
-        directory: Annotated[
-            str, Field(description="Directory, defaults to bucket root", default="")
-        ],
-    ) -> ExaDbResult:
+    def list_directories(self, directory: OptionalDirectoryArg) -> ExaDbResult:
         """
         Lists subdirectories at the given directory. The directory path is relative
         to the root location.
         """
         return self._list_items(directory, lambda pth: pth.is_dir())
 
-    def list_files(
-        self,
-        directory: Annotated[
-            str, Field(description="Directory, defaults to bucket root", default="")
-        ],
-    ) -> ExaDbResult:
+    def list_files(self, directory: OptionalDirectoryArg) -> ExaDbResult:
         """
         Lists files at the given directory. The directory path is relative to the
         root location.
@@ -218,11 +237,14 @@ class BucketFsTools:
         self,
         keywords: Annotated[
             list[str],
-            Field(description="List of keywords to look for in the file path"),
+            Field(
+                description=(
+                    "List of keywords to look for in the file path. "
+                    "The list should include common inflections of each keyword."
+                )
+            ),
         ],
-        directory: Annotated[
-            str, Field(description="Directory, defaults to bucket root", default="")
-        ],
+        directory: OptionalDirectoryArg,
     ) -> ExaDbResult:
         """
         Performs a keyword search of files at the given directory and all its descendant
@@ -238,9 +260,7 @@ class BucketFsTools:
             keyword_filter(content, keywords, language=self.config.language)
         )
 
-    def read_file(
-        self, path: Annotated[str, Field(description="Full path of the file")]
-    ) -> str:
+    def read_file(self, path: FileArg) -> str:
         """
         Reads the content of a text file at the provided path in BucketFS and returns
         it as a string. The path is relative to the root location.
@@ -253,15 +273,7 @@ class BucketFsTools:
 
     async def write_text_to_file(
         self,
-        path: Annotated[
-            str,
-            Field(
-                description=(
-                    "BucketFS file path where the file should be saved. "
-                    "Spaces and colons are not allowed in the path."
-                )
-            ),
-        ],
+        path: NewFileArg,
         content: Annotated[str, Field(description="File textual content")],
         ctx: Context,
     ) -> None:
@@ -303,15 +315,7 @@ class BucketFsTools:
 
     async def download_file(
         self,
-        path: Annotated[
-            str,
-            Field(
-                description=(
-                    "BucketFS file path where the file should be saved. "
-                    "Spaces and colons are not allowed in the path."
-                )
-            ),
-        ],
+        path: NewFileArg,
         url: Annotated[
             str, Field(description="URL where the file should be downloaded from")
         ],
@@ -351,13 +355,7 @@ class BucketFsTools:
 
             await asyncio.to_thread(upload_to_bucketfs)
 
-    async def delete_file(
-        self,
-        path: Annotated[
-            str, Field(description="BucketFS path of the file to be deleted.")
-        ],
-        ctx: Context,
-    ) -> None:
+    async def delete_file(self, path: FileArg, ctx: Context) -> None:
         """
         Deletes a BucketFS file at the specified path.
         """
@@ -373,13 +371,7 @@ class BucketFsTools:
         abs_path = self.bfs_location.joinpath(answer.file_path)
         abs_path.rm()
 
-    async def delete_directory(
-        self,
-        path: Annotated[
-            str, Field(description="BucketFS path of the directory to be deleted.")
-        ],
-        ctx: Context,
-    ) -> None:
+    async def delete_directory(self, path: DirectoryArg, ctx: Context) -> None:
         """
         Deletes a BucketFS directory at the specified path.
         """
