@@ -417,6 +417,13 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
     _register_describe_builtin_function(mcp_server)
 
 
+def register_custom_routes(mcp_server: ExasolMCPServer) -> None:
+
+    @mcp_server.custom_route(path="/health", methods=["GET"])
+    def _health_check(request):
+        return mcp_server.health_check()
+
+
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """
     Configures the root logger using the info in the provided configuration dictionary.
@@ -511,6 +518,7 @@ def create_mcp_server(
         **kwargs,
     )
     register_tools(mcp_server_, config)
+    register_custom_routes(mcp_server_)
     return mcp_server_
 
 
