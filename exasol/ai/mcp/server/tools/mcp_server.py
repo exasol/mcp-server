@@ -51,19 +51,38 @@ TABLE_USAGE = (
     "The SELECT column list cannot have both the * and explicit column names."
 )
 
-SCHEMA_NAME_TYPE = Annotated[str, Field(description="name of the database schema")]
+SchemaNameArg = Annotated[str, Field(description="Name of the database schema")]
 
-OPTIONAL_SCHEMA_NAME_TYPE = Annotated[
-    str | None, Field(description="optional name of the database schema", default="")
+OptionalSchemaNameArg = Annotated[
+    str | None,
+    Field(
+        description=(
+            "An optional name of the database schema. "
+            "If specified, restricts the search to objects in this schema."
+        ),
+        default="",
+    ),
 ]
 
-KEYWORDS_TYPE = Annotated[list[str], "list of keywords to filter and order the result"]
+KeywordsArg = Annotated[
+    list[str],
+    Field(
+        description=(
+            "The list of keywords to rank and filter the result. "
+            "The tool is looking for these keywords in the database object "
+            "names and comments. "
+            "The list should include common inflections of each keyword."
+        )
+    ),
+]
 
-TABLE_NAME_TYPE = Annotated[str, "name of the table"]
+TableNameArg = Annotated[str, Field(description="Name of the table or view")]
 
-FUNCTION_NAME_TYPE = Annotated[str, "name of the function"]
+FunctionNameArg = Annotated[str, Field(description="Name of the function")]
 
-SCRIPT_NAME_TYPE = Annotated[str, "name of the script"]
+ScriptNameArg = Annotated[str, Field(description="Name of the script")]
+
+QueryArg = Annotated[str, Field(description="SQL Query")]
 
 
 @cache
@@ -164,14 +183,14 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.get_metadata(MetaType.SCHEMA)
         return self._execute_meta_query(query)
 
-    def find_schemas(self, keywords: KEYWORDS_TYPE) -> ExaDbResult:
+    def find_schemas(self, keywords: KeywordsArg) -> ExaDbResult:
         if not self.config.schemas.enable:
             raise RuntimeError("The schema listing is disabled.")
 
         query = self.meta_query.find_schemas()
         return self._execute_meta_query(query, keywords)
 
-    def list_tables(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+    def list_tables(self, schema_name: SchemaNameArg) -> ExaDbResult:
         table_conf = self.config.tables
         view_conf = self.config.views
         if (not table_conf.enable) and (not view_conf.enable):
@@ -187,7 +206,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def find_tables(
-        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+        self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
     ) -> ExaDbResult:
         if (not self.config.tables.enable) and (not self.config.views.enable):
             raise RuntimeError("Both the table and the view listings are disabled.")
@@ -195,7 +214,7 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.find_tables(schema_name)
         return self._execute_meta_query(query, keywords)
 
-    def list_functions(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+    def list_functions(self, schema_name: SchemaNameArg) -> ExaDbResult:
         if not self.config.functions.enable:
             raise RuntimeError("The function listing is disabled.")
 
@@ -203,7 +222,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def find_functions(
-        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+        self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
     ) -> ExaDbResult:
         if not self.config.functions.enable:
             raise RuntimeError("The function listing is disabled.")
@@ -211,7 +230,7 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.get_metadata(MetaType.FUNCTION, schema_name)
         return self._execute_meta_query(query, keywords)
 
-    def list_scripts(self, schema_name: SCHEMA_NAME_TYPE) -> ExaDbResult:
+    def list_scripts(self, schema_name: SchemaNameArg) -> ExaDbResult:
         if not self.config.scripts.enable:
             raise RuntimeError("The script listing is disabled.")
 
@@ -219,7 +238,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def find_scripts(
-        self, keywords: KEYWORDS_TYPE, schema_name: OPTIONAL_SCHEMA_NAME_TYPE
+        self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
     ) -> ExaDbResult:
         if not self.config.scripts.enable:
             raise RuntimeError("The script listing is disabled.")
@@ -228,7 +247,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query, keywords)
 
     def describe_columns(
-        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
+        self, schema_name: SchemaNameArg, table_name: TableNameArg
     ) -> ExaDbResult:
         """
         Returns the list of columns in the given table. Currently, this is a part of
@@ -241,7 +260,7 @@ class ExasolMCPServer(FastMCP):
         return self._execute_meta_query(query)
 
     def describe_constraints(
-        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
+        self, schema_name: SchemaNameArg, table_name: TableNameArg
     ) -> ExaDbResult:
         """
         Returns the list of constraints in the given table. Currently, this is a part
@@ -253,7 +272,9 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.describe_constraints(schema_name, table_name)
         return self._execute_meta_query(query)
 
-    def get_table_comment(self, schema_name: str, table_name: str) -> str | None:
+    def get_table_comment(
+        self, schema_name: SchemaNameArg, table_name: TableNameArg
+    ) -> str | None:
         query = self.meta_query.get_table_comment(schema_name, table_name)
         comment_row = self.connection.execute_query(query).fetchone()
         if comment_row is None:
@@ -264,7 +285,7 @@ class ExasolMCPServer(FastMCP):
         return str(table_comment)
 
     def describe_table(
-        self, schema_name: SCHEMA_NAME_TYPE, table_name: TABLE_NAME_TYPE
+        self, schema_name: SchemaNameArg, table_name: TableNameArg
     ) -> dict[str, Any]:
 
         conf = self.config.columns
@@ -285,20 +306,18 @@ class ExasolMCPServer(FastMCP):
         return result
 
     def describe_function(
-        self, schema_name: SCHEMA_NAME_TYPE, func_name: FUNCTION_NAME_TYPE
+        self, schema_name: SchemaNameArg, func_name: FunctionNameArg
     ) -> dict[str, Any]:
         parser = FuncParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, func_name)
 
     def describe_script(
-        self, schema_name: SCHEMA_NAME_TYPE, script_name: SCRIPT_NAME_TYPE
+        self, schema_name: SchemaNameArg, script_name: ScriptNameArg
     ) -> dict[str, Any]:
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
         return parser.describe(schema_name, script_name)
 
-    def execute_query(
-        self, query: Annotated[str, Field(description="select query")]
-    ) -> ExaDbResult:
+    def execute_query(self, query: QueryArg) -> ExaDbResult:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if verify_query(query):
@@ -306,9 +325,7 @@ class ExasolMCPServer(FastMCP):
             return ExaDbResult(result)
         raise ValueError("The query is invalid or not a SELECT statement.")
 
-    async def execute_write_query(
-        self, query: Annotated[str, Field(description="DML or DDL query")], ctx: Context
-    ) -> str | None:
+    async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:
             raise RuntimeError(
                 "The execution of Data Definition and "
@@ -364,10 +381,10 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.get_system_tables(info_type, table_name)
         return self._execute_meta_query(query)
 
-    def describe_system_table(self, table_name: TABLE_NAME_TYPE) -> ExaDbResult:
+    def describe_system_table(self, table_name: TableNameArg) -> ExaDbResult:
         return self._describe_system_table(SysInfoType.SYSTEM, table_name)
 
-    def describe_statistics_table(self, table_name: TABLE_NAME_TYPE) -> ExaDbResult:
+    def describe_statistics_table(self, table_name: TableNameArg) -> ExaDbResult:
         return self._describe_system_table(SysInfoType.STATISTICS, table_name)
 
     def list_keywords(
@@ -375,7 +392,10 @@ class ExasolMCPServer(FastMCP):
         reserved: Annotated[
             bool,
             Field(
-                description="selects reserved (True), or non-reserved (False) keywords"
+                description=(
+                    "If set to True, the tool selects reserved keywords, "
+                    "otherwise non-reserved keywords."
+                )
             ),
         ],
         letter: Annotated[
