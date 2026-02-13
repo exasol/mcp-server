@@ -53,34 +53,27 @@ PATH_WARNINGS = {
     ),
 }
 
-DirectoryArg = (
-    Annotated[str, Field(description="Full path of the BucketFS directory")],
-)
+DirectoryArg = Annotated[str, Field(description="Full path of the BucketFS directory")]
 
-OptionalDirectoryArg = (
-    Annotated[
-        str,
-        Field(
-            description="Full path of the BucketFS directory. Defaults to bucket root.",
-            default="",
-        ),
-    ],
-)
+OptionalDirectoryArg = Annotated[
+    str,
+    Field(
+        description="Full path of the BucketFS directory. Defaults to bucket root.",
+        default="",
+    ),
+]
 
 FileArg = Annotated[str, Field(description="Full path of the BucketFS file")]
 
-
-NewFileArg = (
-    Annotated[
-        str,
-        Field(
-            description=(
-                "Full path where the BucketFS file should be saved. "
-                "Spaces and colons are not allowed in the path."
-            )
-        ),
-    ],
-)
+NewFileArg = Annotated[
+    str,
+    Field(
+        description=(
+            "Full path where the BucketFS file should be saved. "
+            "Spaces and colons are not allowed in the path."
+        )
+    ),
+]
 
 
 def get_path_warning(
