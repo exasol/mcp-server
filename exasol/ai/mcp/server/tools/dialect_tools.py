@@ -8,8 +8,6 @@ from typing import (
 
 from pydantic import Field
 
-from exasol.ai.mcp.server.setup.server_settings import ExaDbResult
-
 BUILTIN_FUNCTIONS_JSON = "exasol_builtin_functions.json"
 PACKAGE_RESOURCES = f"{__package__}.data"
 
@@ -47,7 +45,7 @@ def list_builtin_functions(
 
 def describe_builtin_function(
     name: Annotated[str, Field(description="builtin function name")],
-) -> ExaDbResult:
+) -> list[dict[str, Any]]:
     """
     Loads details for the specified builtin function, reading the resource json.
     Returns all fields. Some functions, for example TO_CHAR, can have information in
@@ -55,5 +53,4 @@ def describe_builtin_function(
     """
     func_list = load_builtin_func_list()
     name = name.upper()
-    selected_info = [func_info for func_info in func_list if func_info["name"] == name]
-    return ExaDbResult(selected_info)
+    return [func_info for func_info in func_list if func_info["name"] == name]

@@ -5,7 +5,6 @@ import pytest
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaColumnSettings,
     MetaListSettings,
 )
 from exasol.ai.mcp.server.tools.meta_query import (
@@ -14,27 +13,24 @@ from exasol.ai.mcp.server.tools.meta_query import (
     MetaType,
     SysInfoType,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COMMENT_FIELD,
+    CONSTRAINT_COLUMNS_FIELD,
+    CONSTRAINT_NAME_FIELD,
+    CONSTRAINT_TYPE_FIELD,
+    CREATE_PARAMS_FIELD,
+    NAME_FIELD,
+    PRECISION_FIELD,
+    REFERENCED_COLUMNS_FIELD,
+    REFERENCED_SCHEMA_FIELD,
+    REFERENCED_TABLE_FIELD,
+    SCHEMA_FIELD,
+    SQL_TYPE_FIELD,
+)
 
 
 def _column_config(case_sensitive: bool) -> McpServerSettings:
-    return McpServerSettings(
-        columns=MetaColumnSettings(
-            enable=True,
-            name_field="name",
-            comment_field="comment",
-            type_field="type",
-            constraint_name_field="constraint_name",
-            constraint_type_field="constraint_type",
-            constraint_columns_field="constraint_columns",
-            referenced_schema_field="referenced_schema",
-            referenced_table_field="referenced_table",
-            referenced_columns_field="referenced_columns",
-            columns_field="columns",
-            constraints_field="constraints",
-            table_comment_field="table_comment",
-        ),
-        case_sensitive=case_sensitive,
-    )
+    return McpServerSettings(case_sensitive=case_sensitive)
 
 
 def _column_predicate(column: str, value: str, case_sensitive: bool) -> str:
@@ -61,9 +57,6 @@ class MetaParams:
             enable=True,
             like_pattern=pattern if pattern_type == "LIKE" else "",
             regexp_pattern=pattern if pattern_type == "REGEXP_LIKE" else "",
-            name_field="name",
-            comment_field="comment",
-            schema_field="schema",
         )
 
     @property
@@ -169,9 +162,9 @@ def test_get_metadata(meta_params):
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "TABLE_NAME" AS "name",
-            "TABLE_COMMENT" AS "comment",
-            "TABLE_SCHEMA" AS "schema"
+            "TABLE_NAME" AS "{NAME_FIELD}",
+            "TABLE_COMMENT" AS "{COMMENT_FIELD}",
+            "TABLE_SCHEMA" AS "{SCHEMA_FIELD}"
         FROM SYS.EXA_ALL_TABLES
         {meta_params.expected_where_clause}
     """
@@ -235,9 +228,9 @@ def test_get_script_metadata(meta_params):
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "SCRIPT_NAME" AS "name",
-            "SCRIPT_COMMENT" AS "comment",
-            "SCRIPT_SCHEMA" AS "schema"
+            "SCRIPT_NAME" AS "{NAME_FIELD}",
+            "SCRIPT_COMMENT" AS "{COMMENT_FIELD}",
+            "SCRIPT_SCHEMA" AS "{SCHEMA_FIELD}"
         FROM SYS.EXA_ALL_SCRIPTS
         {meta_params.expected_where_clause}
     """
@@ -261,8 +254,8 @@ def test_get_schema_metadata(meta_params):
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "SCHEMA_NAME" AS "name",
-            "SCHEMA_COMMENT" AS "comment"
+            "SCHEMA_NAME" AS "{NAME_FIELD}",
+            "SCHEMA_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_SCHEMAS
         {meta_params.schema_based_where_clause}
     """
@@ -310,8 +303,8 @@ def test_find_schemas(meta_params) -> None:
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "S"."SCHEMA_NAME" AS "name",
-            "S"."SCHEMA_COMMENT" AS "comment",
+            "S"."SCHEMA_NAME" AS "{NAME_FIELD}",
+            "S"."SCHEMA_COMMENT" AS "{COMMENT_FIELD}",
             "O"."{INFO_COLUMN}"
         FROM SYS.EXA_ALL_SCHEMAS AS "S"
         JOIN
@@ -422,9 +415,9 @@ def test_find_tables(meta_params) -> None:
             GROUP BY "SCHEMA", "TABLE"
         )
         SELECT
-            "T"."TABLE_NAME" AS "name",
-            "T"."TABLE_COMMENT" AS "comment",
-            "T"."TABLE_SCHEMA" AS "schema",
+            "T"."TABLE_NAME" AS "{NAME_FIELD}",
+            "T"."TABLE_COMMENT" AS "{COMMENT_FIELD}",
+            "T"."TABLE_SCHEMA" AS "{SCHEMA_FIELD}",
             "C"."{INFO_COLUMN}"
         FROM SYS.EXA_ALL_TABLES AS "T"
         JOIN "C" ON
@@ -507,9 +500,9 @@ def test_find_tables_and_views(meta_params) -> None:
         {meta_params.db_obj_based_where_clause('TABLE')}
         UNION
         SELECT
-            "T"."VIEW_NAME" AS "name",
-            "T"."VIEW_COMMENT" AS "comment",
-            "T"."VIEW_SCHEMA" AS "schema",
+            "T"."VIEW_NAME" AS "{NAME_FIELD}",
+            "T"."VIEW_COMMENT" AS "{COMMENT_FIELD}",
+            "T"."VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
             "C"."{INFO_COLUMN}"
         FROM SYS.EXA_ALL_VIEWS AS "T"
         JOIN "C" ON
@@ -528,9 +521,9 @@ def test_describe_columns(case_sensitive) -> None:
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "COLUMN_NAME" AS "name",
-            "COLUMN_TYPE" AS "type",
-            "COLUMN_COMMENT" AS "comment"
+            "COLUMN_NAME" AS "{NAME_FIELD}",
+            "COLUMN_TYPE" AS "{SQL_TYPE_FIELD}",
+            "COLUMN_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
             {_column_predicate("COLUMN_SCHEMA", "my''_schema", case_sensitive)} AND
@@ -547,15 +540,15 @@ def test_describe_constraints(case_sensitive) -> None:
     expected_query = collapse_spaces(
         f"""
         SELECT
-            FIRST_VALUE("CONSTRAINT_TYPE") AS "constraint_type",
+            FIRST_VALUE("CONSTRAINT_TYPE") AS "{CONSTRAINT_TYPE_FIELD}",
             CASE LEFT("CONSTRAINT_NAME", 4) WHEN 'SYS_' THEN NULL
-                ELSE "CONSTRAINT_NAME" END AS "constraint_name",
+                ELSE "CONSTRAINT_NAME" END AS "{CONSTRAINT_NAME_FIELD}",
             GROUP_CONCAT(DISTINCT "COLUMN_NAME" ORDER BY "ORDINAL_POSITION")
-                AS "constraint_columns",
-            FIRST_VALUE("REFERENCED_SCHEMA") AS "referenced_schema",
-            FIRST_VALUE("REFERENCED_TABLE") AS "referenced_table",
+                AS "{CONSTRAINT_COLUMNS_FIELD}",
+            FIRST_VALUE("REFERENCED_SCHEMA") AS "{REFERENCED_SCHEMA_FIELD}",
+            FIRST_VALUE("REFERENCED_TABLE") AS "{REFERENCED_TABLE_FIELD}",
             GROUP_CONCAT(DISTINCT "REFERENCED_COLUMN" ORDER BY "ORDINAL_POSITION")
-                AS "referenced_columns"
+                AS "{REFERENCED_COLUMNS_FIELD}"
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
             {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
@@ -567,17 +560,25 @@ def test_describe_constraints(case_sensitive) -> None:
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_get_table_comment(case_sensitive) -> None:
+def test_describe_table(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
-    query = collapse_spaces(meta_query.get_table_comment("my_schema", "my_table"))
+    query = collapse_spaces(meta_query.describe_table("my_schema", "my_table"))
     expected_query = collapse_spaces(
         f"""
-        SELECT "TABLE_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_TABLES
+        SELECT
+            "TABLE_SCHEMA" AS "{SCHEMA_FIELD}",
+            "TABLE_NAME" AS "{NAME_FIELD}",
+            "TABLE_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_TABLES
         WHERE
             {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
             {_column_predicate("TABLE_NAME", "my_table", case_sensitive)}
         UNION
-        SELECT "VIEW_COMMENT" AS "COMMENT" FROM SYS.EXA_ALL_VIEWS
+        SELECT
+            "VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
+            "VIEW_NAME" AS "{NAME_FIELD}",
+            "VIEW_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_VIEWS
         WHERE
             {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
             {_column_predicate("VIEW_NAME", "my_table", case_sensitive)}
@@ -590,7 +591,11 @@ def test_get_table_comment(case_sensitive) -> None:
 def test_get_sql_types() -> None:
     query = collapse_spaces(ExasolMetaQuery.get_sql_types())
     expected_query = collapse_spaces(
-        'SELECT "TYPE_NAME", "CREATE_PARAMS", "PRECISION" FROM SYS.EXA_SQL_TYPES'
+        "SELECT "
+        '"TYPE_NAME" AS "type", '
+        f'"CREATE_PARAMS" AS "{CREATE_PARAMS_FIELD}", '
+        f'"PRECISION" AS "{PRECISION_FIELD}" '
+        "FROM SYS.EXA_SQL_TYPES"
     )
     assert query == expected_query
 
@@ -599,13 +604,13 @@ def test_get_sql_types() -> None:
 def test_get_system_table_list(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.get_system_tables(info_type))
+    query = collapse_spaces(meta_query.get_system_tables(info_type.value))
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "SCHEMA_NAME" AS "{config.tables.schema_field}",
-            "OBJECT_NAME" AS "{config.tables.name_field}",
-            "OBJECT_COMMENT" AS "{config.tables.comment_field}"
+            "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
+            "OBJECT_NAME" AS "{NAME_FIELD}",
+            "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
         WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
     """
@@ -617,13 +622,13 @@ def test_get_system_table_list(info_type) -> None:
 def test_get_system_table_details(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.get_system_tables(info_type, "the_table"))
+    query = collapse_spaces(meta_query.get_system_tables(info_type.value, "the_table"))
     expected_query = collapse_spaces(
         f"""
         SELECT
-            "SCHEMA_NAME" AS "{config.tables.schema_field}",
-            "OBJECT_NAME" AS "{config.tables.name_field}",
-            "OBJECT_COMMENT" AS "{config.tables.comment_field}"
+            "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
+            "OBJECT_NAME" AS "{NAME_FIELD}",
+            "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
         WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
         AND UPPER("OBJECT_NAME") = 'THE_TABLE'

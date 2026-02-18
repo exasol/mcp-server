@@ -6,10 +6,7 @@ from abc import (
 from typing import Any
 
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
-from exasol.ai.mcp.server.setup.server_settings import (
-    McpServerSettings,
-    MetaParameterSettings,
-)
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.meta_query import (
     ExasolMetaQuery,
     MetaType,
@@ -21,20 +18,24 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     quoted_identifier_pattern,
     regex_flags,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    DBColumn,
+    DBEmitFunction,
+    DBFunction,
+    DBReturnFunction,
+)
 
 VARIADIC_MARKER = "..."
-
-FUNCTION_USAGE = (
-    "In an SQL query, the names of database objects, such as schemas, tables, "
-    "functions, and columns should be enclosed in double quotes. "
-    "A reference to a function should include a reference to its schema."
-)
+PARAMETER_NAME = "PARAMETER_NAME"
+PARAMETER_TYPE = "PARAMETER_TYPE"
+FUNCTION_INPUT = "FUNCTION_INPUT"
+FUNCTION_RETURNS = "FUNCTION_RETURNS"
+FUNCTION_EMITS = "FUNCTION_EMIT"
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: DbConnection) -> None:
         self.connection = connection
-        self.conf = conf
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
@@ -44,13 +45,10 @@ class ParameterParser(ABC):
         self,
         schema_name: str,
         func_name: str,
-    ) -> dict[str, Any]:
+    ) -> DBFunction:
         """
         Requests and parses metadata for the specified function or script.
         """
-        if not self.conf.enable:
-            raise RuntimeError("Parameter listing is disabled.")
-
         query = self.get_func_query(schema_name, func_name)
         result = self._execute_query(query=query)
         if not result:
@@ -74,42 +72,40 @@ class ParameterParser(ABC):
             return self._parameter_extract_pattern
 
         pattern = (
-            rf"(?:^|,)\s*(?P<{self.conf.name_field}>{quoted_identifier_pattern})"
-            rf"\s+(?P<{self.conf.type_field}>{exa_type_pattern})\s*(?=\Z|,)"
+            rf"(?:^|,)\s*(?P<{PARAMETER_NAME}>{quoted_identifier_pattern})"
+            rf"\s+(?P<{PARAMETER_TYPE}>{exa_type_pattern})\s*(?=\Z|,)"
         )
         self._parameter_extract_pattern = re.compile(pattern, flags=regex_flags)
         return self._parameter_extract_pattern
 
-    def parse_parameter_list(self, params: str) -> str | list[dict[str, str]]:
+    @staticmethod
+    def is_variadic(params: str) -> bool:
+        """
+        Checks if the parameter string indicates that the parameters are dynamic
+        (variadic). This is designated with "...".
+        """
+        params = params.lstrip()
+        return params == VARIADIC_MARKER
+
+    def parse_parameter_list(self, params: str) -> list[DBColumn]:
         """
         Breaks the input string into parameter definitions. The input string should be
         extracted from a text of a function or a script and contain a list of parameters,
         where each parameter consists of a name and an SQL type. The list can be either
         an input or, in case of an EMIT UDF, the emit list.
-
-        The parameters may be dynamic (variadic). This is designated with "...". In
-        such case, the function simply returns "...".
-
-        Otherwise, the function returns a list of dictionaries, where each dictionary
-        describes a parameter and includes its name and type. The dictionary keys are
-        defined by the provided configuration. The double quotes in the parameter name
-        gets removed.
+        The double quotes in the parameter names get removed.
         """
 
-        def remove_double_quotes(di: dict[str, str]) -> dict[str, str]:
-            return {key: val.strip('"') for key, val in di.items()}
-
-        params = params.lstrip()
-        if params == VARIADIC_MARKER:
-            return params
+        def format_parameter(di: dict[str, str]) -> DBColumn:
+            # Need to remove double quotes from the extracted values.
+            return DBColumn(
+                name=di[PARAMETER_NAME].strip('"'), type=di[PARAMETER_TYPE].strip('"')
+            )
 
         return [
-            remove_double_quotes(m.groupdict())
+            format_parameter(m.groupdict())
             for m in self.parameter_extract_pattern.finditer(params)
         ]
-
-    def format_return_type(self, param: str) -> str | dict[str, str]:
-        return {self.conf.type_field: param}
 
     @abstractmethod
     def get_func_query(self, schema_name: str, func_name: str) -> str:
@@ -118,10 +114,10 @@ class ParameterParser(ABC):
         """
 
     @abstractmethod
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
+    def extract_parameters(self, info: dict[str, Any]) -> DBFunction:
         """
         Parses the text of a function or a UDF script, extracting its input and output
-        parameters and/or return type. Returns the result in a json form.
+        parameters and/or return type.
 
         Should raise a ValueError if the parsing fails.
 
@@ -138,7 +134,7 @@ class ParameterParser(ABC):
 class FuncParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings.parameters)
+        super().__init__(connection)
         self._func_pattern: re.Pattern | None = None
         self._meta_query = ExasolMetaQuery(settings)
 
@@ -161,35 +157,33 @@ class FuncParameterParser(ParameterParser):
         pattern = (
             r"\A\s*FUNCTION\s+"
             rf"{func_schema_pattern}{func_name_pattern}\s*"
-            rf"\((?P<{self.conf.input_field}>{parameter_list_pattern})\)\s*"
-            rf"RETURN\s+(?P<{self.conf.return_field}>{exa_type_pattern})\s+"
+            rf"\((?P<{FUNCTION_INPUT}>{parameter_list_pattern})\)\s*"
+            rf"RETURN\s+(?P<{FUNCTION_RETURNS}>{exa_type_pattern})\s+"
         )
         self._func_pattern = re.compile(pattern, flags=regex_flags)
         return self._func_pattern
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
+    def extract_parameters(self, info: dict[str, Any]) -> DBFunction:
         m = self.func_pattern.match(info["FUNCTION_TEXT"])
         if m is None:
             raise ValueError(
                 "Failed to parse the text of the function "
                 f'{info["FUNCTION_SCHEMA"]}.{info["FUNCTION_NAME"]}.'
             )
-        return {
-            self.conf.input_field: self.parse_parameter_list(
-                m.group(self.conf.input_field)
-            ),
-            self.conf.return_field: self.format_return_type(
-                m.group(self.conf.return_field)
-            ),
-            self.conf.comment_field: info["FUNCTION_COMMENT"],
-            self.conf.usage_field: FUNCTION_USAGE,
-        }
+        return DBReturnFunction(
+            schema=info["FUNCTION_SCHEMA"],
+            name=info["FUNCTION_NAME"],
+            comment=info["FUNCTION_COMMENT"],
+            input=self.parse_parameter_list(m.group(FUNCTION_INPUT)),
+            dynamic_input=False,
+            returns=m.group(FUNCTION_RETURNS),
+        )
 
 
 class ScriptParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings.parameters)
+        super().__init__(connection)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
         self._meta_query = ExasolMetaQuery(settings)
@@ -207,9 +201,9 @@ class ScriptParameterParser(ParameterParser):
         dynamic_list_pattern = rf"(?:\s*...\s*|{parameter_list_pattern})"
 
         output_pattern = (
-            rf"EMITS\s*\((?P<{self.conf.emit_field}>{dynamic_list_pattern})\)\s*"
+            rf"EMITS\s*\((?P<{FUNCTION_EMITS}>{dynamic_list_pattern})\)\s*"
             if emits
-            else rf"RETURNS\s+(?P<{self.conf.return_field}>{exa_type_pattern})\s+"
+            else rf"RETURNS\s+(?P<{FUNCTION_RETURNS}>{exa_type_pattern})\s+"
         )
         language_pattern = identifier_pattern
         # The schema is optional.
@@ -219,7 +213,7 @@ class ScriptParameterParser(ParameterParser):
         pattern = (
             rf"\A\s*CREATE\s+{language_pattern}\s+(?:SCALAR|SET)\s+SCRIPT\s+"
             rf"{udf_schema_pattern}{udf_name_pattern}\s*"
-            rf"\((?P<{self.conf.input_field}>{dynamic_list_pattern})\)\s*"
+            rf"\((?P<{FUNCTION_INPUT}>{dynamic_list_pattern})\)\s*"
             rf"{output_pattern}AS\s+"
         )
         return re.compile(pattern, flags=regex_flags)
@@ -242,30 +236,8 @@ class ScriptParameterParser(ParameterParser):
             self._return_pattern = self._udf_pattern(emits=False)
         return self._return_pattern
 
-    def extract_udf_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
-        pattern = (
-            self.emit_udf_pattern
-            if info["SCRIPT_RESULT_TYPE"] == "EMITS"
-            else self.return_udf_pattern
-        )
-        m = pattern.match(info["SCRIPT_TEXT"])
-        if m is None:
-            raise ValueError(
-                "Failed to parse the text of the UDF script "
-                f'{info["SCRIPT_SCHEMA"]}.{info["SCRIPT_NAME"]}.'
-            )
-        param_func = {
-            self.conf.input_field: self.parse_parameter_list,
-            self.conf.emit_field: self.parse_parameter_list,
-            self.conf.return_field: self.format_return_type,
-        }
-        return {
-            param_field: param_func[param_field](params)
-            for param_field, params in m.groupdict().items()
-            if params or (param_field == self.conf.input_field)
-        }
-
-    def _get_variadic_note(self, variadic_input: bool, variadic_emit: bool) -> str:
+    @staticmethod
+    def _get_variadic_note(variadic_input: bool, variadic_emit: bool) -> str:
         """
         A helper function for generating code example. Writes an explanation of the
         variadic syntax.
@@ -291,7 +263,7 @@ class ScriptParameterParser(ParameterParser):
         )
         return (
             f" This particular UDF has dynamic {variadic_param} parameters. "
-            f"The {self.conf.comment_field} may give a hint on what parameters are "
+            f"The function comment may give a hint on what parameters are "
             f"expected to be {variadic_action} in a specific use case."
             f"{variadic_emit_note} Note that in the following example the "
             f"{variadic_param} parameters are given only for illustration. They "
@@ -332,33 +304,29 @@ class ScriptParameterParser(ParameterParser):
         )
 
     def get_udf_call_example(
-        self, result: dict[str, Any], input_type: str, func_name: str
+        self,
+        input_type: str,
+        func_name: str,
+        input_params: list[DBColumn],
+        variadic_input: bool = False,
+        output_params: list[DBColumn] | None = None,
+        variadic_emit: bool = False,
     ) -> str:
         """
         Generates call example for a given UDF. For the examples of the
         generated texts see `test_get_udf_call_example` unit test.
         """
-        emit = self.conf.emit_field in result
-        variadic_emit = emit and result[self.conf.emit_field] == VARIADIC_MARKER
-        variadic_input = result[self.conf.input_field] == VARIADIC_MARKER
-        emit_size = (
-            len(result[self.conf.emit_field]) if emit and (not variadic_emit) else 0
-        )
+        emit = variadic_emit or output_params
+        emit_size = len(output_params) if output_params else 0
         func_type = "scalar" if input_type.upper() == "SCALAR" else "aggregate"
         if variadic_input:
             input_params = '"INPUT_1", "INPUT_2"'
         else:
-            input_params = ", ".join(
-                f'"{param[self.conf.name_field]}"'
-                for param in result[self.conf.input_field]
-            )
+            input_params = ", ".join(f'"{param.name}"' for param in input_params)
         if variadic_emit:
             output_params = '"OUTPUT_1", "OUTPUT_2"'
         elif emit:
-            output_params = ", ".join(
-                f'"{param[self.conf.name_field]}"'
-                for param in result[self.conf.emit_field]
-            )
+            output_params = ", ".join(f'"{param.name}"' for param in output_params)
         else:
             output_params = ""
 
@@ -408,10 +376,71 @@ class ScriptParameterParser(ParameterParser):
             ]
         )
 
-    def extract_parameters(self, info: dict[str, Any]) -> dict[str, Any]:
-        result = self.extract_udf_parameters(info)
-        result[self.conf.comment_field] = info["SCRIPT_COMMENT"]
-        result[self.conf.usage_field] = self.get_udf_call_example(
-            result, input_type=info["SCRIPT_INPUT_TYPE"], func_name=info["SCRIPT_NAME"]
+    def extract_return_udf_parameters(self, info: dict[str, Any]) -> DBReturnFunction:
+        m = self.return_udf_pattern.match(info["SCRIPT_TEXT"])
+        if m is None:
+            raise ValueError(
+                "Failed to parse the text of the RETURN UDF script "
+                f'{info["SCRIPT_SCHEMA"]}.{info["SCRIPT_NAME"]}.'
+            )
+        input_param_text = m.group(FUNCTION_INPUT)
+        dynamic_input = self.is_variadic(input_param_text)
+        input_params = (
+            self.parse_parameter_list(input_param_text) if not dynamic_input else []
         )
-        return result
+        return DBReturnFunction(
+            schema=info["SCRIPT_SCHEMA"],
+            name=info["SCRIPT_NAME"],
+            comment=info["SCRIPT_COMMENT"],
+            input=input_params,
+            dynamic_input=dynamic_input,
+            returns=m.group(FUNCTION_RETURNS),
+            usage=self.get_udf_call_example(
+                input_type=info["SCRIPT_INPUT_TYPE"],
+                func_name=info["SCRIPT_NAME"],
+                input_params=input_params,
+                variadic_input=dynamic_input,
+            ),
+        )
+
+    def extract_emit_udf_parameters(self, info: dict[str, Any]) -> DBEmitFunction:
+        m = self.emit_udf_pattern.match(info["SCRIPT_TEXT"])
+        if m is None:
+            raise ValueError(
+                "Failed to parse the text of the EMIT UDF script "
+                f'{info["SCRIPT_SCHEMA"]}.{info["SCRIPT_NAME"]}.'
+            )
+        input_param_text = m.group(FUNCTION_INPUT)
+        dynamic_input = self.is_variadic(input_param_text)
+        input_params = (
+            self.parse_parameter_list(input_param_text) if not dynamic_input else []
+        )
+        output_param_text = m.group(FUNCTION_EMITS)
+        dynamic_output = self.is_variadic(output_param_text)
+        output_params = (
+            self.parse_parameter_list(output_param_text) if not dynamic_output else []
+        )
+        return DBEmitFunction(
+            schema=info["SCRIPT_SCHEMA"],
+            name=info["SCRIPT_NAME"],
+            comment=info["SCRIPT_COMMENT"],
+            input=input_params,
+            dynamic_input=dynamic_input,
+            emits=output_params,
+            dynamic_output=dynamic_output,
+            usage=self.get_udf_call_example(
+                input_type=info["SCRIPT_INPUT_TYPE"],
+                func_name=info["SCRIPT_NAME"],
+                input_params=input_params,
+                variadic_input=dynamic_input,
+                output_params=output_params,
+                variadic_emit=dynamic_output,
+            ),
+        )
+
+    def extract_parameters(self, info: dict[str, Any]) -> DBFunction:
+
+        if info["SCRIPT_RESULT_TYPE"] == "EMITS":
+            return self.extract_emit_udf_parameters(info)
+        else:
+            return self.extract_return_udf_parameters(info)

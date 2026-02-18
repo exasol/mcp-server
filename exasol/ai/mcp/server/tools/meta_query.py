@@ -8,6 +8,20 @@ from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COMMENT_FIELD,
+    CONSTRAINT_COLUMNS_FIELD,
+    CONSTRAINT_NAME_FIELD,
+    CONSTRAINT_TYPE_FIELD,
+    CREATE_PARAMS_FIELD,
+    NAME_FIELD,
+    PRECISION_FIELD,
+    REFERENCED_COLUMNS_FIELD,
+    REFERENCED_SCHEMA_FIELD,
+    REFERENCED_TABLE_FIELD,
+    SCHEMA_FIELD,
+    SQL_TYPE_FIELD,
+)
 
 INFO_COLUMN = "SUPPORT_INFO"
 """
@@ -192,8 +206,8 @@ class ExasolMetaQuery:
         meta_name = meta_type.value
         meta_name_column = f"{meta_name}_NAME"
         select_list = [
-            exp.column(meta_name_column).as_(conf.name_field),
-            exp.column(f"{meta_name}_COMMENT").as_(conf.comment_field),
+            exp.column(meta_name_column).as_(NAME_FIELD),
+            exp.column(f"{meta_name}_COMMENT").as_(COMMENT_FIELD),
         ]
         predicates = _get_meta_predicates(meta_name_column, conf)
         if meta_type == MetaType.SCRIPT:
@@ -209,7 +223,7 @@ class ExasolMetaQuery:
                 predicates.extend(
                     _get_meta_predicates(schema_column, self.config.schemas)
                 )
-            select_list.append(exp.column(schema_column).as_(conf.schema_field))
+            select_list.append(exp.column(schema_column).as_(SCHEMA_FIELD))
         query = (
             exp.Select()
             .select(*select_list)
@@ -332,11 +346,9 @@ class ExasolMetaQuery:
             (
                 exp.Select()
                 .select(
-                    exp.column(f"{meta_name}_NAME", table="T").as_(conf.name_field),
-                    exp.column(f"{meta_name}_COMMENT", table="T").as_(
-                        conf.comment_field
-                    ),
-                    exp.column(f"{meta_name}_SCHEMA", table="T").as_(conf.schema_field),
+                    exp.column(f"{meta_name}_NAME", table="T").as_(NAME_FIELD),
+                    exp.column(f"{meta_name}_COMMENT", table="T").as_(COMMENT_FIELD),
+                    exp.column(f"{meta_name}_SCHEMA", table="T").as_(SCHEMA_FIELD),
                     exp.column(INFO_COLUMN, table="C"),
                 )
                 .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS").as_("T"))
@@ -377,9 +389,9 @@ class ExasolMetaQuery:
         query = (
             exp.Select()
             .select(
-                exp.column("COLUMN_NAME").as_(conf.name_field),
-                exp.column("COLUMN_TYPE").as_(conf.type_field),
-                exp.column("COLUMN_COMMENT").as_(conf.comment_field),
+                exp.column("COLUMN_NAME").as_(NAME_FIELD),
+                exp.column("COLUMN_TYPE").as_(SQL_TYPE_FIELD),
+                exp.column("COLUMN_COMMENT").as_(COMMENT_FIELD),
             )
             .from_(exp.Table(this=source, db="SYS"))
             .where(
@@ -400,28 +412,28 @@ class ExasolMetaQuery:
             exp.Select()
             .select(
                 exp.FirstValue(this=exp.column("CONSTRAINT_TYPE")).as_(
-                    conf.constraint_type_field
+                    CONSTRAINT_TYPE_FIELD
                 ),
                 exp.case(exp.func("LEFT", exp.column("CONSTRAINT_NAME"), 4))
                 .when(exp.Literal.string("SYS_"), exp.Null())
                 .else_(exp.column("CONSTRAINT_NAME"))
-                .as_(conf.constraint_name_field),
+                .as_(CONSTRAINT_NAME_FIELD),
                 exp.func(
                     GROUP_CONCAT,
                     exp.Distinct(expressions=[exp.column("COLUMN_NAME")]),
                     exp.Order(expressions=[exp.column("ORDINAL_POSITION")]),
-                ).as_(conf.constraint_columns_field),
+                ).as_(CONSTRAINT_COLUMNS_FIELD),
                 exp.FirstValue(this=exp.column("REFERENCED_SCHEMA")).as_(
-                    conf.referenced_schema_field
+                    REFERENCED_SCHEMA_FIELD
                 ),
                 exp.FirstValue(this=exp.column("REFERENCED_TABLE")).as_(
-                    conf.referenced_table_field
+                    REFERENCED_TABLE_FIELD
                 ),
                 exp.func(
                     GROUP_CONCAT,
                     exp.Distinct(expressions=[exp.column("REFERENCED_COLUMN")]),
                     exp.Order(expressions=[exp.column("ORDINAL_POSITION")]),
-                ).as_(conf.referenced_columns_field),
+                ).as_(REFERENCED_COLUMNS_FIELD),
             )
             .from_(exp.Table(this="EXA_ALL_CONSTRAINT_COLUMNS", db="SYS"))
             .where(
@@ -435,16 +447,21 @@ class ExasolMetaQuery:
         query_sql = query.sql(dialect="exasol", identify=True)
         return _fix_group_concat(query_sql)
 
-    def get_table_comment(self, schema_name: str, table_name: str) -> str:
+    def describe_table(self, schema_name: str, table_name: str) -> str:
         """
-        The query returns a single row with a comment for a given table or view.
+        The query returns a single row with the schema, name and comment
+        for a given table or view.
         """
         # `table_name` can be the name of a table or a view.
         # This query tries both possibilities. The UNION clause collapses
         # the result into a single non-NULL distinct value.
         queries = [
             exp.Select()
-            .select(exp.column(f"{meta_name}_COMMENT").as_("COMMENT"))
+            .select(
+                exp.column(f"{meta_name}_SCHEMA").as_(SCHEMA_FIELD),
+                exp.column(f"{meta_name}_NAME").as_(NAME_FIELD),
+                exp.column(f"{meta_name}_COMMENT").as_(COMMENT_FIELD),
+            )
             .from_(exp.Table(this=f"EXA_ALL_{meta_name}S", db="SYS"))
             .where(
                 exp.and_(
@@ -466,31 +483,28 @@ class ExasolMetaQuery:
         query = (
             exp.Select()
             .select(
-                exp.column("TYPE_NAME"),
-                exp.column("CREATE_PARAMS"),
-                exp.column("PRECISION"),
+                exp.column("TYPE_NAME").as_(SQL_TYPE_FIELD),
+                exp.column("CREATE_PARAMS").as_(CREATE_PARAMS_FIELD),
+                exp.column("PRECISION").as_(PRECISION_FIELD),
             )
             .from_(exp.Table(this="EXA_SQL_TYPES", db="SYS"))
         )
         return query.sql(dialect="exasol", identify=True)
 
-    def get_system_tables(
-        self, info_type: SysInfoType, table_name: str | None = None
-    ) -> str:
+    def get_system_tables(self, schema_name: str, table_name: str | None = None) -> str:
         """
         Collects names and comments for the system or statistics tables and views.
         The output will be restricted to one table if it's name is specified.
         """
-        conf = self._config.tables
-        predicates = [self._get_column_eq_predicate("SCHEMA_NAME", info_type.value)]
+        predicates = [self._get_column_eq_predicate("SCHEMA_NAME", schema_name)]
         if table_name:
             predicates.append(self._get_column_eq_predicate("OBJECT_NAME", table_name))
         query = (
             exp.Select()
             .select(
-                exp.column("SCHEMA_NAME").as_(conf.schema_field),
-                exp.column("OBJECT_NAME").as_(conf.name_field),
-                exp.column("OBJECT_COMMENT").as_(conf.comment_field),
+                exp.column("SCHEMA_NAME").as_(SCHEMA_FIELD),
+                exp.column("OBJECT_NAME").as_(NAME_FIELD),
+                exp.column("OBJECT_COMMENT").as_(COMMENT_FIELD),
             )
             .from_(exp.Table(this="EXA_SYSCAT", db="SYS"))
             .where(*predicates)

@@ -647,7 +647,7 @@ def _run_list_schemas_test(
         )
     )
     result_json = json.loads(result_text)
-    schemas = {s["name"] for s in result_json["result"]}
+    schemas = {s["name"] for s in result_json}
     expected_schemas = {schema.name for schema in db_schemas}
     assert schemas == expected_schemas
 

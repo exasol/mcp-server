@@ -3,7 +3,6 @@ import json
 from dataclasses import dataclass
 from typing import (
     Any,
-    cast,
 )
 
 import exasol.bucketfs as bfs
@@ -40,8 +39,8 @@ def get_result_content(result) -> str:
     return result.content[0].text
 
 
-def get_result_json(result, content_extractor=get_result_content) -> dict[str, Any]:
-    return cast(dict[str, Any], json.loads(content_extractor(result)))
+def get_result_json(result, content_extractor=get_result_content):
+    return json.loads(content_extractor(result))
 
 
 def get_sort_result_json(
@@ -54,7 +53,16 @@ def get_sort_result_json(
     }
 
 
-def get_list_result_json(result, content_extractor=get_result_content) -> ExaDbResult:
+def get_list_result_json(result, content_extractor=get_result_content):
+    result_json = get_result_json(result, content_extractor)
+    if isinstance(result_json, list):
+        return sorted(result_json, key=result_sort_func)
+    return result_json
+
+
+def get_list_result_json_legacy(
+    result, content_extractor=get_result_content
+) -> ExaDbResult:
     result_json = get_result_json(result, content_extractor)
     unsorted = ExaDbResult(**result_json)
     if isinstance(unsorted.result, list):
@@ -92,14 +100,12 @@ def get_tool_hints(tool: Tool) -> ToolHints:
 
 
 def verify_result_table(
-    result: ExaDbResult,
+    result: list[dict[str, Any]],
     key_column: str,
     other_columns: list[str],
     expected_keys: list[str],
 ) -> None:
-    test_data = list(
-        filter(lambda row: row[key_column] in expected_keys, result.result)
-    )
+    test_data = list(filter(lambda row: row[key_column] in expected_keys, result))
     # Verify that all expected keys are present in the output.
     keys_found = {row[key_column] for row in test_data}
     if keys_found != set(expected_keys):
