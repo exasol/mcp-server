@@ -42,8 +42,6 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
-    COLUMNS_FIELD,
-    CONSTRAINTS_FIELD,
     DBColumn,
     DBConstraint,
     DBEmitFunction,
@@ -300,13 +298,15 @@ class ExasolMCPServer(FastMCP):
         if not table_meta:
             raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
 
-        table_columns = {COLUMNS_FIELD: self.describe_columns(schema_name, table_name)}
-        if not system_table:
-            table_columns[CONSTRAINTS_FIELD] = self.describe_constraints(
-                schema_name, table_name
-            )
-
-        return DBTable.model_validate(table_meta[0].model_dump() | table_columns)
+        return DBTable(
+            **table_meta[0].model_dump(),
+            columns=self.describe_columns(schema_name, table_name),
+            constraints=(
+                None
+                if system_table
+                else self.describe_constraints(schema_name, table_name)
+            ),
+        )
 
     def describe_function(
         self, schema_name: SchemaNameArg, func_name: FunctionNameArg

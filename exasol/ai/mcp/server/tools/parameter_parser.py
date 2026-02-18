@@ -19,8 +19,6 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
-    NAME_FIELD,
-    SQL_TYPE_FIELD,
     DBColumn,
     DBEmitFunction,
     DBFunction,
@@ -28,6 +26,8 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
 )
 
 VARIADIC_MARKER = "..."
+PARAMETER_NAME = "PARAMETER_NAME"
+PARAMETER_TYPE = "PARAMETER_TYPE"
 FUNCTION_INPUT = "FUNCTION_INPUT"
 FUNCTION_RETURNS = "FUNCTION_RETURNS"
 FUNCTION_EMITS = "FUNCTION_EMIT"
@@ -72,8 +72,8 @@ class ParameterParser(ABC):
             return self._parameter_extract_pattern
 
         pattern = (
-            rf"(?:^|,)\s*(?P<{NAME_FIELD}>{quoted_identifier_pattern})"
-            rf"\s+(?P<{SQL_TYPE_FIELD}>{exa_type_pattern})\s*(?=\Z|,)"
+            rf"(?:^|,)\s*(?P<{PARAMETER_NAME}>{quoted_identifier_pattern})"
+            rf"\s+(?P<{PARAMETER_TYPE}>{exa_type_pattern})\s*(?=\Z|,)"
         )
         self._parameter_extract_pattern = re.compile(pattern, flags=regex_flags)
         return self._parameter_extract_pattern
@@ -98,8 +98,8 @@ class ParameterParser(ABC):
 
         def format_parameter(di: dict[str, str]) -> DBColumn:
             # Need to remove double quotes from the extracted values.
-            return DBColumn.model_validate(
-                {key: val.strip('"') for key, val in di.items()}
+            return DBColumn(
+                name=di[PARAMETER_NAME].strip('"'), type=di[PARAMETER_TYPE].strip('"')
             )
 
         return [
