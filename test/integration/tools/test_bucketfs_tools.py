@@ -12,7 +12,7 @@ from test.utils.db_objects import (
 )
 from test.utils.result_utils import (
     ToolHints,
-    get_list_result_json,
+    get_list_result_json_legacy,
     get_result_content,
     get_tool_hints,
     list_tools,
@@ -264,7 +264,7 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
             result = _run_tool(bucketfs_location, "list_directories", directory=path)
-            result_json = get_list_result_json(result)
+            result_json = get_list_result_json_legacy(result)
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
                 for sub_item in item.items
@@ -276,7 +276,7 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
 
 def test_list_directories_root(bucketfs_location, bfs_data) -> None:
     result = _run_tool(bucketfs_location, "list_directories")
-    result_json = get_list_result_json(result)
+    result_json = get_list_result_json_legacy(result)
     expected_nodes = {bfs_data.name: bfs_data}
     expected_json = _get_expected_list_json(expected_nodes)
     assert result_json == expected_json
@@ -287,7 +287,7 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
             result = _run_tool(bucketfs_location, "list_files", directory=path)
-            result_json = get_list_result_json(result)
+            result_json = get_list_result_json_legacy(result)
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
                 for sub_item in item.items
@@ -299,7 +299,7 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
 
 def test_list_files_root(bucketfs_location) -> None:
     result = _run_tool(bucketfs_location, "list_files")
-    result_json = get_list_result_json(result)
+    result_json = get_list_result_json_legacy(result)
     expected_json = _get_expected_list_json({})
     assert result_json == expected_json
 
@@ -328,7 +328,7 @@ def test_find_files(bucketfs_location, bfs_data, path) -> None:
     result = _run_tool(
         bucketfs_location, "find_files", keywords=keywords, directory=path
     )
-    result_json = get_list_result_json(result)
+    result_json = get_list_result_json_legacy(result)
     expected_nodes = bfs_data.find_descendants(["Cougar", "Bobcat"])
     expected_json = _get_expected_list_json(expected_nodes)
     assert result_json == expected_json

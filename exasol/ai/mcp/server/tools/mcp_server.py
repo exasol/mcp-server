@@ -3,6 +3,8 @@ from functools import cache
 from typing import (
     Annotated,
     Any,
+    TypeVar,
+    cast,
 )
 
 import exasol.bucketfs as bfs
@@ -22,10 +24,7 @@ from sqlglot.errors import ParseError
 from starlette.responses import JSONResponse
 
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
-from exasol.ai.mcp.server.setup.server_settings import (
-    ExaDbResult,
-    McpServerSettings,
-)
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
 from exasol.ai.mcp.server.tools.meta_query import (
     INFO_COLUMN,
@@ -42,14 +41,19 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     parameter_list_pattern,
     regex_flags,
 )
-from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
-
-TABLE_USAGE = (
-    "In an SQL query, the names of database objects, such as schemas, "
-    "tables and columns should be enclosed in double quotes. "
-    "A reference to a table should include a reference to its schema. "
-    "The SELECT column list cannot have both the * and explicit column names."
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COLUMNS_FIELD,
+    CONSTRAINTS_FIELD,
+    DBColumn,
+    DBConstraint,
+    DBEmitFunction,
+    DBObject,
+    DBReturnFunction,
+    DBTable,
+    QualifiedDBObject,
+    SQLTypeInfo,
 )
+from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
 
 SchemaNameArg = Annotated[str, Field(description="Name of the database schema")]
 
@@ -82,7 +86,20 @@ FunctionNameArg = Annotated[str, Field(description="Name of the function")]
 
 ScriptNameArg = Annotated[str, Field(description="Name of the script")]
 
-QueryArg = Annotated[str, Field(description="SQL Query")]
+QueryArg = Annotated[
+    str,
+    Field(
+        description=(
+            "SQL Query. "
+            "In an query, the names of database objects, such as schemas, "
+            "tables and columns should be enclosed in double quotes. "
+            "A reference to a table or function should include a reference to its schema. "
+            "The SELECT column list cannot have both the * and explicit column names."
+        )
+    ),
+]
+
+M = TypeVar("M", bound=BaseModel)
 
 
 @cache
@@ -119,10 +136,6 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if INFO_COLUMN in row:
             row.pop(INFO_COLUMN)
     return result
-
-
-def _take_column(column_name: str, result: ExaDbResult) -> list[str]:
-    return [row[column_name] for row in result.result]
 
 
 class ExasolMCPServer(FastMCP):
@@ -162,10 +175,11 @@ class ExasolMCPServer(FastMCP):
         return self.meta_query.config
 
     def _execute_meta_query(
-        self, query: str, keywords: list[str] | None = None
-    ) -> ExaDbResult:
+        self, query: str, model_cls: type[M], keywords: list[str] | None = None
+    ) -> list[M]:
         """
-        Executes a metadata query and returns the result as a list of dictionaries.
+        Executes a metadata query and returns the result as a list of instances
+        of the specified class.
         Applies the keyword fitter if provided.
         Removes the column with extra information that could be added to the result
         to assist filtering. This is necessary to avoid polluting the LLM's context
@@ -174,23 +188,24 @@ class ExasolMCPServer(FastMCP):
         result = self.connection.execute_query(query).fetchall()
         if keywords:
             result = keyword_filter(result, keywords, language=self.config.language)
-        return ExaDbResult(remove_info_column(result))
+            result = remove_info_column(result)
+        return [model_cls.model_validate(row) for row in result]
 
-    def list_schemas(self) -> ExaDbResult:
+    def list_schemas(self) -> list[DBObject]:
         if not self.config.schemas.enable:
             raise RuntimeError("The schema listing is disabled.")
 
         query = self.meta_query.get_metadata(MetaType.SCHEMA)
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, DBObject)
 
-    def find_schemas(self, keywords: KeywordsArg) -> ExaDbResult:
+    def find_schemas(self, keywords: KeywordsArg) -> list[DBObject]:
         if not self.config.schemas.enable:
             raise RuntimeError("The schema listing is disabled.")
 
         query = self.meta_query.find_schemas()
-        return self._execute_meta_query(query, keywords)
+        return self._execute_meta_query(query, DBObject, keywords)
 
-    def list_tables(self, schema_name: SchemaNameArg) -> ExaDbResult:
+    def list_tables(self, schema_name: SchemaNameArg) -> list[QualifiedDBObject]:
         table_conf = self.config.tables
         view_conf = self.config.views
         if (not table_conf.enable) and (not view_conf.enable):
@@ -203,52 +218,52 @@ class ExasolMCPServer(FastMCP):
             )
             if conf.enable
         )
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, QualifiedDBObject)
 
     def find_tables(
         self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
-    ) -> ExaDbResult:
+    ) -> list[QualifiedDBObject]:
         if (not self.config.tables.enable) and (not self.config.views.enable):
             raise RuntimeError("Both the table and the view listings are disabled.")
 
         query = self.meta_query.find_tables(schema_name)
-        return self._execute_meta_query(query, keywords)
+        return self._execute_meta_query(query, QualifiedDBObject, keywords)
 
-    def list_functions(self, schema_name: SchemaNameArg) -> ExaDbResult:
+    def list_functions(self, schema_name: SchemaNameArg) -> list[QualifiedDBObject]:
         if not self.config.functions.enable:
             raise RuntimeError("The function listing is disabled.")
 
         query = self.meta_query.get_metadata(MetaType.FUNCTION, schema_name)
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, QualifiedDBObject)
 
     def find_functions(
         self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
-    ) -> ExaDbResult:
+    ) -> list[QualifiedDBObject]:
         if not self.config.functions.enable:
             raise RuntimeError("The function listing is disabled.")
 
         query = self.meta_query.get_metadata(MetaType.FUNCTION, schema_name)
-        return self._execute_meta_query(query, keywords)
+        return self._execute_meta_query(query, QualifiedDBObject, keywords)
 
-    def list_scripts(self, schema_name: SchemaNameArg) -> ExaDbResult:
+    def list_scripts(self, schema_name: SchemaNameArg) -> list[QualifiedDBObject]:
         if not self.config.scripts.enable:
             raise RuntimeError("The script listing is disabled.")
 
         query = self.meta_query.get_metadata(MetaType.SCRIPT, schema_name)
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, QualifiedDBObject)
 
     def find_scripts(
         self, keywords: KeywordsArg, schema_name: OptionalSchemaNameArg
-    ) -> ExaDbResult:
+    ) -> list[QualifiedDBObject]:
         if not self.config.scripts.enable:
             raise RuntimeError("The script listing is disabled.")
 
         query = self.meta_query.get_metadata(MetaType.SCRIPT, schema_name)
-        return self._execute_meta_query(query, keywords)
+        return self._execute_meta_query(query, QualifiedDBObject, keywords)
 
     def describe_columns(
         self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> ExaDbResult:
+    ) -> list[DBColumn]:
         """
         Returns the list of columns in the given table. Currently, this is a part of
         the `describe_table` tool, but it can be used independently in the future.
@@ -257,11 +272,11 @@ class ExasolMCPServer(FastMCP):
             raise RuntimeError("The column listing is disabled.")
 
         query = self.meta_query.describe_columns(schema_name, table_name)
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, DBColumn)
 
     def describe_constraints(
         self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> ExaDbResult:
+    ) -> list[DBConstraint]:
         """
         Returns the list of constraints in the given table. Currently, this is a part
         of the `describe_table` tool, but it can be used independently in the future.
@@ -270,59 +285,48 @@ class ExasolMCPServer(FastMCP):
             raise RuntimeError("The constraint listing is disabled.")
 
         query = self.meta_query.describe_constraints(schema_name, table_name)
-        return self._execute_meta_query(query)
-
-    def get_table_comment(
-        self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> str | None:
-        query = self.meta_query.get_table_comment(schema_name, table_name)
-        comment_row = self.connection.execute_query(query).fetchone()
-        if comment_row is None:
-            return None
-        table_comment = next(iter(comment_row.values()))
-        if table_comment is None:
-            return None
-        return str(table_comment)
+        return self._execute_meta_query(query, DBConstraint)
 
     def describe_table(
         self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> dict[str, Any]:
+    ) -> DBTable:
 
-        conf = self.config.columns
-        columns = self.describe_columns(schema_name, table_name)
-        result = {
-            conf.columns_field: columns.result,
-            conf.usage_field: TABLE_USAGE,
-        }
+        system_table = is_system_schema(schema_name)
+        if system_table:
+            query = self.meta_query.get_system_tables(schema_name, table_name)
+        else:
+            query = self.meta_query.describe_table(schema_name, table_name)
+        table_meta = self._execute_meta_query(query, QualifiedDBObject)
+        if not table_meta:
+            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
 
-        # There is no constraints for a system table. The comment is also not needed,
-        # as it should be in the resource, where the name of the system table came from.
-        if not is_system_schema(schema_name):
-            constraints = self.describe_constraints(schema_name, table_name)
-            table_comment = self.get_table_comment(schema_name, table_name)
-            result[conf.constraints_field] = constraints.result
-            result[conf.table_comment_field] = table_comment
+        table_columns = {COLUMNS_FIELD: self.describe_columns(schema_name, table_name)}
+        if not system_table:
+            table_columns[CONSTRAINTS_FIELD] = self.describe_constraints(
+                schema_name, table_name
+            )
 
-        return result
+        return DBTable.model_validate(table_meta[0].model_dump() | table_columns)
 
     def describe_function(
         self, schema_name: SchemaNameArg, func_name: FunctionNameArg
-    ) -> dict[str, Any]:
+    ) -> DBReturnFunction:
         parser = FuncParameterParser(connection=self.connection, settings=self.config)
-        return parser.describe(schema_name, func_name)
+        return cast(DBReturnFunction, parser.describe(schema_name, func_name))
 
     def describe_script(
         self, schema_name: SchemaNameArg, script_name: ScriptNameArg
-    ) -> dict[str, Any]:
+    ) -> DBReturnFunction | DBEmitFunction:
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
-        return parser.describe(schema_name, script_name)
+        return cast(
+            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, script_name)
+        )
 
-    def execute_query(self, query: QueryArg) -> ExaDbResult:
+    def execute_query(self, query: QueryArg) -> list[dict[str, Any]]:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if verify_query(query):
-            result = self.connection.execute_query(query, snapshot=False).fetchall()
-            return ExaDbResult(result)
+            return self.connection.execute_query(query, snapshot=False).fetchall()
         raise ValueError("The query is invalid or not a SELECT statement.")
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
@@ -359,15 +363,15 @@ class ExasolMCPServer(FastMCP):
         else:  # cancel
             raise InterruptedError("The query execution is cancelled by the user.")
 
-    def list_sql_types(self) -> ExaDbResult:
+    def list_sql_types(self) -> list[SQLTypeInfo]:
         query = ExasolMetaQuery.get_sql_types()
-        return self._execute_meta_query(query)
+        return self._execute_meta_query(query, SQLTypeInfo)
 
     def _list_system_tables(self, info_type: SysInfoType) -> list[str]:
-        query = self.meta_query.get_system_tables(info_type)
-        return _take_column(
-            self.config.tables.name_field, self._execute_meta_query(query)
-        )
+        query = self.meta_query.get_system_tables(info_type.value)
+        result = self._execute_meta_query(query, QualifiedDBObject)
+        # To save the token space, we only return the names
+        return [obj.name for obj in result]
 
     def list_system_tables(self) -> list[str]:
         return self._list_system_tables(SysInfoType.SYSTEM)
@@ -375,17 +379,11 @@ class ExasolMCPServer(FastMCP):
     def list_statistics_tables(self) -> list[str]:
         return self._list_system_tables(SysInfoType.STATISTICS)
 
-    def _describe_system_table(
-        self, info_type: SysInfoType, table_name: str
-    ) -> ExaDbResult:
-        query = self.meta_query.get_system_tables(info_type, table_name)
-        return self._execute_meta_query(query)
+    def describe_system_table(self, table_name: TableNameArg) -> DBTable:
+        return self.describe_table(SysInfoType.SYSTEM.value, table_name)
 
-    def describe_system_table(self, table_name: TableNameArg) -> ExaDbResult:
-        return self._describe_system_table(SysInfoType.SYSTEM, table_name)
-
-    def describe_statistics_table(self, table_name: TableNameArg) -> ExaDbResult:
-        return self._describe_system_table(SysInfoType.STATISTICS, table_name)
+    def describe_statistics_table(self, table_name: TableNameArg) -> DBTable:
+        return self.describe_table(SysInfoType.STATISTICS.value, table_name)
 
     def list_keywords(
         self,
@@ -403,7 +401,7 @@ class ExasolMCPServer(FastMCP):
         ],
     ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
-        return _take_column("KEYWORD", self._execute_meta_query(query))
+        return self.connection.execute_query(query).fetchcol()
 
     def health_check(self) -> JSONResponse:
         """

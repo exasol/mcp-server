@@ -1,21 +1,30 @@
+from dataclasses import dataclass
+
 import pytest
 
-from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
+from exasol.ai.mcp.server.tools.schema.db_output_schema import DBColumn
+
+
+@dataclass
+class _TestCase:
+    input_type: str
+    input_params: list[DBColumn]
+    dynamic_input: bool = False
+    output_params: list[DBColumn] | None = None
+    dynamic_output: bool = False
+    expected_text: str = ""
 
 
 @pytest.mark.parametrize(
-    ["input_type", "result", "expected_text"],
+    "test_case",
     [
-        (
-            "SET",
-            {
-                "inputs": [
-                    {"name": "xx", "type": "CHAR(10)"},
-                    {"name": "yy", "type": "INT"},
-                ],
-                "returns": {"type": "DOUBLE"},
-            },
-            (
+        _TestCase(
+            input_type="SET",
+            input_params=[
+                DBColumn(name="xx", type="CHAR(10)"),
+                DBColumn(name="yy", type="INT"),
+            ],
+            expected_text=(
                 "In most cases, an Exasol SET User Defined Function (UDF) can be "
                 "called just like a normal aggregate function. "
                 "Here is a usage example for this particular UDF: "
@@ -28,19 +37,17 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
                 "A reference to a UDF should include a reference to its schema."
             ),
         ),
-        (
-            "SCALAR",
-            {
-                "inputs": [
-                    {"name": "xx", "type": "CHAR(10)"},
-                    {"name": "yy", "type": "INT"},
-                ],
-                "emits": [
-                    {"name": "abc", "type": "DOUBLE"},
-                    {"name": "efg", "type": "VARCHAR(100)"},
-                ],
-            },
-            (
+        _TestCase(
+            input_type="SCALAR",
+            input_params=[
+                DBColumn(name="xx", type="CHAR(10)"),
+                DBColumn(name="yy", type="INT"),
+            ],
+            output_params=[
+                DBColumn(name="abc", type="DOUBLE"),
+                DBColumn(name="efg", type="VARCHAR(100)"),
+            ],
+            expected_text=(
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can be "
                 "called just like a normal scalar function. Unlike normal scalar "
                 "functions that return a single value for every input row, this UDF "
@@ -59,10 +66,10 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
                 "A reference to a UDF should include a reference to its schema."
             ),
         ),
-        (
-            "SCALAR",
-            {"inputs": [], "returns": {"type": "DOUBLE"}},
-            (
+        _TestCase(
+            input_type="SCALAR",
+            input_params=[],
+            expected_text=(
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can be "
                 "called just like a normal scalar function. "
                 "Here is a usage example for this particular UDF: "
@@ -72,13 +79,14 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
                 "A reference to a UDF should include a reference to its schema."
             ),
         ),
-        (
-            "SET",
-            {"inputs": VARIADIC_MARKER, "returns": {"type": "DOUBLE"}},
-            (
+        _TestCase(
+            input_type="SET",
+            input_params=[],
+            dynamic_input=True,
+            expected_text=(
                 "In most cases, an Exasol SET User Defined Function (UDF) can be called "
                 "just like a normal aggregate function. This particular UDF has "
-                "dynamic input parameters. The function_comment may give a hint on "
+                "dynamic input parameters. The function comment may give a hint on "
                 "what parameters are expected to be provided in a specific use case. "
                 "Note that in the following example the input parameters are given "
                 "only for illustration. They shall not be used as a guide on how to "
@@ -93,23 +101,21 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
                 "A reference to a UDF should include a reference to its schema."
             ),
         ),
-        (
-            "SCALAR",
-            {
-                "inputs": [
-                    {"name": "xx", "type": "CHAR(10)"},
-                    {"name": "yy", "type": "INT"},
-                ],
-                "emits": VARIADIC_MARKER,
-            },
-            (
+        _TestCase(
+            input_type="SCALAR",
+            input_params=[
+                DBColumn(name="xx", type="CHAR(10)"),
+                DBColumn(name="yy", type="INT"),
+            ],
+            dynamic_output=True,
+            expected_text=(
                 "In most cases, an Exasol SCALAR User Defined Function (UDF) can "
                 "be called just like a normal scalar function. Unlike normal scalar "
                 "functions that return a single value for every input row, this UDF "
                 "can emit multiple output rows per input row. An SQL SELECT statement "
                 "calling a UDF that emits output columns, such as this one, cannot "
                 "include any additional columns. This particular UDF has "
-                "dynamic output parameters. The function_comment may give a hint on "
+                "dynamic output parameters. The function comment may give a hint on "
                 "what parameters are expected to be emitted in a specific use case. "
                 "When calling a UDF with dynamic output parameters, the EMITS clause "
                 "should be provided in the call, as demonstrated in the example below. "
@@ -129,17 +135,19 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
                 "A reference to a UDF should include a reference to its schema."
             ),
         ),
-        (
-            "SET",
-            {"inputs": VARIADIC_MARKER, "emits": VARIADIC_MARKER},
-            (
+        _TestCase(
+            input_type="SET",
+            input_params=[],
+            dynamic_input=True,
+            dynamic_output=True,
+            expected_text=(
                 "In most cases, an Exasol SET User Defined Function (UDF) can be "
                 "called just like a normal aggregate function. Unlike normal aggregate "
                 "functions that return a single value for every input group, this UDF "
                 "can emit multiple output rows per input group. An SQL SELECT statement "
                 "calling a UDF that emits output columns, such as this one, cannot "
                 "include any additional columns. This particular UDF "
-                "has dynamic input and output parameters. The function_comment may give "
+                "has dynamic input and output parameters. The function comment may give "
                 "a hint on what parameters are expected to be provided and emitted in a "
                 "specific use case. When calling a UDF with dynamic output parameters, "
                 "the EMITS clause should be provided in the call, as demonstrated in "
@@ -169,11 +177,14 @@ from exasol.ai.mcp.server.tools.parameter_parser import VARIADIC_MARKER
         "variadic-both",
     ],
 )
-def test_get_udf_call_example(
-    script_parameter_parser, input_type, result, expected_text
-):
+def test_get_udf_call_example(script_parameter_parser, test_case):
     example = script_parameter_parser.get_udf_call_example(
-        result, input_type=input_type, func_name="my_udf"
+        input_type=test_case.input_type,
+        func_name="my_udf",
+        input_params=test_case.input_params,
+        variadic_input=test_case.dynamic_input,
+        output_params=test_case.output_params,
+        variadic_emit=test_case.dynamic_output,
     )
     example = example.replace("\n", " ")
-    assert example == expected_text
+    assert example == test_case.expected_text
