@@ -13,7 +13,6 @@ from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import (
-    ExaDbResult,
     McpServerSettings,
 )
 
@@ -58,16 +57,6 @@ def get_list_result_json(result, content_extractor=get_result_content):
     if isinstance(result_json, list):
         return sorted(result_json, key=result_sort_func)
     return result_json
-
-
-def get_list_result_json_legacy(
-    result, content_extractor=get_result_content
-) -> ExaDbResult:
-    result_json = get_result_json(result, content_extractor)
-    unsorted = ExaDbResult(**result_json)
-    if isinstance(unsorted.result, list):
-        return ExaDbResult(sorted(unsorted.result, key=result_sort_func))
-    return unsorted
 
 
 async def _list_tools_async(

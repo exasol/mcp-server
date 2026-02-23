@@ -34,6 +34,16 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
     BUILTIN_FUNCTIONS_JSON,
     PACKAGE_RESOURCES,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    ALIAS_FIELD,
+    CATEGORIES_FIELD,
+    DESCRIPTION_FIELD,
+    EXAMPLE_FIELD,
+    NAME_FIELD,
+    PURPOSE_FIELD,
+    SYNTAX_FIELD,
+    USAGE_FIELD,
+)
 
 MAX_PURPOSE_SIMILARITY = 0.95
 
@@ -55,52 +65,52 @@ class FuncInCategory:
 # IS_* functions have to be hardcoded.
 is_functions = [
     {
-        "name": "IS_BOOLEAN",
-        "types": ["conversion"],
-        "description": "Returns TRUE if string can be converted to a BOOLEAN.",
-        "usage-notes": ["If the argument is NULL, then NULL is returned."],
-        "example": "SELECT IS_BOOLEAN('xyz') IS_BOOLEAN;",
+        NAME_FIELD: "IS_BOOLEAN",
+        CATEGORIES_FIELD: ["conversion"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to a BOOLEAN.",
+        USAGE_FIELD: ["If the argument is NULL, then NULL is returned."],
+        EXAMPLE_FIELD: "SELECT IS_BOOLEAN('xyz') IS_BOOLEAN;",
     },
     {
-        "name": "IS_DATE",
-        "types": ["conversion", "datetime"],
-        "description": "Returns TRUE if string can be converted to a DATE.",
-        "usage-notes": [
+        NAME_FIELD: "IS_DATE",
+        CATEGORIES_FIELD: ["conversion", "datetime"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to a DATE.",
+        USAGE_FIELD: [
             "If the argument is NULL, then NULL is returned.",
             "If a format is specified, then the rules of the TO_DATE function apply.",
         ],
-        "example": "SELECT IS_DATE('12.13.2011', 'DD.MM.YYYY') IS_DATE;",
+        EXAMPLE_FIELD: "SELECT IS_DATE('12.13.2011', 'DD.MM.YYYY') IS_DATE;",
     },
     {
-        "name": "IS_DSINTERVAL",
-        "types": ["conversion", "datetime"],
-        "description": "Returns TRUE if string can be converted to an INTERVAL DAY TO SECOND.",
-        "usage-notes": ["If the argument is NULL, then NULL is returned."],
+        NAME_FIELD: "IS_DSINTERVAL",
+        CATEGORIES_FIELD: ["conversion", "datetime"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to an INTERVAL DAY TO SECOND.",
+        USAGE_FIELD: ["If the argument is NULL, then NULL is returned."],
     },
     {
-        "name": "IS_NUMBER",
-        "types": ["conversion", "numeric"],
-        "description": "Returns TRUE if string can be converted to a DECIMAL OR DOUBLE.",
-        "usage-notes": [
+        NAME_FIELD: "IS_NUMBER",
+        CATEGORIES_FIELD: ["conversion", "numeric"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to a DECIMAL OR DOUBLE.",
+        USAGE_FIELD: [
             "If the argument is NULL, then NULL is returned.",
             "If a format is specified, then the rules of the TO_NUMBER function apply.",
         ],
-        "example": "SELECT IS_NUMBER('+12.34') IS_NUMBER;",
+        EXAMPLE_FIELD: "SELECT IS_NUMBER('+12.34') IS_NUMBER;",
     },
     {
-        "name": "IS_TIMESTAMP",
-        "types": ["conversion", "datetime"],
-        "description": "Returns TRUE if string can be converted to a TIMESTAMP.",
-        "usage-notes": [
+        NAME_FIELD: "IS_TIMESTAMP",
+        CATEGORIES_FIELD: ["conversion", "datetime"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to a TIMESTAMP.",
+        USAGE_FIELD: [
             "If the argument is NULL, then NULL is returned.",
             "If a format is specified, then the rules of the TO_TIMESTAMP function apply.",
         ],
     },
     {
-        "name": "IS_YMINTERVAL",
-        "types": ["conversion", "datetime"],
-        "description": "Returns TRUE if string can be converted to an INTERVAL YEAR TO MONTH.",
-        "usage-notes": ["If the argument is NULL, then NULL is returned."],
+        NAME_FIELD: "IS_YMINTERVAL",
+        CATEGORIES_FIELD: ["conversion", "datetime"],
+        DESCRIPTION_FIELD: "Returns TRUE if string can be converted to an INTERVAL YEAR TO MONTH.",
+        USAGE_FIELD: ["If the argument is NULL, then NULL is returned."],
     },
 ]
 
@@ -194,8 +204,8 @@ def extract_info(func_info: FuncInfo, model: SentenceTransformer) -> dict[str, A
     content = get_content(func_info.url)
     soup = BeautifulSoup(content, "html.parser")
     extra_info = {
-        "usage-notes": extract_usage_notes(soup),
-        "example": extract_examples(soup),
+        USAGE_FIELD: extract_usage_notes(soup),
+        EXAMPLE_FIELD: extract_examples(soup),
     }
     purpose = extract_purpose(soup)
     if purpose:
@@ -205,7 +215,7 @@ def extract_info(func_info: FuncInfo, model: SentenceTransformer) -> dict[str, A
         )
         similarity = util.cos_sim(*embeddings).item()
         if similarity <= MAX_PURPOSE_SIMILARITY:
-            extra_info["purpose"] = purpose
+            extra_info[PURPOSE_FIELD] = purpose
     return extra_info
 
 
@@ -324,10 +334,10 @@ def geospatial_functions() -> list[dict[str, Any]]:
         td = td.find_next("td")
         description = clean_text(td.text)
         return {
-            "name": name,
-            "types": ["geospatial"],
-            "syntax": syntax,
-            "description": description,
+            NAME_FIELD: name,
+            CATEGORIES_FIELD: ["geospatial"],
+            SYNTAX_FIELD: syntax,
+            DESCRIPTION_FIELD: description,
         }
 
     func_data = [extract_func_info(tr) for tr in tr_elements]
@@ -341,11 +351,11 @@ def geospatial_functions() -> list[dict[str, Any]]:
             pattern = compile_pattern(rf"{func_info['name']}\s*\(")
             if pattern.search(example):
                 func_example = (
-                    f"{func_info['example']}\n{example}"
-                    if "example" in func_info
+                    f"{func_info[EXAMPLE_FIELD]}\n{example}"
+                    if EXAMPLE_FIELD in func_info
                     else example
                 )
-                func_info["example"] = func_example
+                func_info[EXAMPLE_FIELD] = func_example
     return func_data
 
 
@@ -368,10 +378,10 @@ def build_json() -> list[dict[str, Any]]:
             func_info = func_infos[key]
             func_data.append(
                 {
-                    "name": func_info.name,
-                    "alias": func_info.alias,
-                    "types": cats,
-                    "description": func_info.description,
+                    NAME_FIELD: func_info.name,
+                    ALIAS_FIELD: func_info.alias,
+                    CATEGORIES_FIELD: cats,
+                    DESCRIPTION_FIELD: func_info.description,
                     **extract_info(func_info, model),
                 }
             )

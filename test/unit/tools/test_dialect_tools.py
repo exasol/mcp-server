@@ -5,6 +5,13 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
     describe_builtin_function,
     list_builtin_functions,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    CATEGORIES_FIELD,
+    DESCRIPTION_FIELD,
+    EXAMPLE_FIELD,
+    NAME_FIELD,
+    USAGE_FIELD,
+)
 
 
 def test_builtin_function_categories() -> None:
@@ -22,9 +29,10 @@ def test_list_builtin_functions() -> None:
 
 def test_describe_builtin_functions() -> None:
     result = describe_builtin_function("to_date")
+    result_json = [row.model_dump() for row in result]
     verify_result_table(
-        result,
-        key_column="name",
-        other_columns=["description", "types", "usage-notes", "example"],
+        result_json,
+        key_column=NAME_FIELD,
+        other_columns=[DESCRIPTION_FIELD, CATEGORIES_FIELD, USAGE_FIELD, EXAMPLE_FIELD],
         expected_keys=["TO_DATE"],
     )
