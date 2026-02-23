@@ -380,7 +380,6 @@ class ExasolMetaQuery:
         """
         Gathers a list of columns in a given table.
         """
-        conf = self._config.columns
         # The table where the colum information should be pulled from is different for
         # user tables and system tables.
         source = (
@@ -407,7 +406,6 @@ class ExasolMetaQuery:
         """
         Gathers a list of constraints for a given table.
         """
-        conf = self._config.columns
         query = (
             exp.Select()
             .select(
