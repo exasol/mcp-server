@@ -533,11 +533,12 @@ def get_env() -> dict[str:Any]:
 
 
 def setup_telemetry(logger: logging.Logger):
-    # register telemetry library and shutdown hook
+    # register telemetry library and shutdown hook, send "started" event
     try:
         if not telemetry.was_setup():
             telemetry.setup()
             atexit.register(telemetry.shutdown)
+            telemetry.track("mcp-server.started")
     except telemetry.TelemetryError as e:
         logger.warning("Telemetry init error: %s", str(e))
 
