@@ -533,7 +533,7 @@ def get_env() -> dict[str:Any]:
 
 
 def setup_telemetry(logger: logging.Logger):
-    # register telemetry library and shutdown huck
+    # register telemetry library and shutdown hook
     try:
         if not telemetry.was_setup():
             telemetry.setup()
