@@ -1,3 +1,4 @@
+import atexit
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ from typing import Any
 
 import click
 import exasol.bucketfs as bfs
+from exasol.telemetry import client as telemetry
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
@@ -530,12 +532,23 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
+def setup_telemetry(logger: logging.Logger):
+    # register telemetry library and shutdown huck
+    try:
+        if not telemetry.was_setup():
+            telemetry.setup()
+            atexit.register(telemetry.shutdown)
+    except telemetry.TelemetryError as e:
+        logger.warning("Telemetry init error: %s", str(e))
+
+
 def mcp_server() -> ExasolMCPServer:
     """
     Builds the Exasol MCP server and all its components.
     """
     env = get_env()
     logger = setup_logger(env)
+    setup_telemetry(logger)
     mcp_settings = get_mcp_settings(env)
     auth_kwargs = get_auth_kwargs()
     connection_factory = cf.get_connection_factory(env)
