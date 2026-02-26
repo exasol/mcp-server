@@ -6,7 +6,10 @@ from abc import (
 from typing import Any
 
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
-from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from exasol.ai.mcp.server.setup.server_settings import (
+    McpServerSettings,
+    MetaParameterSettings,
+)
 from exasol.ai.mcp.server.tools.meta_query import (
     ExasolMetaQuery,
     MetaType,
@@ -34,8 +37,9 @@ FUNCTION_EMITS = "FUNCTION_EMIT"
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: DbConnection) -> None:
+    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
         self.connection = connection
+        self.conf = conf
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
@@ -49,6 +53,9 @@ class ParameterParser(ABC):
         """
         Requests and parses metadata for the specified function or script.
         """
+        if not self.conf.enable:
+            raise RuntimeError("Parameter listing is disabled.")
+
         query = self.get_func_query(schema_name, func_name)
         result = self._execute_query(query=query)
         if not result:
@@ -134,7 +141,7 @@ class ParameterParser(ABC):
 class FuncParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection)
+        super().__init__(connection, settings.parameters)
         self._func_pattern: re.Pattern | None = None
         self._meta_query = ExasolMetaQuery(settings)
 
@@ -183,7 +190,7 @@ class FuncParameterParser(ParameterParser):
 class ScriptParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection)
+        super().__init__(connection, settings.parameters)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
         self._meta_query = ExasolMetaQuery(settings)

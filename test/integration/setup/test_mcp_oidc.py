@@ -125,6 +125,7 @@ from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
 )
+from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
@@ -435,9 +436,7 @@ def _mcp_server_factory(env: dict[str, str], monkeypatch: MonkeyPatch | None = N
 
         mcp_server = create_mcp_server(
             connection=connection,
-            config=McpServerSettings(
-                schemas=MetaListSettings(enable=True, name_field="name")
-            ),
+            config=McpServerSettings(schemas=MetaListSettings(enable=True)),
             auth=auth,
         )
         mcp_server.tool(say_hello, description="The tool just says Hello")
@@ -647,7 +646,7 @@ def _run_list_schemas_test(
         )
     )
     result_json = json.loads(result_text)
-    schemas = {s["name"] for s in result_json}
+    schemas = {s[NAME_FIELD] for s in result_json}
     expected_schemas = {schema.name for schema in db_schemas}
     assert schemas == expected_schemas
 
