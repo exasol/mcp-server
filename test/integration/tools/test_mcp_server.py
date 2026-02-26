@@ -22,22 +22,37 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from exasol.ai.mcp.server.setup.server_settings import (
-    ExaDbResult,
     McpServerSettings,
     MetaColumnSettings,
     MetaListSettings,
     MetaParameterSettings,
 )
-from exasol.ai.mcp.server.tools.mcp_server import TABLE_USAGE
-from exasol.ai.mcp.server.tools.parameter_parser import FUNCTION_USAGE
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COLUMNS_FIELD,
+    COMMENT_FIELD,
+    CONSTRAINT_COLUMNS_FIELD,
+    CONSTRAINT_NAME_FIELD,
+    CONSTRAINT_TYPE_FIELD,
+    CONSTRAINTS_FIELD,
+    DYNAMIC_INPUT_FIELD,
+    DYNAMIC_OUTPUT_FIELD,
+    EMITS_FIELD,
+    INPUT_FIELD,
+    NAME_FIELD,
+    REFERENCED_COLUMNS_FIELD,
+    REFERENCED_SCHEMA_FIELD,
+    REFERENCED_TABLE_FIELD,
+    RETURNS_FIELD,
+    SCHEMA_FIELD,
+    SQL_TYPE_FIELD,
+    USAGE_FIELD,
+)
 
 
-def _get_expected_json(
-    db_obj: ExaDbObject, conf: MetaListSettings, schema_name: str | None
-) -> dict[str, Any]:
-    expected_json = {conf.name_field: db_obj.name, conf.comment_field: db_obj.comment}
+def _get_expected_json(db_obj: ExaDbObject, schema_name: str | None) -> dict[str, Any]:
+    expected_json = {NAME_FIELD: db_obj.name, COMMENT_FIELD: db_obj.comment}
     if schema_name:
-        expected_json[conf.schema_field] = schema_name
+        expected_json[SCHEMA_FIELD] = schema_name
     return expected_json
 
 
@@ -46,24 +61,24 @@ def _get_expected_list_json(
     name_part: str,
     conf: MetaListSettings,
     schema_name: str | None = None,
-) -> ExaDbResult:
+) -> list[dict[str, Any]]:
     no_pattern = not (conf.like_pattern or conf.regexp_pattern)
     expected_json = [
-        _get_expected_json(db_obj, conf, schema_name)
+        _get_expected_json(db_obj, schema_name)
         for db_obj in db_objects
         if no_pattern or (name_part in db_obj.name)
     ]
-    return ExaDbResult(sorted(expected_json, key=result_sort_func))
+    return sorted(expected_json, key=result_sort_func)
 
 
 def _get_expected_column_list_json(
-    column_list: list[ExaColumn], conf: MetaColumnSettings
+    column_list: list[ExaColumn],
 ) -> list[dict[str, Any]]:
     expected_json = [
         {
-            conf.name_field: col.name,
-            conf.type_field: col.type,
-            conf.comment_field: col.comment,
+            NAME_FIELD: col.name,
+            SQL_TYPE_FIELD: col.type,
+            COMMENT_FIELD: col.comment,
         }
         for col in column_list
     ]
@@ -71,18 +86,18 @@ def _get_expected_column_list_json(
 
 
 def _get_expected_constraint_list_json(
-    constraint_list: list[ExaConstraint], conf: MetaColumnSettings, schema_name: str
+    constraint_list: list[ExaConstraint], schema_name: str
 ) -> list[dict[str, Any]]:
     expected_json = [
         {
-            conf.constraint_name_field: cons.name,
-            conf.constraint_type_field: cons.type,
-            conf.constraint_columns_field: ",".join(cons.columns),
-            conf.referenced_schema_field: (
+            CONSTRAINT_NAME_FIELD: cons.name,
+            CONSTRAINT_TYPE_FIELD: cons.type,
+            CONSTRAINT_COLUMNS_FIELD: ",".join(cons.columns),
+            REFERENCED_SCHEMA_FIELD: (
                 schema_name if cons.type == "FOREIGN KEY" else None
             ),
-            conf.referenced_table_field: cons.ref_table,
-            conf.referenced_columns_field: (
+            REFERENCED_TABLE_FIELD: cons.ref_table,
+            REFERENCED_COLUMNS_FIELD: (
                 None if cons.ref_columns is None else ",".join(cons.ref_columns)
             ),
         }
@@ -91,39 +106,40 @@ def _get_expected_constraint_list_json(
     return sorted(expected_json, key=result_sort_func)
 
 
-def _get_expected_table_json(
-    table: ExaTable, conf: MetaColumnSettings, schema_name: str
-) -> dict[str, Any]:
+def _get_expected_table_json(table: ExaTable, schema_name: str) -> dict[str, Any]:
     return {
-        conf.columns_field: _get_expected_column_list_json(table.columns, conf),
-        conf.constraints_field: _get_expected_constraint_list_json(
-            table.constraints, conf, schema_name
+        SCHEMA_FIELD: schema_name,
+        NAME_FIELD: table.name,
+        COLUMNS_FIELD: _get_expected_column_list_json(table.columns),
+        CONSTRAINTS_FIELD: _get_expected_constraint_list_json(
+            table.constraints, schema_name
         ),
-        conf.table_comment_field: table.comment,
-        conf.usage_field: TABLE_USAGE,
+        COMMENT_FIELD: table.comment,
     }
 
 
 def _get_expected_param_list_json(
-    param_list: list[ExaParameter], conf: MetaParameterSettings
+    param_list: list[ExaParameter],
 ) -> list[dict[str, str]]:
     return [
-        {conf.name_field: param.name, conf.type_field: param.type}
+        {NAME_FIELD: param.name, SQL_TYPE_FIELD: param.type, COMMENT_FIELD: None}
         for param in param_list
     ]
 
 
-def _get_expected_param_json(
-    func: ExaFunction, conf: MetaParameterSettings
-) -> dict[str, Any]:
+def _get_expected_param_json(func: ExaFunction, schema_name: str) -> dict[str, Any]:
     expected_json = {
-        conf.input_field: _get_expected_param_list_json(func.inputs, conf),
-        conf.comment_field: func.comment,
+        SCHEMA_FIELD: schema_name,
+        NAME_FIELD: func.name,
+        INPUT_FIELD: _get_expected_param_list_json(func.inputs),
+        DYNAMIC_INPUT_FIELD: False,
+        COMMENT_FIELD: func.comment,
     }
     if func.emits:
-        expected_json[conf.emit_field] = _get_expected_param_list_json(func.emits, conf)
+        expected_json[EMITS_FIELD] = _get_expected_param_list_json(func.emits)
+        expected_json[DYNAMIC_OUTPUT_FIELD] = False
     if func.returns:
-        expected_json[conf.return_field] = {conf.type_field: func.returns}
+        expected_json[RETURNS_FIELD] = func.returns
     return expected_json
 
 
@@ -205,7 +221,7 @@ def test_list_schemas(
         if use_like or use_regexp:
             assert result_json == expected_json
         else:
-            assert expected_json.result[0] in result_json.result
+            assert expected_json[0] in result_json
 
 
 @pytest.mark.parametrize("language", ["", "english"])
@@ -213,9 +229,7 @@ def test_find_schemas(
     pyexasol_connection, setup_database, db_schemas, language
 ) -> None:
     config = McpServerSettings(
-        schemas=MetaListSettings(
-            enable=True, name_field="name", comment_field="comment"
-        ),
+        schemas=MetaListSettings(enable=True),
         language=language,
     )
     for schema in db_schemas:
@@ -225,8 +239,8 @@ def test_find_schemas(
         result = run_tool(
             pyexasol_connection, config, "find_schemas", keywords=schema.keywords
         )
-        result_json = get_result_json(result)["result"][0]
-        expected_json = {"name": schema.name, "comment": schema.comment}
+        result_json = get_result_json(result)[0]
+        expected_json = {NAME_FIELD: schema.name, COMMENT_FIELD: schema.comment}
         assert result_json == expected_json
 
 
@@ -311,13 +325,13 @@ def test_list_tables(
             expected_json = _get_expected_list_json(
                 db_tables, "resort", config.tables, schema.name
             )
-            expected_result.extend(expected_json.result)
+            expected_result.extend(expected_json)
         if enable_views:
             expected_json = _get_expected_list_json(
                 db_views, "run", config.views, schema.name
             )
-            expected_result.extend(expected_json.result)
-        expected_json = ExaDbResult(sorted(expected_result, key=result_sort_func))
+            expected_result.extend(expected_json)
+        expected_json = sorted(expected_result, key=result_sort_func)
         assert result_json == expected_json
 
 
@@ -362,18 +376,8 @@ def test_find_tables(
                 like_pattern=schema.name if use_like else "",
                 regexp_pattern=schema.name if use_regexp else "",
             ),
-            tables=MetaListSettings(
-                enable=True,
-                name_field="name",
-                comment_field="comment",
-                schema_field="schema",
-            ),
-            views=MetaListSettings(
-                enable=True,
-                name_field="name",
-                comment_field="comment",
-                schema_field="schema",
-            ),
+            tables=MetaListSettings(enable=True),
+            views=MetaListSettings(enable=True),
             language=language,
             case_sensitive=case_sensitive,
         )
@@ -388,11 +392,11 @@ def test_find_tables(
                 ),
             )
 
-            result_json = get_result_json(result)["result"][0]
+            result_json = get_result_json(result)[0]
             expected_json = {
-                "name": table.name,
-                "comment": table.comment,
-                "schema": schema.name,
+                NAME_FIELD: table.name,
+                COMMENT_FIELD: table.comment,
+                SCHEMA_FIELD: schema.name,
             }
             assert result_json == expected_json
 
@@ -484,12 +488,7 @@ def test_find_functions(
                 like_pattern=schema.name if use_like else "",
                 regexp_pattern=schema.name if use_regexp else "",
             ),
-            functions=MetaListSettings(
-                enable=True,
-                name_field="name",
-                comment_field="comment",
-                schema_field="schema",
-            ),
+            functions=MetaListSettings(enable=True),
             language=language,
             case_sensitive=case_sensitive,
         )
@@ -503,11 +502,11 @@ def test_find_functions(
                     schema, use_like or use_regexp, case_sensitive
                 ),
             )
-            result_json = get_result_json(result)["result"][0]
+            result_json = get_result_json(result)[0]
             expected_json = {
-                "name": func.name,
-                "comment": func.comment,
-                "schema": schema.name,
+                NAME_FIELD: func.name,
+                COMMENT_FIELD: func.comment,
+                SCHEMA_FIELD: schema.name,
             }
             assert result_json == expected_json
 
@@ -599,12 +598,7 @@ def test_find_scripts(
                 like_pattern=schema.name if use_like else "",
                 regexp_pattern=schema.name if use_regexp else "",
             ),
-            scripts=MetaListSettings(
-                enable=True,
-                name_field="name",
-                comment_field="comment",
-                schema_field="schema",
-            ),
+            scripts=MetaListSettings(enable=True),
             language=language,
         )
         for script in db_scripts:
@@ -617,11 +611,11 @@ def test_find_scripts(
                     schema, use_like or use_regexp, case_sensitive
                 ),
             )
-            result_json = get_result_json(result)["result"][0]
+            result_json = get_result_json(result)[0]
             expected_json = {
-                "name": script.name,
-                "comment": script.comment,
-                "schema": schema.name,
+                NAME_FIELD: script.name,
+                COMMENT_FIELD: script.comment,
+                SCHEMA_FIELD: schema.name,
             }
             assert result_json == expected_json
 
@@ -649,7 +643,7 @@ def test_describe_table(
                 table_name=_get_db_name_param(table, case_sensitive),
             )
             result_json = get_sort_result_json(result)
-            expected_json = _get_expected_table_json(table, config.columns, schema.name)
+            expected_json = _get_expected_table_json(table, schema.name)
             assert result_json == expected_json
 
 
@@ -666,10 +660,8 @@ def test_describe_sys_table(pyexasol_connection) -> None:
         table_name="EXA_ALL_COLUMNS",
     )
     result_json = get_result_json(result)
-    column_names = [
-        col[config.columns.name_field]
-        for col in result_json[config.columns.columns_field]
-    ]
+    result_columns = result_json["columns"]
+    column_names = [col[NAME_FIELD] for col in result_columns]
     assert all(
         expected_column in column_names
         for expected_column in ["COLUMN_NAME", "COLUMN_TYPE", "COLUMN_COMMENT"]
@@ -696,7 +688,7 @@ def test_describe_view_comment(
                 table_name=_get_db_name_param(view, case_sensitive),
             )
             result_json = get_sort_result_json(result)
-            assert result_json[config.columns.table_comment_field] == view.comment
+            assert result_json[COMMENT_FIELD] == view.comment
 
 
 @pytest.mark.parametrize(
@@ -771,8 +763,8 @@ def test_describe_function(
                 func_name=_get_db_name_param(func, case_sensitive),
             )
             result_json = get_result_json(result)
-            expected_json = _get_expected_param_json(func, config.parameters)
-            expected_json[config.parameters.usage_field] = FUNCTION_USAGE
+            expected_json = _get_expected_param_json(func, schema.name)
+            expected_json[USAGE_FIELD] = ""
             assert result_json == expected_json
 
 
@@ -802,9 +794,9 @@ def test_describe_script(
             result_json = get_result_json(result)
             # The call example message is properly tested in the unit tests.
             # Here we just verify that it exists.
-            assert config.parameters.usage_field in result_json
-            result_json.pop(config.parameters.usage_field)
-            expected_json = _get_expected_param_json(script, config.parameters)
+            assert USAGE_FIELD in result_json
+            result_json.pop(USAGE_FIELD)
+            expected_json = _get_expected_param_json(script, schema.name)
             assert result_json == expected_json
 
 
@@ -821,13 +813,16 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
             result = run_tool(
                 pyexasol_connection, config, tool_name="execute_query", query=query
             )
-            result_json = get_list_result_json(result)
+            if result.content:
+                result_json = get_list_result_json(result)
+            else:
+                result_json = []
             expected_json = [
                 {col.name: col_value for col, col_value in zip(table.columns, row)}
                 for row in table.rows
             ]
             expected_json.sort(key=result_sort_func)
-            assert result_json == ExaDbResult(expected_json)
+            assert result_json == expected_json
 
 
 def test_execute_query_error(

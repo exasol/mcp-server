@@ -8,6 +8,14 @@ from test.utils.tool_utils import run_tool
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COMMENT_FIELD,
+    CREATE_PARAMS_FIELD,
+    NAME_FIELD,
+    PRECISION_FIELD,
+    SCHEMA_FIELD,
+    SQL_TYPE_FIELD,
+)
 
 
 def _run_tool(connection: ExaConnection, tool_name: str, **kwargs):
@@ -33,8 +41,8 @@ def test_list_sql_types(pyexasol_connection):
     _verify_result_table(
         pyexasol_connection,
         "list_sql_types",
-        key_column="TYPE_NAME",
-        other_columns=["CREATE_PARAMS", "PRECISION"],
+        key_column=SQL_TYPE_FIELD,
+        other_columns=[CREATE_PARAMS_FIELD, PRECISION_FIELD],
         expected_keys=["CHAR", "VARCHAR", "DECIMAL"],
     )
 
@@ -48,15 +56,13 @@ def test_list_system_tables(pyexasol_connection):
 
 
 def test_describe_system_table(pyexasol_connection):
-    conf = McpServerSettings().tables
-    _verify_result_table(
-        pyexasol_connection,
-        "describe_system_table",
-        key_column=conf.name_field,
-        other_columns=[conf.schema_field, conf.comment_field],
-        expected_keys=["EXA_ALL_COLUMNS"],
-        table_name="exa_all_columns",
+    result = _run_tool(
+        pyexasol_connection, "describe_system_table", table_name="exa_all_columns"
     )
+    result_json = get_result_json(result)
+    assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])
+    assert result_json[SCHEMA_FIELD] == "SYS"
+    assert result_json[NAME_FIELD] == "EXA_ALL_COLUMNS"
 
 
 def test_list_statistics_tables(pyexasol_connection):
@@ -69,15 +75,13 @@ def test_list_statistics_tables(pyexasol_connection):
 
 
 def test_describe_statistics_tables(pyexasol_connection):
-    conf = McpServerSettings().tables
-    _verify_result_table(
-        pyexasol_connection,
-        "describe_statistics_table",
-        key_column=conf.name_field,
-        other_columns=[conf.schema_field, conf.comment_field],
-        expected_keys=["EXA_SQL_DAILY"],
-        table_name="exa_sql_daily",
+    result = _run_tool(
+        pyexasol_connection, "describe_statistics_table", table_name="exa_sql_daily"
     )
+    result_json = get_result_json(result)
+    assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])
+    assert result_json[SCHEMA_FIELD] == "EXA_STATISTICS"
+    assert result_json[NAME_FIELD] == "EXA_SQL_DAILY"
 
 
 def test_list_reserved_keywords(pyexasol_connection):
