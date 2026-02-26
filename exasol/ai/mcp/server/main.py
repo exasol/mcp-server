@@ -1,4 +1,3 @@
-import atexit
 import json
 import logging
 import os
@@ -537,7 +536,7 @@ def setup_telemetry(logger: logging.Logger):
     try:
         if not telemetry.was_setup():
             telemetry.setup()
-            atexit.register(telemetry.shutdown)
+            # todo: need to register the server shutdown event hook
             telemetry.track("mcp-server.started")
     except telemetry.TelemetryError as e:
         logger.warning("Telemetry init error: %s", str(e))
@@ -550,24 +549,27 @@ def mcp_server() -> ExasolMCPServer:
     env = get_env()
     logger = setup_logger(env)
     setup_telemetry(logger)
-    mcp_settings = get_mcp_settings(env)
-    auth_kwargs = get_auth_kwargs()
-    connection_factory = cf.get_connection_factory(env)
+    try:
+        mcp_settings = get_mcp_settings(env)
+        auth_kwargs = get_auth_kwargs()
+        connection_factory = cf.get_connection_factory(env)
 
-    connection = DbConnection(connection_factory=connection_factory)
-    # Try to get the BucketFS location only if the bucketfs tools are enabled.
-    if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
-        bucketfs_location = cf.get_bucketfs_location(env)
-    else:
-        bucketfs_location = None
+        connection = DbConnection(connection_factory=connection_factory)
+        # Try to get the BucketFS location only if the bucketfs tools are enabled.
+        if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
+            bucketfs_location = cf.get_bucketfs_location(env)
+        else:
+            bucketfs_location = None
 
-    server = create_mcp_server(
-        connection=connection,
-        config=mcp_settings,
-        bucketfs_location=bucketfs_location,
-        **auth_kwargs,
-    )
-    logger.info("Exasol MCP Server created.")
+        server = create_mcp_server(
+            connection=connection,
+            config=mcp_settings,
+            bucketfs_location=bucketfs_location,
+            **auth_kwargs,
+        )
+        logger.info("Exasol MCP Server created.")
+    finally:
+        telemetry.shutdown()
     return server
 
 
