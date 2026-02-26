@@ -18,13 +18,6 @@ def parameter_config() -> McpServerSettings:
     return McpServerSettings(
         parameters=MetaParameterSettings(
             enable=True,
-            name_field="name",
-            comment_field="function_comment",
-            type_field="type",
-            input_field="inputs",
-            emit_field="emits",
-            return_field="returns",
-            usage_field="usage",
         ),
         case_sensitive=False,
     )

@@ -31,7 +31,12 @@ EMITS_FIELD = "emits"
 DYNAMIC_OUTPUT_FIELD = "dynamic_output"
 CREATE_PARAMS_FIELD = "create_params"
 PRECISION_FIELD = "precision"
-
+ALIAS_FIELD = "alias"
+CATEGORIES_FIELD = "types"
+DESCRIPTION_FIELD = "description"
+PURPOSE_FIELD = "purpose"
+SYNTAX_FIELD = "syntax"
+EXAMPLE_FIELD = "example"
 
 SQLType = Annotated[
     str,
@@ -143,6 +148,39 @@ class DBEmitFunction(DBFunction):
             description="If True, the function emits dynamic output columns",
             default=False,
         ),
+    ]
+
+
+class BuiltInFunction(BaseModel):
+    name: str
+    alias: Annotated[
+        str | None, Field(description="Alternative function name", default=None)
+    ]
+    types: Annotated[
+        list[str], Field(description="List of categories the function belongs to")
+    ]
+    description: Annotated[
+        str, Field(description="Description of what the function returns")
+    ]
+    purpose: Annotated[
+        str | None,
+        Field(
+            description="More detailed description of the function, if available",
+            default=None,
+        ),
+    ]
+    syntax: Annotated[
+        str | None, Field(description="Call syntax, if available", default=None)
+    ]
+    usage: Annotated[
+        list[str] | None,
+        Field(
+            description="Guidelines, restrictions and limitations if applicable",
+            default=None,
+        ),
+    ]
+    example: Annotated[
+        str | None, Field(description="One or more call examples", default=None)
     ]
 
 

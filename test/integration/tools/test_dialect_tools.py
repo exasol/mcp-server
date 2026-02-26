@@ -9,12 +9,16 @@ from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    CATEGORIES_FIELD,
     COMMENT_FIELD,
     CREATE_PARAMS_FIELD,
+    DESCRIPTION_FIELD,
+    EXAMPLE_FIELD,
     NAME_FIELD,
     PRECISION_FIELD,
     SCHEMA_FIELD,
     SQL_TYPE_FIELD,
+    USAGE_FIELD,
 )
 
 
@@ -121,8 +125,8 @@ def test_describe_builtin_function(pyexasol_connection):
     _verify_result_table(
         pyexasol_connection,
         "describe_builtin_function",
-        key_column="name",
-        other_columns=["description", "types", "usage-notes", "example"],
+        key_column=NAME_FIELD,
+        other_columns=[DESCRIPTION_FIELD, CATEGORIES_FIELD, USAGE_FIELD, EXAMPLE_FIELD],
         expected_keys=["TO_DATE"],
         name="to_date",
     )

@@ -9,3 +9,5 @@
 * #151: Sorted out the source files and tests into directories.
 * #158: Refined tool's input parameter signatures.
 * #160: Changed the return type schema for the DB tools.
+* #163: Changed the return type schema for BucketFS tools.
+* #164: Changed the return type schema for built-in functions.

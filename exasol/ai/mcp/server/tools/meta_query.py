@@ -295,12 +295,8 @@ class ExasolMetaQuery:
         query = (
             exp.Select()
             .select(
-                exp.column("SCHEMA_NAME", table="S").as_(
-                    self._config.schemas.name_field
-                ),
-                exp.column("SCHEMA_COMMENT", table="S").as_(
-                    self._config.schemas.comment_field
-                ),
+                exp.column("SCHEMA_NAME", table="S").as_(NAME_FIELD),
+                exp.column("SCHEMA_COMMENT", table="S").as_(COMMENT_FIELD),
                 exp.column(INFO_COLUMN, db="O"),
             )
             .from_(exp.Table(this="EXA_ALL_SCHEMAS", db="SYS").as_("S"))
