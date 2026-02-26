@@ -170,13 +170,13 @@ def _get_schema_param(schema: ExaSchema, restricted: bool, case_sensitive: bool)
 @pytest.mark.parametrize(
     ["tool_name", "meta_types"],
     [
-        ("list_schemas", ["schemas"]),
-        ("list_tables", ["tables", "views"]),
-        ("list_functions", ["functions"]),
-        ("list_scripts", ["scripts"]),
-        ("describe_table", ["columns"]),
-        ("describe_function", ["parameters"]),
-        ("describe_script", ["parameters"]),
+        ("list_exasol_schemas", ["schemas"]),
+        ("list_exasol_tables_and_views", ["tables", "views"]),
+        ("list_exasol_custom_functions", ["functions"]),
+        ("list_exasol_user_defined_functions", ["scripts"]),
+        ("describe_exasol_table_or_view", ["columns"]),
+        ("describe_exasol_custom_function", ["parameters"]),
+        ("describe_exasol_user_defined_function", ["parameters"]),
     ],
 )
 def test_tool_disabled(
@@ -215,7 +215,7 @@ def test_list_schemas(
                 regexp_pattern=schema.name if use_regexp else "",
             )
         )
-        result = run_tool(pyexasol_connection, config, "list_schemas")
+        result = run_tool(pyexasol_connection, config, "list_exasol_schemas")
         result_json = get_list_result_json(result)
         expected_json = _get_expected_list_json([schema], schema.name, config.schemas)
         if use_like or use_regexp:
@@ -237,7 +237,7 @@ def test_find_schemas(
         if not schema.is_new:
             continue
         result = run_tool(
-            pyexasol_connection, config, "find_schemas", keywords=schema.keywords
+            pyexasol_connection, config, "find_exasol_schemas", keywords=schema.keywords
         )
         result_json = get_result_json(result)[0]
         expected_json = {NAME_FIELD: schema.name, COMMENT_FIELD: schema.comment}
@@ -316,7 +316,7 @@ def test_list_tables(
         result = run_tool(
             pyexasol_connection,
             config,
-            "list_tables",
+            "list_exasol_tables_and_views",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = get_list_result_json(result)
@@ -385,7 +385,7 @@ def test_find_tables(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "find_tables",
+                "find_exasol_tables_and_views",
                 keywords=table.keywords,
                 schema_name=_get_schema_param(
                     schema, use_like or use_regexp, case_sensitive
@@ -438,7 +438,7 @@ def test_list_functions(
         result = run_tool(
             pyexasol_connection,
             config,
-            "list_functions",
+            "list_exasol_custom_functions",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = get_list_result_json(result)
@@ -496,7 +496,7 @@ def test_find_functions(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "find_functions",
+                "find_exasol_custom_functions",
                 keywords=func.keywords,
                 schema_name=_get_schema_param(
                     schema, use_like or use_regexp, case_sensitive
@@ -548,7 +548,7 @@ def test_list_scripts(
         result = run_tool(
             pyexasol_connection,
             config,
-            "list_scripts",
+            "list_exasol_user_defined_functions",
             schema_name=_get_schema_param(schema, False, case_sensitive),
         )
         result_json = get_list_result_json(result)
@@ -605,7 +605,7 @@ def test_find_scripts(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "find_scripts",
+                "find_exasol_user_defined_functions",
                 keywords=script.keywords,
                 schema_name=_get_schema_param(
                     schema, use_like or use_regexp, case_sensitive
@@ -638,7 +638,7 @@ def test_describe_table(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "describe_table",
+                "describe_exasol_table_or_view",
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 table_name=_get_db_name_param(table, case_sensitive),
             )
@@ -655,7 +655,7 @@ def test_describe_sys_table(pyexasol_connection) -> None:
     result = run_tool(
         pyexasol_connection,
         config,
-        "describe_table",
+        "describe_exasol_table_or_view",
         schema_name="SYS",
         table_name="EXA_ALL_COLUMNS",
     )
@@ -683,7 +683,7 @@ def test_describe_view_comment(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "describe_table",
+                "describe_exasol_table_or_view",
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 table_name=_get_db_name_param(view, case_sensitive),
             )
@@ -694,9 +694,9 @@ def test_describe_view_comment(
 @pytest.mark.parametrize(
     ["tool_name", "other_kwargs"],
     [
-        ("describe_table", {"table_name": "ski_resort"}),
-        ("describe_function", {"func_name": "factorial"}),
-        ("describe_script", {"script_name": "fibonacci"}),
+        ("describe_exasol_table_or_view", {"table_name": "ski_resort"}),
+        ("describe_exasol_custom_function", {"func_name": "factorial"}),
+        ("describe_exasol_user_defined_function", {"script_name": "fibonacci"}),
     ],
     ids=["describe_table", "describe_function", "describe_script"],
 )
@@ -716,7 +716,12 @@ def test_describe_no_schema_name(
 
 
 @pytest.mark.parametrize(
-    "tool_name", ["describe_table", "describe_function", "describe_script"]
+    "tool_name",
+    [
+        "describe_exasol_table_or_view",
+        "describe_exasol_custom_function",
+        "describe_exasol_user_defined_function",
+    ],
 )
 def test_describe_no_db_object_name(
     pyexasol_connection, setup_database, db_schemas, tool_name
@@ -758,7 +763,7 @@ def test_describe_function(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "describe_function",
+                "describe_exasol_custom_function",
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 func_name=_get_db_name_param(func, case_sensitive),
             )
@@ -787,7 +792,7 @@ def test_describe_script(
             result = run_tool(
                 pyexasol_connection,
                 config,
-                "describe_script",
+                "describe_exasol_user_defined_function",
                 schema_name=_get_db_name_param(schema, case_sensitive),
                 script_name=_get_db_name_param(script, case_sensitive),
             )
@@ -811,7 +816,10 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
             result = run_tool(
-                pyexasol_connection, config, tool_name="execute_query", query=query
+                pyexasol_connection,
+                config,
+                tool_name="execute_exasol_query",
+                query=query,
             )
             if result.content:
                 result_json = get_list_result_json(result)
@@ -841,5 +849,8 @@ def test_execute_query_error(
             )
             with pytest.raises(ToolError):
                 run_tool(
-                    pyexasol_connection, config, tool_name="execute_query", query=query
+                    pyexasol_connection,
+                    config,
+                    tool_name="execute_exasol_query",
+                    query=query,
                 )

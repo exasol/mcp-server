@@ -41,8 +41,8 @@ themselves are not protected with OAuth.
 
 We test two tools. One, called "say_hello" is an artificial that doesn't require the
 database. With this tool we test only the MCP Client/Server setup. Another one -
-"list_schemas" - is a real tool that does require the database connection. This one
-allows us to run a complete test.
+"list_exasol_schemas" - is a real tool that does require the database connection.
+This one allows us to run a complete test.
 
 Update on 13-Nov-2025:
 The tests running MCP server with OAuth Proxy now can only run manually, from a CLI.
@@ -639,7 +639,7 @@ def _run_list_schemas_test(
     result_text = asyncio.run(
         _run_tool_async(
             http_server_url,
-            "list_schemas",
+            "list_exasol_schemas",
             token=token,
             auto_auth=auto_auth,
             headers=headers,

@@ -11,3 +11,4 @@
 * #160: Changed the return type schema for the DB tools.
 * #163: Changed the return type schema for BucketFS tools.
 * #164: Changed the return type schema for built-in functions.
+* #168: Updated tool names and descriptions.

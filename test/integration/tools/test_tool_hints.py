@@ -32,33 +32,47 @@ def test_tool_hints(pyexasol_connection) -> None:
 
     tool_list = {get_tool_hints(tool) for tool in result}
     expected_tool_list = {
-        ToolHints(tool_name="list_schemas", read_only=True),
-        ToolHints(tool_name="find_schemas", read_only=True),
-        ToolHints(tool_name="list_tables", read_only=True),
-        ToolHints(tool_name="find_tables", read_only=True),
-        ToolHints(tool_name="list_functions", read_only=True),
-        ToolHints(tool_name="find_functions", read_only=True),
-        ToolHints(tool_name="list_scripts", read_only=True),
-        ToolHints(tool_name="find_scripts", read_only=True),
-        ToolHints(tool_name="describe_table", read_only=True),
-        ToolHints(tool_name="describe_function", read_only=True),
-        ToolHints(tool_name="describe_script", read_only=True),
-        ToolHints(tool_name="execute_query", read_only=True),
-        ToolHints(tool_name="execute_write_query", destructive=True),
-        ToolHints(tool_name="list_sql_types", read_only=True, idempotent=True),
-        ToolHints(tool_name="list_system_tables", read_only=True, idempotent=True),
-        ToolHints(tool_name="describe_system_table", read_only=True, idempotent=True),
-        ToolHints(tool_name="list_statistics_tables", read_only=True, idempotent=True),
+        ToolHints(tool_name="list_exasol_schemas", read_only=True),
+        ToolHints(tool_name="find_exasol_schemas", read_only=True),
+        ToolHints(tool_name="list_exasol_tables_and_views", read_only=True),
+        ToolHints(tool_name="find_exasol_tables_and_views", read_only=True),
+        ToolHints(tool_name="list_exasol_custom_functions", read_only=True),
+        ToolHints(tool_name="find_exasol_custom_functions", read_only=True),
+        ToolHints(tool_name="list_exasol_user_defined_functions", read_only=True),
+        ToolHints(tool_name="find_exasol_user_defined_functions", read_only=True),
+        ToolHints(tool_name="describe_exasol_table_or_view", read_only=True),
+        ToolHints(tool_name="describe_exasol_custom_function", read_only=True),
+        ToolHints(tool_name="describe_exasol_user_defined_function", read_only=True),
+        ToolHints(tool_name="execute_exasol_query", read_only=True),
+        ToolHints(tool_name="execute_exasol_write_query", destructive=True),
+        ToolHints(tool_name="list_exasol_sql_types", read_only=True, idempotent=True),
         ToolHints(
-            tool_name="describe_statistics_table", read_only=True, idempotent=True
+            tool_name="list_exasol_system_tables", read_only=True, idempotent=True
         ),
-        ToolHints(tool_name="list_keywords", read_only=True, idempotent=True),
         ToolHints(
-            tool_name="builtin_function_categories", read_only=True, idempotent=True
+            tool_name="describe_exasol_system_table", read_only=True, idempotent=True
         ),
-        ToolHints(tool_name="list_builtin_functions", read_only=True, idempotent=True),
         ToolHints(
-            tool_name="describe_builtin_function", read_only=True, idempotent=True
+            tool_name="list_exasol_statistics_tables", read_only=True, idempotent=True
+        ),
+        ToolHints(
+            tool_name="describe_exasol_statistics_table",
+            read_only=True,
+            idempotent=True,
+        ),
+        ToolHints(tool_name="list_exasol_keywords", read_only=True, idempotent=True),
+        ToolHints(
+            tool_name="list_exasol_built_in_function_categories",
+            read_only=True,
+            idempotent=True,
+        ),
+        ToolHints(
+            tool_name="list_exasol_built_in_functions", read_only=True, idempotent=True
+        ),
+        ToolHints(
+            tool_name="describe_exasol_built_in_function",
+            read_only=True,
+            idempotent=True,
         ),
     }
     assert tool_list == expected_tool_list
