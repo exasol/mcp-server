@@ -62,7 +62,7 @@ should contain the path to this file, e.g.
 Please see the :doc:`tool_setup` for details on how the MCP Server tools
 can be customised.
 
-Tool list
+Tool List
 ---------
 
 The complete list of available tools can be found in :doc:`tool_list`.

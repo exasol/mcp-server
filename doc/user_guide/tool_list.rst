@@ -1,11 +1,11 @@
-Exasol MCP Server tools
+Exasol MCP Server Tools
 =======================
 
 .. contents::
    :local:
    :depth: 2
 
-Tools providing information about custom database objects
+Tools Providing Information About Custom Database Objects
 ---------------------------------------------------------
 
 list_exasol_schemas
@@ -177,7 +177,7 @@ describe_exasol_user_defined_function
             - ``type``: SQL type
         - ``dynamic_output``: for emit type UDF, indication that the UDF emits dynamic output
 
-Tools executing a query
+Tools Executing a Query
 -----------------------
 
 execute_exasol_query
@@ -205,7 +205,7 @@ execute_exasol_write_query
     - **Data**:
         None if the query was executed it its original form, otherwise modified query
 
-Tools for reading, writing and deleting files in BucketFS
+Tools for Reading, Writing and Deleting Files in BucketFS
 ---------------------------------------------------------
 
 list_bucketfs_directories
@@ -300,7 +300,7 @@ delete_bucketfs_directory
 :Returns:
     - **Type**: ``None``
 
-Tools providing information about Exasol SQL dialect
+Tools Providing Information About Exasol SQL Dialect
 ----------------------------------------------------
 
 list_exasol_sql_types
