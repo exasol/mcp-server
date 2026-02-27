@@ -11,4 +11,5 @@
     db_connection_setup
     bucketfs_setup
     open_id_setup
+    tool_list
     deployment
