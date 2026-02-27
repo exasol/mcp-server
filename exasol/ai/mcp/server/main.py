@@ -157,7 +157,7 @@ def _register_list_directories(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.list_directories,
             name="list_bucketfs_directories",
-            description=("Returns subdirectories of a specified directory."),
+            description="Returns subdirectories of a specified directory.",
             annotations=ToolAnnotations(readOnlyHint=True),
         )
 
@@ -208,7 +208,7 @@ def _register_download_file(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.download_file,
             description=(
-                "Downloads a file from a given url and saves in the BucketFS. "
+                "Downloads a file from a given url and saves it in the BucketFS. "
                 "The file will overwrite an existing file."
             ),
             annotations=ToolAnnotations(destructiveHint=True),
@@ -229,7 +229,7 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.delete_directory,
             name="delete_bucketfs_directory",
-            description=("Will recursively delete all files and all subdirectories."),
+            description="Will recursively delete all files and all subdirectories.",
             annotations=ToolAnnotations(destructiveHint=True),
         )
 
