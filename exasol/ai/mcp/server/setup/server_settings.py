@@ -1,8 +1,4 @@
-from dataclasses import dataclass
-from typing import (
-    Annotated,
-    Any,
-)
+from typing import Annotated
 
 from pydantic import BaseModel
 from pydantic.functional_validators import AfterValidator
@@ -15,11 +11,6 @@ def check_no_double_quotes(v: str) -> str:
 
 
 NoDoubleQuotesStr = Annotated[str, AfterValidator(check_no_double_quotes)]
-
-
-@dataclass
-class ExaDbResult:
-    result: list[dict[str, Any]]
 
 
 class MetaSettings(BaseModel):

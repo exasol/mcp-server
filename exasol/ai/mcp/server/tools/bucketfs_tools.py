@@ -22,7 +22,6 @@ from pydantic import (
 )
 
 from exasol.ai.mcp.server.setup.server_settings import (
-    ExaDbResult,
     McpServerSettings,
 )
 from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
@@ -99,12 +98,9 @@ class BucketFsTools:
 
     def _list_items(
         self, directory: str, item_filter: Callable[[bfs.path.PathLike], bool]
-    ) -> ExaDbResult:
+    ) -> list[str]:
         abs_dir = self.bfs_location.joinpath(directory)
-        content = [
-            {PATH_FIELD: str(pth)} for pth in abs_dir.iterdir() if item_filter(pth)
-        ]
-        return ExaDbResult(content)
+        return [str(pth) for pth in abs_dir.iterdir() if item_filter(pth)]
 
     def _get_path_status(self, path: str) -> PathStatus:
         # First check if the path has any of the BucketFS own disallowed characters.
@@ -212,14 +208,14 @@ class BucketFsTools:
 
         return response_type_factory
 
-    def list_directories(self, directory: OptionalDirectoryArg) -> ExaDbResult:
+    def list_directories(self, directory: OptionalDirectoryArg) -> list[str]:
         """
         Lists subdirectories at the given directory. The directory path is relative
         to the root location.
         """
         return self._list_items(directory, lambda pth: pth.is_dir())
 
-    def list_files(self, directory: OptionalDirectoryArg) -> ExaDbResult:
+    def list_files(self, directory: OptionalDirectoryArg) -> list[str]:
         """
         Lists files at the given directory. The directory path is relative to the
         root location.
@@ -238,7 +234,7 @@ class BucketFsTools:
             ),
         ],
         directory: OptionalDirectoryArg,
-    ) -> ExaDbResult:
+    ) -> list[str]:
         """
         Performs a keyword search of files at the given directory and all its descendant
         subdirectories. The path is relative to the root location.
@@ -249,9 +245,8 @@ class BucketFsTools:
             for dir_path, dir_names, file_names in abs_dir.walk()
             for file_name in file_names
         ]
-        return ExaDbResult(
-            keyword_filter(content, keywords, language=self.config.language)
-        )
+        content = keyword_filter(content, keywords, language=self.config.language)
+        return [item[PATH_FIELD] for item in content]
 
     def read_file(self, path: FileArg) -> str:
         """

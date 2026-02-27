@@ -12,11 +12,10 @@ from test.utils.db_objects import (
 )
 from test.utils.result_utils import (
     ToolHints,
-    get_list_result_json,
     get_result_content,
+    get_result_json,
     get_tool_hints,
     list_tools,
-    result_sort_func,
 )
 from unittest.mock import (
     create_autospec,
@@ -40,11 +39,9 @@ from exasol.ai.mcp.server.main import (
     mcp_server,
 )
 from exasol.ai.mcp.server.setup.server_settings import (
-    ExaDbResult,
     McpServerSettings,
 )
 from exasol.ai.mcp.server.tools.bucketfs_tools import (
-    PATH_FIELD,
     PathStatus,
     get_path_warning,
 )
@@ -163,9 +160,8 @@ def _run_tool(
     )
 
 
-def _get_expected_list_json(items: dict[str, ExaBfsObject]) -> ExaDbResult:
-    expected_json = [{PATH_FIELD: path} for path, item in items.items()]
-    return ExaDbResult(sorted(expected_json, key=result_sort_func))
+def _get_expected_list(items: dict[str, ExaBfsObject]) -> list[str]:
+    return sorted([path for path, item in items.items()])
 
 
 @retry(
@@ -264,21 +260,21 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
             result = _run_tool(bucketfs_location, "list_directories", directory=path)
-            result_json = get_list_result_json(result)
+            result_json = sorted(get_result_json(result))
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
                 for sub_item in item.items
                 if isinstance(sub_item, ExaBfsDir)
             }
-            expected_json = _get_expected_list_json(expected_nodes)
+            expected_json = _get_expected_list(expected_nodes)
             assert result_json == expected_json
 
 
 def test_list_directories_root(bucketfs_location, bfs_data) -> None:
     result = _run_tool(bucketfs_location, "list_directories")
-    result_json = get_list_result_json(result)
+    result_json = sorted(get_result_json(result))
     expected_nodes = {bfs_data.name: bfs_data}
-    expected_json = _get_expected_list_json(expected_nodes)
+    expected_json = _get_expected_list(expected_nodes)
     assert result_json == expected_json
 
 
@@ -287,21 +283,19 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
             result = _run_tool(bucketfs_location, "list_files", directory=path)
-            result_json = get_list_result_json(result)
+            result_json = sorted(get_result_json(result)) if result.content else []
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
                 for sub_item in item.items
                 if isinstance(sub_item, ExaBfsFile)
             }
-            expected_json = _get_expected_list_json(expected_nodes)
+            expected_json = _get_expected_list(expected_nodes)
             assert result_json == expected_json
 
 
 def test_list_files_root(bucketfs_location) -> None:
     result = _run_tool(bucketfs_location, "list_files")
-    result_json = get_list_result_json(result)
-    expected_json = _get_expected_list_json({})
-    assert result_json == expected_json
+    assert not result.content
 
 
 def test_list_not_in_directory(bucketfs_location, bfs_data) -> None:
@@ -328,9 +322,9 @@ def test_find_files(bucketfs_location, bfs_data, path) -> None:
     result = _run_tool(
         bucketfs_location, "find_files", keywords=keywords, directory=path
     )
-    result_json = get_list_result_json(result)
+    result_json = sorted(get_result_json(result))
     expected_nodes = bfs_data.find_descendants(["Cougar", "Bobcat"])
-    expected_json = _get_expected_list_json(expected_nodes)
+    expected_json = _get_expected_list(expected_nodes)
     assert result_json == expected_json
 
 
