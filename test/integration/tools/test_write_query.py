@@ -26,10 +26,10 @@ async def _run_tool_async(
     connection: ExaConnection, config: McpServerSettings, action: str | None, query: str
 ):
     """
-    Runs the `execute_write_query`, returning the specified action from what would be
-    a user elicitation input. If the action is None, the elicitation handler is not
-    registered. This can be used to test the case when a client application does not
-    support elicitation.
+    Runs the `execute_exasol_write_query`, returning the specified action from what
+    would be a user elicitation input. If the action is None, the elicitation handler
+    is not registered. This can be used to test the case when a client application
+    does not support elicitation.
     """
 
     @contextmanager
@@ -47,7 +47,7 @@ async def _run_tool_async(
 
     el_handler = elicitation_handler if action else None
     async with Client(exa_server, elicitation_handler=el_handler) as client:
-        return await client.call_tool("execute_write_query", {"query": query})
+        return await client.call_tool("execute_exasol_write_query", {"query": query})
 
 
 def _run_tool(
@@ -66,7 +66,7 @@ def _validate_table_creation(
 ) -> None:
     """
     Validates that it is possible to create a table and insert some rows into
-    it, using the `execute_write_query` tool.
+    it, using the `execute_exasol_write_query` tool.
     Misformed query will be corrected by the "user" in the elicitation.
     In this case, the tool should return the updated query.
     """

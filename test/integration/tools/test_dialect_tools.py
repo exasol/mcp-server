@@ -44,7 +44,7 @@ def _verify_result_table(
 def test_list_sql_types(pyexasol_connection):
     _verify_result_table(
         pyexasol_connection,
-        "list_sql_types",
+        "list_exasol_sql_types",
         key_column=SQL_TYPE_FIELD,
         other_columns=[CREATE_PARAMS_FIELD, PRECISION_FIELD],
         expected_keys=["CHAR", "VARCHAR", "DECIMAL"],
@@ -52,7 +52,7 @@ def test_list_sql_types(pyexasol_connection):
 
 
 def test_list_system_tables(pyexasol_connection):
-    result = _run_tool(pyexasol_connection, "list_system_tables")
+    result = _run_tool(pyexasol_connection, "list_exasol_system_tables")
     result_json = get_result_json(result)
     assert all(
         table_name in result_json for table_name in ["EXA_ALL_COLUMNS", "EXA_CLUSTERS"]
@@ -61,7 +61,9 @@ def test_list_system_tables(pyexasol_connection):
 
 def test_describe_system_table(pyexasol_connection):
     result = _run_tool(
-        pyexasol_connection, "describe_system_table", table_name="exa_all_columns"
+        pyexasol_connection,
+        "describe_exasol_system_table",
+        table_name="exa_all_columns",
     )
     result_json = get_result_json(result)
     assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])
@@ -70,7 +72,7 @@ def test_describe_system_table(pyexasol_connection):
 
 
 def test_list_statistics_tables(pyexasol_connection):
-    result = _run_tool(pyexasol_connection, "list_statistics_tables")
+    result = _run_tool(pyexasol_connection, "list_exasol_statistics_tables")
     result_json = get_result_json(result)
     assert all(
         table_name in result_json
@@ -80,7 +82,9 @@ def test_list_statistics_tables(pyexasol_connection):
 
 def test_describe_statistics_tables(pyexasol_connection):
     result = _run_tool(
-        pyexasol_connection, "describe_statistics_table", table_name="exa_sql_daily"
+        pyexasol_connection,
+        "describe_exasol_statistics_table",
+        table_name="exa_sql_daily",
     )
     result_json = get_result_json(result)
     assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])
@@ -89,7 +93,9 @@ def test_describe_statistics_tables(pyexasol_connection):
 
 
 def test_list_reserved_keywords(pyexasol_connection):
-    result = _run_tool(pyexasol_connection, "list_keywords", reserved=True, letter="a")
+    result = _run_tool(
+        pyexasol_connection, "list_exasol_keywords", reserved=True, letter="a"
+    )
     result_json = get_result_json(result)
     assert all(keyword.startswith("A") for keyword in result_json)
     assert all(keyword in result_json for keyword in ["ALL", "ANY", "ARE"])
@@ -97,7 +103,9 @@ def test_list_reserved_keywords(pyexasol_connection):
 
 
 def test_list_non_reserved_keywords(pyexasol_connection):
-    result = _run_tool(pyexasol_connection, "list_keywords", reserved=False, letter="a")
+    result = _run_tool(
+        pyexasol_connection, "list_exasol_keywords", reserved=False, letter="a"
+    )
     result_json = get_result_json(result)
     assert all(keyword.startswith("A") for keyword in result_json)
     assert all(keyword in result_json for keyword in ["ABS", "ADD_YEARS", "ALWAYS"])
@@ -105,7 +113,7 @@ def test_list_non_reserved_keywords(pyexasol_connection):
 
 
 def test_builtin_function_categories(pyexasol_connection):
-    result = _run_tool(pyexasol_connection, "builtin_function_categories")
+    result = _run_tool(pyexasol_connection, "list_exasol_built_in_function_categories")
     result_json = get_result_json(result)
     assert all(
         expected_name in result_json
@@ -115,7 +123,7 @@ def test_builtin_function_categories(pyexasol_connection):
 
 def test_list_builtin_functions(pyexasol_connection):
     result = _run_tool(
-        pyexasol_connection, "list_builtin_functions", category="numeric"
+        pyexasol_connection, "list_exasol_built_in_functions", category="numeric"
     )
     result_json = get_result_json(result)
     assert all(expected_name in result_json for expected_name in ["CEILING", "DEGREES"])
@@ -124,7 +132,7 @@ def test_list_builtin_functions(pyexasol_connection):
 def test_describe_builtin_function(pyexasol_connection):
     _verify_result_table(
         pyexasol_connection,
-        "describe_builtin_function",
+        "describe_exasol_built_in_function",
         key_column=NAME_FIELD,
         other_columns=[DESCRIPTION_FIELD, CATEGORIES_FIELD, USAGE_FIELD, EXAMPLE_FIELD],
         expected_keys=["TO_DATE"],

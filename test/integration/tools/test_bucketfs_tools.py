@@ -259,7 +259,9 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
     for item in bfs_data.items:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
-            result = _run_tool(bucketfs_location, "list_directories", directory=path)
+            result = _run_tool(
+                bucketfs_location, "list_bucketfs_directories", directory=path
+            )
             result_json = sorted(get_result_json(result))
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
@@ -271,7 +273,7 @@ def test_list_directories(bucketfs_location, bfs_data) -> None:
 
 
 def test_list_directories_root(bucketfs_location, bfs_data) -> None:
-    result = _run_tool(bucketfs_location, "list_directories")
+    result = _run_tool(bucketfs_location, "list_bucketfs_directories")
     result_json = sorted(get_result_json(result))
     expected_nodes = {bfs_data.name: bfs_data}
     expected_json = _get_expected_list(expected_nodes)
@@ -282,7 +284,7 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
     for item in bfs_data.items:
         if isinstance(item, ExaBfsDir):
             path = f"{bfs_data.name}/{item.name}"
-            result = _run_tool(bucketfs_location, "list_files", directory=path)
+            result = _run_tool(bucketfs_location, "list_bucketfs_files", directory=path)
             result_json = sorted(get_result_json(result)) if result.content else []
             expected_nodes = {
                 f"{path}/{sub_item.name}": sub_item
@@ -294,7 +296,7 @@ def test_list_files(bucketfs_location, bfs_data) -> None:
 
 
 def test_list_files_root(bucketfs_location) -> None:
-    result = _run_tool(bucketfs_location, "list_files")
+    result = _run_tool(bucketfs_location, "list_bucketfs_files")
     assert not result.content
 
 
@@ -303,24 +305,26 @@ def test_list_not_in_directory(bucketfs_location, bfs_data) -> None:
         if isinstance(item, ExaBfsFile):
             path = f"{bfs_data.name}/{item.name}"
             with pytest.raises(ToolError):
-                _run_tool(bucketfs_location, "list_directories", directory=path)
+                _run_tool(
+                    bucketfs_location, "list_bucketfs_directories", directory=path
+                )
             with pytest.raises(ToolError):
-                _run_tool(bucketfs_location, "list_files", directory=path)
+                _run_tool(bucketfs_location, "list_bucketfs_files", directory=path)
 
 
 def test_list_in_nowhere(bucketfs_location, bfs_data) -> None:
     path = f"{bfs_data.name}/Unicorn"
     with pytest.raises(ToolError):
-        _run_tool(bucketfs_location, "list_directories", directory=path)
+        _run_tool(bucketfs_location, "list_bucketfs_directories", directory=path)
     with pytest.raises(ToolError):
-        _run_tool(bucketfs_location, "list_files", directory=path)
+        _run_tool(bucketfs_location, "list_bucketfs_files", directory=path)
 
 
 @pytest.mark.parametrize("path", ["Species/Carnivores", "Species", ""])
 def test_find_files(bucketfs_location, bfs_data, path) -> None:
     keywords = ["cat"]
     result = _run_tool(
-        bucketfs_location, "find_files", keywords=keywords, directory=path
+        bucketfs_location, "find_bucketfs_files", keywords=keywords, directory=path
     )
     result_json = sorted(get_result_json(result))
     expected_nodes = bfs_data.find_descendants(["Cougar", "Bobcat"])
@@ -332,7 +336,7 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
     file_path = "Species/Rodents/Squirrel/Eastern_Gray_Squirrel"
     item = next(iter(bfs_data.find_descendants(["Eastern_Gray_Squirrel"]).values()))
     assert isinstance(item, ExaBfsFile)
-    result = _run_tool(bucketfs_location, "read_file", path=file_path)
+    result = _run_tool(bucketfs_location, "read_bucketfs_text_file", path=file_path)
     content = get_result_content(result)
     assert content == str(item.content, encoding="utf-8")
 
@@ -431,12 +435,14 @@ def test_write_text_to_file(bucketfs_location, test_case) -> None:
     with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
         _run_tool(
             bucketfs_location,
-            "write_text_to_file",
+            "write_text_to_bucketfs_file",
             elicitation=test_case.elicitations,
             path=test_case.path,
             content=test_case.content,
         )
-        result = _run_tool(bucketfs_location, "read_file", path=test_case.expected_path)
+        result = _run_tool(
+            bucketfs_location, "read_bucketfs_text_file", path=test_case.expected_path
+        )
         content = get_result_content(result)
         assert content == test_case.expected_content
 
@@ -453,7 +459,7 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
     with pytest.raises(ToolError):
         _run_tool(
             bucketfs_location,
-            "write_text_to_file",
+            "write_text_to_bucketfs_file",
             elicitation=elicitation,
             path=path,
             content=_home_luminis,
@@ -549,7 +555,9 @@ def test_download_file(bucketfs_location, test_case, httpserver) -> None:
             url=httpserver.url_for(url_path),
             path=test_case.path,
         )
-        result = _run_tool(bucketfs_location, "read_file", path=test_case.expected_path)
+        result = _run_tool(
+            bucketfs_location, "read_bucketfs_text_file", path=test_case.expected_path
+        )
         content = get_result_content(result)
         assert content == _home_luminis
 
@@ -670,7 +678,7 @@ def test_delete_file(bucketfs_location, test_case) -> None:
     with tmp_path_write(abs_path):
         _run_tool(
             bucketfs_location,
-            "delete_file",
+            "delete_bucketfs_file",
             elicitation=test_case.elicitations,
             expected_status=PathStatus.FileExists,
             path=test_case.path,
@@ -688,7 +696,12 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
         ElicitationData(path_status=PathStatus.FileExists, action=action, data={}),
     ]
     with pytest.raises(ToolError):
-        _run_tool(bucketfs_location, "delete_file", elicitation=elicitation, path=path)
+        _run_tool(
+            bucketfs_location,
+            "delete_bucketfs_file",
+            elicitation=elicitation,
+            path=path,
+        )
     bfs_path = bucketfs_location.joinpath(path)
     assert bfs_path.exists()
 
@@ -763,7 +776,7 @@ def test_delete_directory(bucketfs_location, test_case) -> None:
     with tmp_path_write(abs_path):
         _run_tool(
             bucketfs_location,
-            "delete_directory",
+            "delete_bucketfs_directory",
             elicitation=test_case.elicitations,
             expected_status=PathStatus.DirExists,
             path=test_case.path,
@@ -782,7 +795,10 @@ def test_delete_directory_not_accepted(bucketfs_location, action) -> None:
     ]
     with pytest.raises(ToolError):
         _run_tool(
-            bucketfs_location, "delete_directory", elicitation=elicitation, path=path
+            bucketfs_location,
+            "delete_bucketfs_directory",
+            elicitation=elicitation,
+            path=path,
         )
     bfs_path = bucketfs_location.joinpath(path)
     assert bfs_path.exists()
@@ -793,12 +809,12 @@ def test_write_file_no_elicitation(bucketfs_location, no_elicit_config) -> None:
     with tmp_path_write(bucketfs_location.joinpath(path)):
         _run_tool(
             bucketfs_location,
-            "write_text_to_file",
+            "write_text_to_bucketfs_file",
             config=no_elicit_config,
             path=path,
             content=_human,
         )
-        result = _run_tool(bucketfs_location, "read_file", path=path)
+        result = _run_tool(bucketfs_location, "read_bucketfs_text_file", path=path)
         content = get_result_content(result)
         assert content == _human
 
@@ -817,7 +833,7 @@ def test_download_file_no_elicitation(
             url=httpserver.url_for(url),
             path=path,
         )
-        result = _run_tool(bucketfs_location, "read_file", path=path)
+        result = _run_tool(bucketfs_location, "read_bucketfs_text_file", path=path)
         content = get_result_content(result)
         assert content == _human
 
@@ -829,7 +845,7 @@ def test_delete_file_no_elicitation(bucketfs_location, no_elicit_config) -> None
     with tmp_path_write(abs_path):
         _run_tool(
             bucketfs_location,
-            "delete_file",
+            "delete_bucketfs_file",
             config=no_elicit_config,
             path=path,
         )
@@ -843,7 +859,7 @@ def test_delete_directory_no_elicitation(bucketfs_location, no_elicit_config) ->
     with tmp_path_write(abs_path):
         _run_tool(
             bucketfs_location,
-            "delete_directory",
+            "delete_bucketfs_directory",
             config=no_elicit_config,
             path=path,
         )
@@ -859,13 +875,13 @@ def test_bucketfs_tool_hints(pyexasol_connection, bucketfs_location) -> None:
 
     tool_list = {get_tool_hints(tool) for tool in result}
     expected_tool_list = {
-        ToolHints(tool_name="list_directories", read_only=True),
-        ToolHints(tool_name="list_files", read_only=True),
-        ToolHints(tool_name="find_files", read_only=True),
-        ToolHints(tool_name="read_file", read_only=True),
-        ToolHints(tool_name="write_text_to_file", destructive=True),
+        ToolHints(tool_name="list_bucketfs_directories", read_only=True),
+        ToolHints(tool_name="list_bucketfs_files", read_only=True),
+        ToolHints(tool_name="find_bucketfs_files", read_only=True),
+        ToolHints(tool_name="read_bucketfs_text_file", read_only=True),
+        ToolHints(tool_name="write_text_to_bucketfs_file", destructive=True),
         ToolHints(tool_name="download_file", destructive=True),
-        ToolHints(tool_name="delete_file", destructive=True),
-        ToolHints(tool_name="delete_directory", destructive=True),
+        ToolHints(tool_name="delete_bucketfs_file", destructive=True),
+        ToolHints(tool_name="delete_bucketfs_directory", destructive=True),
     }
     assert tool_list.issuperset(expected_tool_list)
