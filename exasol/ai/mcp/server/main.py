@@ -536,7 +536,6 @@ def setup_telemetry(logger: logging.Logger):
     try:
         if not telemetry.was_setup():
             telemetry.setup()
-            # todo: need to register the server shutdown event hook
             telemetry.track("mcp-server.started")
     except telemetry.TelemetryError as e:
         logger.warning("Telemetry init error: %s", str(e))
