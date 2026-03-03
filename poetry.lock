@@ -1470,14 +1470,14 @@ pydantic = ">=2.10.2,<3.0.0"
 
 [[package]]
 name = "exasol-telemetry-client"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "exasol_telemetry_client-0.1.0-py3-none-any.whl", hash = "sha256:0547b75c7f9b4a83849f1a1919b3a76afee4f28d1e0dedeb5f0085e15a1f7aff"},
-    {file = "exasol_telemetry_client-0.1.0.tar.gz", hash = "sha256:b44e0b4d10dede05623298cb180d88b399c7b7f0f6a36b398d9367fc32afb3a3"},
+    {file = "exasol_telemetry_client-0.1.1-py3-none-any.whl", hash = "sha256:d1d7f01d86ec5cc7fa2b055eb45342c7ddb16142421657a64e3a3951228a0e70"},
+    {file = "exasol_telemetry_client-0.1.1.tar.gz", hash = "sha256:97228dba9e89fe0ae94ce434e202e18c06e26602d952e02d725690e820379217"},
 ]
 
 [package.dependencies]
@@ -6374,4 +6374,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "ede2623c01d376fa30cc9496be1de82c5e3d67c1e415801ccdc2fffc141e9c6e"
+content-hash = "704e5703638b1ce5f3f0c30780a92c58750d58538d7b85afe803c18c8abfc8ca"

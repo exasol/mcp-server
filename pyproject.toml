@@ -37,7 +37,7 @@ exasol-saas-api = "^2.4.0"
 exasol-bucketfs = "^2.1.0"
 aiofile = "^3.9.0"
 pathvalidate = "^3.3.1"
-exasol-telemetry-client = "^0.1.0"
+exasol-telemetry-client = "0.1.1"
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^4.0.0"
