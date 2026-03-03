@@ -449,5 +449,4 @@ class ScriptParameterParser(ParameterParser):
 
         if info["SCRIPT_RESULT_TYPE"] == "EMITS":
             return self.extract_emit_udf_parameters(info)
-        else:
-            return self.extract_return_udf_parameters(info)
+        return self.extract_return_udf_parameters(info)

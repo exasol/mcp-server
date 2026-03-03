@@ -32,6 +32,8 @@ tools for reading the database metadata and executing data reading queries.
 
 * Executes provided SQL query.
 
+The complete list of tools is formally described in the `Tool List <https://exasol.github.io/mcp-server/main/user_guide/tool_list.html>`_ section of the user guide.
+
 🔌️ Prerequisites
 -----------------
 

@@ -45,10 +45,7 @@ DEFAULT_LOG_BACKUP_COUNT = 5
 def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_schemas,
-        description=(
-            "The tool lists schemas in the Exasol Database. "
-            "For each schema, it provides the name and an optional comment."
-        ),
+        name="list_exasol_schemas",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -56,12 +53,7 @@ def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
 def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_schemas,
-        description=(
-            "The tool finds schemas in the Exasol Database by looking for the "
-            "specified keywords in their names and comments. The list of keywords "
-            "should include common inflections of each keyword. "
-            "For each schema it finds, it provides the name and an optional comment."
-        ),
+        name="find_exasol_schemas",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -69,11 +61,7 @@ def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
 def _register_list_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_tables,
-        description=(
-            "The tool lists tables and views in the specified schema of the "
-            "the Exasol Database. For each table and view, it provides the "
-            "name, the schema, and an optional comment."
-        ),
+        name="list_exasol_tables_and_views",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -81,14 +69,7 @@ def _register_list_tables(mcp_server: ExasolMCPServer) -> None:
 def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_tables,
-        description=(
-            "The tool finds tables and views in the Exasol Database by looking "
-            "for the specified keywords in their names and comments. The list of "
-            "keywords should include common inflections of each keyword. "
-            "For each table or view the tool finds, it provides the name, the schema, "
-            "and an optional comment. An optional `schema_name` argument allows "
-            "restricting the search to tables and views in the specified schema."
-        ),
+        name="find_exasol_tables_and_views",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -96,11 +77,7 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
 def _register_list_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_functions,
-        description=(
-            "The tool lists functions in the specified schema of the Exasol "
-            "Database. For each function, it provides the name, the schema, "
-            "and an optional comment."
-        ),
+        name="list_exasol_custom_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -108,14 +85,7 @@ def _register_list_functions(mcp_server: ExasolMCPServer) -> None:
 def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_functions,
-        description=(
-            "The tool finds functions in the Exasol Database by looking for "
-            "the specified keywords in their names and comments. The list of "
-            "keywords should include common inflections of each keyword. "
-            "For each function the tool finds, it provides the name, the schema,"
-            "and an optional comment. An optional `schema_name` argument allows "
-            "restricting the search to functions in the specified schema."
-        ),
+        name="find_exasol_custom_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -123,11 +93,7 @@ def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
 def _register_list_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_scripts,
-        description=(
-            "The tool lists the user defined functions (UDF) in the specified "
-            "schema of the Exasol Database. For each UDF, it provides the name, "
-            "the schema, and an optional comment."
-        ),
+        name="list_exasol_user_defined_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -135,14 +101,7 @@ def _register_list_scripts(mcp_server: ExasolMCPServer) -> None:
 def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_scripts,
-        description=(
-            "The tool finds the user defined functions (UDF) in the Exasol Database "
-            "by looking for the specified keywords in their names and comments. The "
-            "list of keywords should include common inflections of each keyword. "
-            "For each UDF the tool finds, it provides the name, the schema, and an "
-            "optional comment. An optional `schema_name` argument allows restricting "
-            "the search to UDFs in the specified schema."
-        ),
+        name="find_exasol_user_defined_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -150,16 +109,7 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_table,
-        description=(
-            "The tool describes the specified table or view in the specified "
-            "schema of the Exasol Database. The description includes the list "
-            "of columns and for a table also the list of constraints. For each "
-            "column the tool provides the name, the SQL data type and an "
-            "optional comment. For each constraint it provides its type, e.g. "
-            "PRIMARY KEY, the list of columns the constraint is applied to and "
-            "an optional name. For a FOREIGN KEY it also provides the referenced "
-            "schema, table and a list of columns in the referenced table."
-        ),
+        name="describe_exasol_table_or_view",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -167,12 +117,7 @@ def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_function(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_function,
-        description=(
-            "The tool describes the specified function in the specified schema "
-            "of the Exasol Database. It provides the list of input parameters "
-            "and the return SQL type. For each parameter it specifies the name "
-            "and the SQL type."
-        ),
+        name="describe_exasol_custom_function",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -180,17 +125,7 @@ def _register_describe_function(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_script,
-        description=(
-            "The tool describes the specified user defined function (UDF) in "
-            "the specified schema of the Exasol Database. It provides the "
-            "list of input parameters, the list of emitted parameters or the "
-            "SQL type of a single returned value. For each parameter it "
-            "provides the name and the SQL type. Both the input and the "
-            "emitted parameters can be dynamic or, in other words, flexible. "
-            "The dynamic parameters are indicated with ... (triple dot) string "
-            "instead of the parameter list. The description includes some usage "
-            "notes and a call example."
-        ),
+        name="describe_exasol_user_defined_function",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -198,10 +133,9 @@ def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
 def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.execute_query,
+        name="execute_exasol_query",
         description=(
-            "The tool executes the specified query in the Exasol Database. The "
-            "query must be a SELECT statement. The tool returns data selected "
-            "by the query."
+            "The query must be a SELECT statement. Returns data selected by the query."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
@@ -210,11 +144,10 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
 def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.execute_write_query,
+        name="execute_exasol_write_query",
         description=(
-            "The tool executes the specified DML or DDL query in the Exasol Database. "
-            "The user can alter the query through elicitation. If the query was "
-            "executed it its original form, the tool returns None. Otherwise, the "
-            "tool returns a modified query."
+            "Executes DML or DDL query. Returns modified query "
+            "in case it was altered by the user, otherwise none."
         ),
         annotations=ToolAnnotations(destructiveHint=True),
     )
@@ -224,10 +157,8 @@ def _register_list_directories(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.list_directories,
-            description=(
-                "Lists subdirectories at the given directory of the BucketFS file "
-                "system."
-            ),
+            name="list_bucketfs_directories",
+            description="Returns subdirectories of a specified directory.",
             annotations=ToolAnnotations(readOnlyHint=True),
         )
 
@@ -236,7 +167,8 @@ def _register_list_files(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.list_files,
-            description="Lists files at the given directory of the BucketFS.",
+            name="list_bucketfs_files",
+            description="Returns files in a specified directory.",
             annotations=ToolAnnotations(readOnlyHint=True),
         )
 
@@ -245,11 +177,10 @@ def _register_find_files(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.find_files,
+            name="find_bucketfs_files",
             description=(
-                "Performs a keyword search of files in the BucketFS. The list "
-                "of keywords should include common inflections of each keyword. "
-                "Files are searched in the given directory and all its descendant "
-                "subdirectories."
+                "Performs a keyword search of files in a specified directory "
+                "and all descendant subdirectories."
             ),
             annotations=ToolAnnotations(readOnlyHint=True),
         )
@@ -259,7 +190,7 @@ def _register_read_file(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.read_file,
-            description="Reads the content of a text file in the BucketFS.",
+            name="read_bucketfs_text_file",
             annotations=ToolAnnotations(readOnlyHint=True),
         )
 
@@ -268,7 +199,7 @@ def _register_write_text_to_file(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.write_text_to_file,
-            description="Writes the provided text to a file in the BucketFS.",
+            name="write_text_to_bucketfs_file",
             annotations=ToolAnnotations(destructiveHint=True),
         )
 
@@ -278,8 +209,8 @@ def _register_download_file(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.download_file,
             description=(
-                "Downloads a file from a given url and saves it at the specified path "
-                "in the BucketFS. The file will overwrite an existing file."
+                "Downloads a file from a given url and saves it in the BucketFS. "
+                "The file will overwrite an existing file."
             ),
             annotations=ToolAnnotations(destructiveHint=True),
         )
@@ -289,7 +220,7 @@ def _register_delete_file(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.delete_file,
-            description="Deletes a BucketFS file at the specified path.",
+            name="delete_bucketfs_file",
             annotations=ToolAnnotations(destructiveHint=True),
         )
 
@@ -298,11 +229,8 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.delete_directory,
-            description=(
-                "Deletes a BucketFS directory at the specified path. This operation "
-                "will recursively delete all files and all subdirectories in this "
-                "directory."
-            ),
+            name="delete_bucketfs_directory",
+            description="Will recursively delete all files and all subdirectories.",
             annotations=ToolAnnotations(destructiveHint=True),
         )
 
@@ -310,7 +238,7 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
 def _register_list_sql_types(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_sql_types,
-        description="Lists Exasol SQL types and their parameters.",
+        name="list_exasol_sql_types",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -318,7 +246,7 @@ def _register_list_sql_types(mcp_server: ExasolMCPServer) -> None:
 def _register_list_system_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_system_tables,
-        description="Lists Exasol system tables.",
+        name="list_exasol_system_tables",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -326,7 +254,7 @@ def _register_list_system_tables(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_system_table(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_system_table,
-        description="Describes specified Exasol system table.",
+        name="describe_exasol_system_table",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -334,7 +262,7 @@ def _register_describe_system_table(mcp_server: ExasolMCPServer) -> None:
 def _register_list_statistics_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_statistics_tables,
-        description="Lists Exasol statistics tables.",
+        name="list_exasol_statistics_tables",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -342,7 +270,7 @@ def _register_list_statistics_tables(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_statistics_table(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_statistics_table,
-        description="Describes specified Exasol statistics table.",
+        name="describe_exasol_statistics_table",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -350,7 +278,7 @@ def _register_describe_statistics_table(mcp_server: ExasolMCPServer) -> None:
 def _register_list_keywords(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_keywords,
-        description="Selects Exasol keywords.",
+        name="list_exasol_keywords",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -358,7 +286,7 @@ def _register_list_keywords(mcp_server: ExasolMCPServer) -> None:
 def _register_builtin_function_categories(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         builtin_function_categories,
-        description="Lists Exasol built-in function categories.",
+        name="list_exasol_built_in_function_categories",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -366,7 +294,7 @@ def _register_builtin_function_categories(mcp_server: ExasolMCPServer) -> None:
 def _register_list_builtin_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         list_builtin_functions,
-        description="Lists Exasol built-in functions in the specified category.",
+        name="list_exasol_built_in_functions",
         annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 
@@ -374,7 +302,7 @@ def _register_list_builtin_functions(mcp_server: ExasolMCPServer) -> None:
 def _register_describe_builtin_function(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         describe_builtin_function,
-        description="Provides information about specified built-in function.",
+        name="describe_exasol_built_in_function",
         annotations={"readOnlyHint": True, "idempotentHint": True},
     )
 
