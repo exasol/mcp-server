@@ -1,8 +1,14 @@
 # Unreleased
 
+## Summary
+
+This release adds the exasol telemetry tracking -- anonymized usage tracking of the
+MCP server (this might need reformulation).
+
 ## Features
 
 * #147: Added health endpoint.
+* #165: Telemetry integration.
 
 ## Refactorings
 
