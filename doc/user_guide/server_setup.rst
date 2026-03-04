@@ -66,3 +66,11 @@ Tool List
 ---------
 
 The complete list of available tools can be found in :doc:`tool_list`.
+
+
+Telemetry
+---------
+
+(Here should be put the motivation for the telemetry tracking)
+
+To disable telemetry, you can set the environment variable `EXASOL_TELEMETRY_DISABLE` (any value will work).
