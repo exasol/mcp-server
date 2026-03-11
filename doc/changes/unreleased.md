@@ -13,3 +13,4 @@
 * #164: Changed the return type schema for built-in functions.
 * #168: Updated tool names and descriptions.
 * #170: Added tool list to the User Guide.
+* #172: Made the slow tests running on only one version of Python - 3.12.

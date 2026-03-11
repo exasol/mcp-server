@@ -5,21 +5,11 @@ on:
 
 jobs:
 
-  build-matrix:
-    name: Generate Build Matrix
-    uses: ./.github/workflows/matrix-python.yml
-    permissions:
-      contents: read
-
   Tests:
-    name: SaaS-Integration-Tests (Python-${{ matrix.python-version }})
-    needs: [ build-matrix ]
+    name: SaaS-Integration-Tests (Python-3.12)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
 
     steps:
       - name: SCM Checkout
@@ -28,7 +18,7 @@ jobs:
       - name: Setup Python & Poetry Environment
         uses: exasol/python-toolbox/.github/actions/python-environment@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - name: Run Tests and Collect Coverage
         env:
@@ -40,6 +30,6 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: coverage-python${{ matrix.python-version }}-saas
+          name: coverage-python3.12-saas
           path: .coverage
           include-hidden-files: true
