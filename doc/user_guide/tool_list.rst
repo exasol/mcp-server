@@ -178,7 +178,7 @@ describe_exasol_user_defined_function
         - ``dynamic_output``: for emit type UDF, indication that the UDF emits dynamic output
 
 Tools Validating and Executing a Query
------------------------
+--------------------------------------
 
 validate_exasol_query
 ~~~~~~~~~~~~~~~~~~~~
