@@ -43,6 +43,7 @@ def test_tool_hints(pyexasol_connection) -> None:
         ToolHints(tool_name="describe_exasol_table_or_view", read_only=True),
         ToolHints(tool_name="describe_exasol_custom_function", read_only=True),
         ToolHints(tool_name="describe_exasol_user_defined_function", read_only=True),
+        ToolHints(tool_name="validate_exasol_query", read_only=True),
         ToolHints(tool_name="execute_exasol_query", read_only=True),
         ToolHints(tool_name="execute_exasol_write_query", destructive=True),
         ToolHints(tool_name="list_exasol_sql_types", read_only=True, idempotent=True),
