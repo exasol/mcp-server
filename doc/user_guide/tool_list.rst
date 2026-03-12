@@ -181,7 +181,7 @@ Tools Validating and Executing a Query
 --------------------------------------
 
 validate_exasol_query
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
     Executes the query, which must be a SELECT statement. In case of
