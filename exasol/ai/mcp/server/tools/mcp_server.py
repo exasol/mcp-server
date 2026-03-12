@@ -322,6 +322,11 @@ class ExasolMCPServer(FastMCP):
             DBReturnFunction | DBEmitFunction, parser.describe(schema_name, script_name)
         )
 
+    def validate_query(self, query: QueryArg) -> None:
+        if not verify_query(query):
+            raise ValueError("Unable to verify that the query is a SELECT statement.")
+        self.connection.execute_query(query, snapshot=False)
+
     def execute_query(self, query: QueryArg) -> list[dict[str, Any]]:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")

@@ -177,8 +177,19 @@ describe_exasol_user_defined_function
             - ``type``: SQL type
         - ``dynamic_output``: for emit type UDF, indication that the UDF emits dynamic output
 
-Tools Executing a Query
+Tools Validating and Executing a Query
 -----------------------
+
+validate_exasol_query
+~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Executes the query, which must be a SELECT statement. In case of
+    successful execution returns nothing. Otherwise conveys an exception.
+    Validation doesn't work with DML or DDL queries.
+
+:Returns:
+    - **Type**: ``None or Exception``
 
 execute_exasol_query
 ~~~~~~~~~~~~~~~~~~~~

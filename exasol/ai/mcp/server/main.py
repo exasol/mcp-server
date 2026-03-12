@@ -129,6 +129,19 @@ def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_validate_query(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.validate_query,
+        name="validate_exasol_query",
+        description=(
+            "Executes the query, which must be a SELECT statement. In case of "
+            "successful execution returns nothing. Otherwise conveys an exception. "
+            "Validation doesn't work with DML or DDL queries."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
 def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.execute_query,
@@ -324,6 +337,7 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
     if config.parameters.enable:
         _register_describe_function(mcp_server)
         _register_describe_script(mcp_server)
+    _register_validate_query(mcp_server)
     if config.enable_read_query:
         _register_execute_query(mcp_server)
     if config.enable_write_query:

@@ -805,6 +805,51 @@ def test_describe_script(
             assert result_json == expected_json
 
 
+def test_validate_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+    """
+    Test the `validate_query` tool. Validates a correct SELECT query.
+    """
+    config = McpServerSettings()
+    for schema in db_schemas:
+        for table in db_tables:
+            query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+            result = run_tool(
+                pyexasol_connection,
+                config,
+                tool_name="validate_exasol_query",
+                query=query,
+            )
+            assert not result.content
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        'SELECT * INTO TABLE "{0}"."ANOTHER_TABLE" FROM "{0}"."{1}"',  # DDL
+        'SELECT ** FROM "{0}"."{1}"',  # Invalid SQL
+        'SELECT "NON_EXISTENT_COLUMN" FROM "{0}"."{1}"',  # Wrong column
+    ],
+    ids=["DDL", "Invalid SQL", "Wrong column"],
+)
+def test_validate_query_error(
+    pyexasol_connection, setup_database, db_schemas, db_tables, query
+):
+    """
+    The test validates that the `validate_query` tool fails when offered either
+    disallowed or invalid query.
+    """
+    config = McpServerSettings()
+    for schema in db_schemas:
+        for table in db_tables:
+            with pytest.raises(ToolError):
+                run_tool(
+                    pyexasol_connection,
+                    config,
+                    tool_name="validate_exasol_query",
+                    query=query.format(schema.name, table.name),
+                )
+
+
 def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
     """
     Test the `execute_query` tool. Runs the simplest SELECT query that grabs the entire
