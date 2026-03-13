@@ -18,10 +18,17 @@ Documentation of Exasol MCP Server
 
         Instructions and best practices to help developers contribute to the project and set up their development environment.
 
+    .. grid-item-card:: :octicon:`repo` Design Document
+        :link: design_document
+        :link-type: ref
+
+        Document outlining the architectural and design principles and decisions in this project.
+
 .. toctree::
    :maxdepth: 4
    :hidden:
 
    user_guide/user_guide
    developer_guide/developer_guide
+   design
    changes/changelog
