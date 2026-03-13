@@ -4,33 +4,38 @@ on:
   workflow_call:
 
 jobs:
-
   build-matrix:
-    name: Generate Build Matrix
+    name: Build Matrix
     uses: ./.github/workflows/matrix-all.yml
     permissions:
       contents: read
 
-  Tests:
-    name: ITDE-Integration-Tests (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
-    needs: [ build-matrix ]
-    runs-on: ubuntu-24.04
+  run-integration-tests:
+    name: Run Integration Tests with ITDE (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    needs:
+      - build-matrix
+    runs-on: "ubuntu-24.04"
     permissions:
       contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
-
     steps:
-      - name: SCM Checkout
-        uses: actions/checkout@v5
+      - name: Check out Repository
+        id: check-out-repository
+        uses: actions/checkout@v6
 
-      - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v4
+      - name: Set up Python & Poetry Environment
+        id: set-up-python-and-poetry-environment
+        uses: exasol/python-toolbox/.github/actions/python-environment@v6
         with:
           python-version: ${{ matrix.python-version }}
+          poetry-version: "2.3.0"
 
-      - name: Run Tests and Collect Coverage
+      - name: Run Integration Tests
+        id: run-integration-tests
         run: |
           JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
           TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
@@ -38,8 +43,9 @@ jobs:
           poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        id: upload-artifacts
+        uses: actions/upload-artifact@v6
         with:
-          name: coverage-python${{ matrix.python-version }}-exasol${{ matrix.exasol-version}}-itde
+          name: coverage-python${{ matrix.python-version }}-exasol${{ matrix.exasol-version}}-slow-itde
           path: .coverage
           include-hidden-files: true
