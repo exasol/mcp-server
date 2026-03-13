@@ -11,14 +11,14 @@ Overview
 --------
 
 The Exasol MCP Server is a `Model Context Protocol (MCP)
-<https://modelcontextprotocol.io/>`_ server that gives Large Language Models
-(LLMs) structured, read-safe access to an Exasol database. It exposes
-database metadata and query execution as MCP tools so that an LLM-powered
-agent can explore the database schema and retrieve data without requiring
-direct database credentials in the client application.
+<https://modelcontextprotocol.io/docs/getting-started/intro>`_ server that gives
+Large Language Models (LLMs) structured, read-safe access to an Exasol database.
+It exposes database metadata and query execution as MCP tools so that an LLM-powered
+agent can explore the database schema and retrieve data without requiring direct
+database credentials in the client application.
 
-The server is built on top of `FastMCP <https://gofastmcp.com/>`_ and
-`pyexasol <https://github.com/exasol/pyexasol>`_. It supports both the
+The server is built on top of `FastMCP <https://gofastmcp.com/getting-started/welcome>`_
+and `pyexasol <https://github.com/exasol/pyexasol>`_. It supports both the
 on-premises and SaaS Exasol deployments.
 
 High-Level Architecture
