@@ -4,23 +4,28 @@ on:
   workflow_call:
 
 jobs:
-
-  Tests:
-    name: SaaS-Integration-Tests (Python-3.12)
+  run-integration-tests:
+    name: Run Integration Tests with SaaS (Python-3.12)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - name: SCM Checkout
-        uses: actions/checkout@v5
+      - name: Check out Repository
+        id: check-out-repository
+        uses: actions/checkout@v6
 
-      - name: Setup Python & Poetry Environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v4
+      - name: Set up Python & Poetry Environment
+        id: set-up-python-and-poetry-environment
+        uses: exasol/python-toolbox/.github/actions/python-environment@v6
         with:
           python-version: "3.12"
+          poetry-version: "2.3.0"
 
-      - name: Run Tests and Collect Coverage
+      - name: Run Integration Tests
+        id: run-integration-tests
         env:
           SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
           SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
@@ -28,8 +33,9 @@ jobs:
         run: poetry run -- nox -s test:integration -- -s --coverage --backend=saas
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        id: upload-artifacts
+        uses: actions/upload-artifact@v6
         with:
-          name: coverage-python3.12-saas
+          name: coverage-python3.12-slow-saas
           path: .coverage
           include-hidden-files: true

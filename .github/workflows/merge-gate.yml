@@ -4,19 +4,17 @@ on:
   workflow_call:
 
 jobs:
-
-  fast-checks:
-    name: Fast
+  run-fast-checks:
+    name: Run Fast Checks
     uses: ./.github/workflows/checks.yml
     permissions:
       contents: read
 
-  run-slow-tests:
-    name: Run Slow Tests
-    runs-on: ubuntu-24.04
+  approve-run-slow-tests:
+    name: Approve Running Slow Tests?
+    runs-on: "ubuntu-24.04"
     permissions:
       contents: read
-
     # Even though the environment "manual-approval" will be created automatically,
     # it still needs to be configured to require interactive review.
     # See project settings on GitHub (Settings / Environments / manual-approval).
@@ -25,33 +23,36 @@ jobs:
       - name: Tests
         run: echo "Slow tests approved"
 
-  slow-checks-itde:
-    name: Slow-ITDE
-    needs: [ run-slow-tests ]
+  run-slow-checks-itde:
+    name: Run Slow Checks with ITDE
+    needs:
+      - approve-run-slow-tests
     uses: ./.github/workflows/slow-checks-itde.yml
     secrets: inherit
     permissions:
       contents: read
 
-  slow-checks-saas:
-    name: Slow-SaaS
+  run-slow-checks-saas:
+    name: Run Slow Checks with SaaS
+    needs:
+      - approve-run-slow-tests
     uses: ./.github/workflows/slow-checks-saas.yml
-    needs: [ run-slow-tests ]
     secrets: inherit
     permissions:
       contents: read
 
   # This job ensures inputs have been executed successfully.
-  approve-merge:
+  allow-merge:
     name: Allow Merge
-    runs-on: ubuntu-24.04
+    runs-on: "ubuntu-24.04"
     permissions:
       contents: read
     # If you need additional jobs to be part of the merge gate, add them below
-    needs: [ fast-checks, slow-checks-itde, slow-checks-saas ]
-
+    needs:
+      - run-fast-checks
+      - run-slow-checks-itde
+      - run-slow-checks-saas
     # Each job requires a step, so we added this dummy step.
     steps:
       - name: Approve
-        run: |
-          echo "Merge Approved"
+        run: echo "Merge Approved"
