@@ -15,3 +15,7 @@
 * #170: Added tool list to the User Guide.
 * #172: Made the slow tests running on only one version of Python - 3.12.
 * #178: Migrated to Python Toolbox 6.0.
+
+## Documentation
+
+* #176: Added design document.
