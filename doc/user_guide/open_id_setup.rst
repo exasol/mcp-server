@@ -243,8 +243,8 @@ OpenID with SaaS Backend
 The information in this guide is mostly relevant to the On-Prem backend. The
 authentication in SaaS backend is based on OpenID Connect (OIDC), which is an
 authentication layer built on top of OAuth. For details please refer to the Exasol
-SaaS `Access Management <https://docs.exasol.com/saas/administration/access_mngt/access_management.htm>`__
-documentation, and in particular to the `Personal Access Token (PAT) <https://docs.exasol.com/saas/administration/access_mngt/access_token.htm>`__
+SaaS `Access Management <https://docs.exasol.com/db/latest/administration/access_mngt/access_management.htm>`__
+documentation, and in particular to the `Personal Access Token (PAT) <https://docs.exasol.com/db/latest/administration/access_mngt/access_token.htm>`__
 section.
 
 Essentially, an Exasol SaaS user is issued a PAT. They need to pass this token to the
