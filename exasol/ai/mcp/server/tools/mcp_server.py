@@ -82,8 +82,6 @@ TableNameArg = Annotated[str, Field(description="Name of the table or view")]
 
 FunctionNameArg = Annotated[str, Field(description="Name of the function")]
 
-ScriptNameArg = Annotated[str, Field(description="Name of the script")]
-
 QueryArg = Annotated[
     str,
     Field(
@@ -315,11 +313,11 @@ class ExasolMCPServer(FastMCP):
         return cast(DBReturnFunction, parser.describe(schema_name, func_name))
 
     def describe_script(
-        self, schema_name: SchemaNameArg, script_name: ScriptNameArg
+        self, schema_name: SchemaNameArg, func_name: FunctionNameArg
     ) -> DBReturnFunction | DBEmitFunction:
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
         return cast(
-            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, script_name)
+            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
     def execute_query(self, query: QueryArg) -> list[dict[str, Any]]:
