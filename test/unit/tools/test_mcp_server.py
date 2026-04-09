@@ -1,12 +1,15 @@
 from textwrap import dedent
+from unittest.mock import MagicMock
 
 import pytest
 
 from exasol.ai.mcp.server.tools.mcp_server import (
+    ExasolMCPServer,
     remove_info_column,
     verify_query,
 )
 from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
+from exasol.ai.mcp.server.tools.schema.db_output_schema import DBObject
 
 
 def sample_select_query() -> str:
@@ -186,3 +189,12 @@ def test_remove_info_column():
         {"name": "db_object2", "comment": "this is my second db object"},
     ]
     assert output_data == expected_output_data
+
+
+def test_execute_meta_query_empty_result():
+    connection = MagicMock()
+    connection.execute_query.return_value.fetchall.return_value = []
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server._execute_meta_query("SELECT 1", DBObject)
+    assert result == []

@@ -55,6 +55,11 @@ def test_extract_words_english():
     assert words == expected_words
 
 
+def test_extract_words_no_data():
+    words = extract_words([])
+    assert not words
+
+
 def test_get_match_scores():
     corpus = [
         ["apples", "bananas", "pears", "cherries", "apples"],
@@ -69,6 +74,12 @@ def test_get_match_scores():
     # words there are keywords, and the 3rd should have the lowest score.
     sorted_scores = sorted(scores, reverse=True)
     assert sorted_scores == scores
+
+
+def test_get_match_scores_no_data():
+    keywords = ["apples", "pears"]
+    scores = get_match_scores([], keywords)
+    assert not scores
 
 
 @pytest.mark.parametrize(
@@ -91,6 +102,13 @@ def test_top_score_indices(scores, expected_result):
 def test_top_score_indices_flat():
     result = top_score_indices([0.5, 0.5, 0.5, 0.5])
     assert sorted(result) == list(range(len(result)))
+
+
+@pytest.mark.parametrize("scores", [[0.5], []])
+def test_top_score_indices_trivial(scores):
+    """Test the edge case where zero or one points are provided"""
+    result = top_score_indices(scores)
+    assert result == [0] * len(scores)
 
 
 @pytest.mark.parametrize(
@@ -119,8 +137,14 @@ def test_top_score_indices_flat():
                 {"name": "Market_Pears", "comment": "pears on sale"},
             ],
         ),
+        (
+            [{"name": "supermarket"}],
+            ["Apples", "Pears"],
+            [{"name": "supermarket"}],
+        ),
+        ([], ["Apples", "Pears"], []),
     ],
-    ids=["camel cases", "underscores"],
+    ids=["camel cases", "underscores", "single-row", "no-data"],
 )
 def test_keyword_filter(input_data, keywords, expected_output_data):
     output_data = keyword_filter(input_data, keywords)
