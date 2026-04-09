@@ -56,7 +56,7 @@ def get_match_scores(corpus: list[list[str]], keywords: list[str]) -> list[float
     """
     Assigns a keyword matching score for each text in the corpus .
     """
-    if corpus:
+    if len(corpus) > 0:
         bm25 = BM25Plus(corpus)
         return bm25.get_scores(keywords).tolist()
     return []
@@ -73,7 +73,7 @@ def _clipped_k_means(points: np.ndarray, max_iters=100) -> np.ndarray:
     """
     labels = np.zeros_like(points, dtype=int)
     # Need at least 2 points to do clustering
-    if len(points) <= 1:
+    if len(points) < 2:
         return labels
     centroids = np.expand_dims(np.array([points.max(), points.mean()]), 1)
     prev_centroid = centroids[1, 0]

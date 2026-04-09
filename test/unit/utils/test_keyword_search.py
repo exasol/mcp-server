@@ -57,7 +57,7 @@ def test_extract_words_english():
 
 def test_extract_words_no_data():
     words = extract_words([])
-    assert not words
+    assert words == []
 
 
 def test_get_match_scores():
@@ -76,10 +76,11 @@ def test_get_match_scores():
     assert sorted_scores == scores
 
 
-def test_get_match_scores_no_data():
+@pytest.mark.parametrize("corpus", [[], [[]]], ids=["no-data", "empty-data"])
+def test_get_match_scores_no_data(corpus):
     keywords = ["apples", "pears"]
-    scores = get_match_scores([], keywords)
-    assert not scores
+    scores = get_match_scores(corpus, keywords)
+    assert len(scores) == len(corpus)
 
 
 @pytest.mark.parametrize(
