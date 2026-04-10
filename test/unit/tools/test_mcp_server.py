@@ -14,8 +14,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import DBObject
 
 def sample_select_query() -> str:
 
-    return dedent(
-        """
+    return dedent("""
         WITH T2 AS (
             SELECT "DOC_ID"
             FROM "NLP"."TOPIC" T3
@@ -38,14 +37,12 @@ def sample_select_query() -> str:
         WHERE
             T2."DOC_ID" IS NULL
         GROUP BY IPROC(), MOD(T1."ROWID", 2)
-    """
-    )
+    """)
 
 
 def sample_insert_query() -> str:
 
-    return dedent(
-        f"""
+    return dedent(f"""
         INSERT INTO "NLP"."TOPIC"(
             "DOC_ID",
             "TOPIC_NAME",
@@ -53,13 +50,11 @@ def sample_insert_query() -> str:
             "SETUP"
         )
         {sample_select_query()}
-    """
-    )
+    """)
 
 
 def sample_merge_query() -> str:
-    return dedent(
-        f"""
+    return dedent(f"""
         MERGE INTO "NLP"."TEMP_TOPIC" T
         USING
         {sample_select_query()}
@@ -76,23 +71,19 @@ def sample_merge_query() -> str:
                 U."ERROR_MESSAGE",
                 U."SETUP"
             )
-    """
-    )
+    """)
 
 
 def sample_create_table_query() -> str:
 
-    return dedent(
-        f"""
+    return dedent(f"""
         CREATE OR REPLACE TABLE "NLP"."TEMP_TOPIC" AS
         {sample_select_query()}
-    """
-    )
+    """)
 
 
 def sample_export_query() -> str:
-    return dedent(
-        f"""
+    return dedent(f"""
         EXPORT (
             {sample_select_query()}
         )
@@ -100,14 +91,12 @@ def sample_export_query() -> str:
         AT 'https://testbucket.s3.amazonaws.com'
         USER 'my-ID' IDENTIFIED BY 'my-secret-key;sse_type=AES256'
         FILE 'testpath/my_topics.csv';
-    """
-    )
+    """)
 
 
 def sample_select_into_query() -> str:
 
-    return dedent(
-        """
+    return dedent("""
         SELECT
             T1."DOC_ID",
             T2."TOPIC_NAME",
@@ -119,19 +108,16 @@ def sample_select_into_query() -> str:
         ON T1."TOPIC_NAME" = T2."ID"
         LEFT OUTER JOIN "NLP"."SETUP_LOOKUP" T3
         ON T1."SETUP" = T3."ID"
-    """
-    )
+    """)
 
 
 def sample_select_udf_emits_query() -> str:
-    return dedent(
-        """
+    return dedent("""
         SELECT "MyUDF"("input1", "input2", 1000, 'xyz')
         EMITS (dbl_value DOUBLE, "text_value" VARCHAR(200))
         FROM "MyTable"
         WHERE "SomeKey"='Y'
-    """
-    )
+    """)
 
 
 def sample_invalid_query() -> str:
