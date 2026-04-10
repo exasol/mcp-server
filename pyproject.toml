@@ -37,6 +37,7 @@ exasol-saas-api = "^2.4.0"
 exasol-bucketfs = "^2.1.0"
 aiofile = "^3.9.0"
 pathvalidate = "^3.3.1"
+fakeredis = "<2.35.0"   # To be removed once upgraded to FastMCP v3
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^6.0.0"
