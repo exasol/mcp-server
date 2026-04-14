@@ -202,8 +202,7 @@ def db_functions() -> list[ExaFunction]:
                 ExaParameter(name="cut_to", type="DECIMAL(18,0)"),
             ],
             returns="VARCHAR(1000)",
-            body=dedent(
-                """
+            body=dedent("""
                 CREATE OR REPLACE FUNCTION "{schema}"."cut_middle"(
                     inp_text VARCHAR(1000), cut_from DECIMAL(18,0), cut_to DECIMAL(18,0))
                 RETURN VARCHAR(1000)
@@ -220,8 +219,7 @@ def db_functions() -> list[ExaFunction]:
                     RETURN res;
                 END;
                 /
-            """
-            ),
+            """),
         ),
         ExaFunction(
             name="factorial",
@@ -229,8 +227,7 @@ def db_functions() -> list[ExaFunction]:
             keywords=["factorial"],
             inputs=[ExaParameter(name="num", type="DECIMAL(18,0)")],
             returns="DECIMAL(18,0)",
-            body=dedent(
-                """
+            body=dedent("""
                 CREATE OR REPLACE FUNCTION "{schema}"."factorial"(num DECIMAL(18,0))
                 RETURN DECIMAL(18,0)
                 IS
@@ -244,8 +241,7 @@ def db_functions() -> list[ExaFunction]:
                     RETURN res;
                 END;
                 /
-            """
-            ),
+            """),
         ),
     ]
 
@@ -262,8 +258,7 @@ def db_scripts() -> list[ExaFunction]:
                 ExaParameter(name="NUM", type="DECIMAL(18,0)"),
                 ExaParameter(name="VAL", type="DECIMAL(18,0)"),
             ],
-            body=dedent(
-                """
+            body=dedent("""
                 CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{schema}"."fibonacci"(
                     seq_length DECIMAL(18,0))
                 EMITS (num DECIMAL(18,0), val DECIMAL(18,0))
@@ -277,8 +272,7 @@ def db_scripts() -> list[ExaFunction]:
                                 ctx.emit(i, last_two[next_id])
                                 next_id = (next_id + 1) % 2
                 /
-            """
-            ),
+            """),
         ),
         ExaFunction(
             name="weighted_length",
@@ -289,8 +283,7 @@ def db_scripts() -> list[ExaFunction]:
                 ExaParameter(name="weight", type="DOUBLE"),
             ],
             returns="DOUBLE",
-            body=dedent(
-                """
+            body=dedent("""
                 CREATE OR REPLACE PYTHON3 SET SCRIPT "{schema}"."weighted_length"(
                     text VARCHAR(100000) UTF8, weight DOUBLE)
                 RETURNS DOUBLE
@@ -303,8 +296,7 @@ def db_scripts() -> list[ExaFunction]:
                                 more_data = ctx.next()
                         return result
                 /
-            """
-            ),
+            """),
         ),
     ]
 

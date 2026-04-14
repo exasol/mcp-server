@@ -1,6 +1,6 @@
 [project]
 name = "exasol-mcp-server"
-version = "1.5.0"
+version = "1.6.2"
 requires-python = ">=3.10,<3.14"   # Restriction is due to numpy
 description = "Exasol MCP Server"
 authors = [
@@ -38,9 +38,10 @@ exasol-bucketfs = "^2.1.0"
 aiofile = "^3.9.0"
 pathvalidate = "^3.3.1"
 exasol-telemetry-client = "^0.1.2"
+fakeredis = "<2.35.0"   # To be removed once upgraded to FastMCP v3
 
 [tool.poetry.group.dev.dependencies]
-exasol-toolbox = "^4.0.0"
+exasol-toolbox = "^6.0.0"
 pytest-exasol-backend = "^1.2.1"
 pytest-exasol-extension = "^0.2.4"
 exasol-integration-test-docker-environment = "^5.0.0"

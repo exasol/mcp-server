@@ -696,7 +696,7 @@ def test_describe_view_comment(
     [
         ("describe_exasol_table_or_view", {"table_name": "ski_resort"}),
         ("describe_exasol_custom_function", {"func_name": "factorial"}),
-        ("describe_exasol_user_defined_function", {"script_name": "fibonacci"}),
+        ("describe_exasol_user_defined_function", {"func_name": "fibonacci"}),
     ],
     ids=["describe_table", "describe_function", "describe_script"],
 )
@@ -794,7 +794,7 @@ def test_describe_script(
                 config,
                 "describe_exasol_user_defined_function",
                 schema_name=_get_db_name_param(schema, case_sensitive),
-                script_name=_get_db_name_param(script, case_sensitive),
+                func_name=_get_db_name_param(script, case_sensitive),
             )
             result_json = get_result_json(result)
             # The call example message is properly tested in the unit tests.
