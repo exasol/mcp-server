@@ -192,7 +192,9 @@ def create_auth_provider(
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
 
-def _try_create_auth_provider(provider_info: AuthProviderInfo, **extra_kwargs) -> AuthProvider:
+def _try_create_auth_provider(
+    provider_info: AuthProviderInfo, **extra_kwargs
+) -> AuthProvider:
     """
     Normalizes constructor validation across FastMCP versions.
 
