@@ -4,6 +4,7 @@ from fastmcp.server.auth import (
     OAuthProxy,
     RemoteAuthProvider,
 )
+from fastmcp.server.auth.oauth_proxy import proxy as oauth_proxy_module
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
@@ -254,8 +255,10 @@ def test_get_auth_provider_none() -> None:
     ],
     ids=["JWT", "Introspection", "RemoteAuth-Introspection", "OAuthProxy-JWT"],
 )
-def test_get_auth_provider(monkeypatch, provider_type, params) -> None:
+def test_get_auth_provider(monkeypatch, provider_type, params, tmp_path) -> None:
     monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(provider_type))
+    if provider_type is OAuthProxy:
+        monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
     for key, value in params.items():
         monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
     provider = get_auth_provider()
