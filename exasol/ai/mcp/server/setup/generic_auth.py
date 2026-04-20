@@ -192,6 +192,23 @@ def create_auth_provider(
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
 
+def _try_create_auth_provider(
+    provider_info: AuthProviderInfo, **extra_kwargs
+) -> AuthProvider:
+    """
+    Normalizes constructor validation across FastMCP versions.
+
+    FastMCP v3 raises ``TypeError`` for missing required keyword-only arguments in
+    some auth providers, while earlier versions surfaced ``ValueError`` in the same
+    flow. The rest of this module expects provider construction failures caused by
+    incomplete configuration to be treated uniformly.
+    """
+    try:
+        return create_auth_provider(provider_info, **extra_kwargs)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Invalid auth provider configuration.") from error
+
+
 def get_token_verifier(provider_name: str) -> tuple[TokenVerifier, str]:
     """
     Creates one of the known types of a Token Verifier. This can be either
@@ -208,14 +225,14 @@ def get_token_verifier(provider_name: str) -> tuple[TokenVerifier, str]:
     verifier_map = _get_verifier_map()
     provider_type = verifier_map.get(provider_name)
     if provider_type is not None:
-        provider = create_auth_provider(provider_map[provider_name])
+        provider = _try_create_auth_provider(provider_map[provider_name])
         return provider, provider_name
 
     # If the requested provider is not a Token Verifier than create a Token Verifier
     # that sufficient parameters are provided for.
     for ver_name, ver_type in verifier_map.items():
         try:
-            verifier = create_auth_provider(provider_map[ver_name])
+            verifier = _try_create_auth_provider(provider_map[ver_name])
             return verifier, ver_name
         except ValueError:
             pass

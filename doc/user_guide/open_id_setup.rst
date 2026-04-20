@@ -110,10 +110,11 @@ Both *Remote OAuth* and *OAuthProxy* require a `Token Verifier <https://gofastmc
 The choice of the token verifier depends on the token verification model supported by a
 particular identity provider.
 
-At the time of writing, the latest release of the FastMCP - 2.13.0 - offers two types of
-verification - `JWT Token Verification <https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification>`__
+FastMCP v3 offers two types of verification -
+`JWT Token Verification <https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification>`__
 and `Opaque Token Verification <https://gofastmcp.com/servers/auth/token-verification#opaque-token-verification>`__.
-The variation of the former is `Static Public Key Verification <https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification>`__.
+The variation of the former is
+`Static Public Key Verification <https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification>`__.
 
 A token verifier provider may be the only module needed if the MCP Authentication uses
 an externally supplied bearer token. However, this guide doesn't give any details on how
