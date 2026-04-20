@@ -27,7 +27,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 from io import StringIO
-from typing import Any, Literal
+from typing import (
+    Any,
+    Literal,
+)
 
 from fastmcp.server.auth import (
     AuthProvider,
@@ -38,8 +41,8 @@ from fastmcp.server.auth.auth import TokenVerifier
 from fastmcp.server.auth.providers.auth0 import Auth0Provider
 from fastmcp.server.auth.providers.aws import AWSCognitoProvider
 from fastmcp.server.auth.providers.azure import AzureProvider
-from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.google import GoogleProvider
+from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.providers.workos import AuthKitProvider
 
@@ -177,9 +180,7 @@ _builtin_providers = [
             AuthParameter("required_scopes", str_to_list),
             AuthParameter("redirect_path"),
             AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter(
-                "require_authorization_consent", str_to_bool_or_external
-            ),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
             AuthParameter("consent_csp_policy"),
             AuthParameter("forward_resource", str_to_bool),
         ],
@@ -199,9 +200,7 @@ _builtin_providers = [
             AuthParameter("redirect_path"),
             AuthParameter("required_scopes", str_to_list),
             AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter(
-                "require_authorization_consent", str_to_bool_or_external
-            ),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
             AuthParameter("consent_csp_policy"),
             AuthParameter("forward_resource", str_to_bool),
         ],
@@ -222,9 +221,7 @@ _builtin_providers = [
             AuthParameter("redirect_path"),
             AuthParameter("additional_authorize_scopes", str_to_list),
             AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter(
-                "require_authorization_consent", str_to_bool_or_external
-            ),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
             AuthParameter("consent_csp_policy"),
             AuthParameter("forward_resource", str_to_bool),
             AuthParameter("base_authority"),
@@ -246,9 +243,7 @@ _builtin_providers = [
             AuthParameter("valid_scopes", str_to_list),
             AuthParameter("timeout_seconds", str_to_int),
             AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter(
-                "require_authorization_consent", str_to_bool_or_external
-            ),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
             AuthParameter("consent_csp_policy"),
             AuthParameter("forward_resource", str_to_bool),
             AuthParameter("extra_authorize_params", str_to_dict),
@@ -302,10 +297,7 @@ def _get_generic_provider_map() -> dict[str, AuthProviderInfo]:
     Indexes all known providers by their names as they would apper in the
     FASTMCP_SERVER_AUTH envar.
     """
-    return {
-        provider_name(provider): provider
-        for provider in _generic_providers
-    }
+    return {provider_name(provider): provider for provider in _generic_providers}
 
 
 @cache

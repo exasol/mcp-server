@@ -4,9 +4,9 @@ from fastmcp.server.auth import (
     OAuthProxy,
     RemoteAuthProvider,
 )
+from fastmcp.server.auth.oauth_proxy import proxy as oauth_proxy_module
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration
 from fastmcp.server.auth.oidc_proxy import OIDCProxy as FastMCPOIDCProxy
-from fastmcp.server.auth.oauth_proxy import proxy as oauth_proxy_module
 from fastmcp.server.auth.providers.auth0 import Auth0Provider
 from fastmcp.server.auth.providers.aws import AWSCognitoProvider
 from fastmcp.server.auth.providers.azure import AzureProvider
