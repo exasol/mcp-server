@@ -4,8 +4,16 @@ from fastmcp.server.auth import (
     OAuthProxy,
     RemoteAuthProvider,
 )
+from fastmcp.server.auth.oauth_proxy import proxy as oauth_proxy_module
+from fastmcp.server.auth.oidc_proxy import OIDCConfiguration
+from fastmcp.server.auth.oidc_proxy import OIDCProxy as FastMCPOIDCProxy
+from fastmcp.server.auth.providers.auth0 import Auth0Provider
+from fastmcp.server.auth.providers.aws import AWSCognitoProvider
+from fastmcp.server.auth.providers.azure import AzureProvider
+from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.auth.providers.workos import AuthKitProvider
 
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
@@ -17,7 +25,9 @@ from exasol.ai.mcp.server.setup.generic_auth import (
     get_auth_kwargs,
     get_auth_provider,
     get_token_verifier,
+    parameter_env_name,
     str_to_bool,
+    str_to_bool_or_external,
     str_to_dict,
     str_to_int,
     str_to_list,
@@ -76,6 +86,14 @@ def test_str_to_bool_error():
 
 
 @pytest.mark.parametrize(
+    ["input_str", "expected_value"],
+    [(" true ", True), (" false ", False), (" external ", "external")],
+)
+def test_str_to_bool_or_external(input_str, expected_value):
+    assert str_to_bool_or_external(input_str) == expected_value
+
+
+@pytest.mark.parametrize(
     ["input_str", "expected_int"],
     [
         (" 5 ", 5),
@@ -127,6 +145,18 @@ def test_exa_provider_name() -> None:
 
 def test_exa_parameter_env_name() -> None:
     assert exa_parameter_env_name(AuthParameter("abc")) == "EXA_AUTH_ABC"
+
+
+def test_fastmcp_parameter_env_name() -> None:
+    provider_info = AuthProviderInfo(
+        provider_type=GoogleProvider,
+        provider_name="fastmcp.server.auth.providers.google.GoogleProvider",
+        env_prefix="FASTMCP_SERVER_AUTH_GOOGLE_",
+        parameters=[],
+    )
+    assert parameter_env_name(provider_info, AuthParameter("client_id")) == (
+        "FASTMCP_SERVER_AUTH_GOOGLE_CLIENT_ID"
+    )
 
 
 @pytest.mark.parametrize(
@@ -254,8 +284,10 @@ def test_get_auth_provider_none() -> None:
     ],
     ids=["JWT", "Introspection", "RemoteAuth-Introspection", "OAuthProxy-JWT"],
 )
-def test_get_auth_provider(monkeypatch, provider_type, params) -> None:
+def test_get_auth_provider(monkeypatch, provider_type, params, tmp_path) -> None:
     monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(provider_type))
+    if provider_type is OAuthProxy:
+        monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
     for key, value in params.items():
         monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
     provider = get_auth_provider()
@@ -265,6 +297,131 @@ def test_get_auth_provider(monkeypatch, provider_type, params) -> None:
 def test_get_auth_provider_error(monkeypatch) -> None:
     monkeypatch.setenv(ENV_PROVIDER_TYPE, "exa.non_existent_provider")
     assert get_auth_provider() is None
+
+
+@pytest.fixture
+def oidc_config() -> OIDCConfiguration:
+    return OIDCConfiguration.model_validate(
+        {
+            "issuer": "https://issuer.example.com",
+            "authorization_endpoint": "https://issuer.example.com/authorize",
+            "token_endpoint": "https://issuer.example.com/token",
+            "jwks_uri": "https://issuer.example.com/jwks",
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"],
+        }
+    )
+
+
+@pytest.fixture
+def patch_oidc(monkeypatch, oidc_config):
+    monkeypatch.setattr(
+        FastMCPOIDCProxy,
+        "get_oidc_configuration",
+        staticmethod(lambda config_url, strict=None, timeout_seconds=None: oidc_config),
+    )
+
+
+_FASTMCP_PROVIDER_SELECTORS = {
+    GoogleProvider: "fastmcp.server.auth.providers.google.GoogleProvider",
+    AzureProvider: "fastmcp.server.auth.providers.azure.AzureProvider",
+    AuthKitProvider: "fastmcp.server.auth.providers.workos.AuthKitProvider",
+    Auth0Provider: "fastmcp.server.auth.providers.auth0.Auth0Provider",
+    AWSCognitoProvider: "fastmcp.server.auth.providers.aws.AWSCognitoProvider",
+}
+
+_FASTMCP_ENV_PREFIXES = {
+    GoogleProvider: "FASTMCP_SERVER_AUTH_GOOGLE_",
+    AzureProvider: "FASTMCP_SERVER_AUTH_AZURE_",
+    AuthKitProvider: "FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_",
+    Auth0Provider: "FASTMCP_SERVER_AUTH_AUTH0_",
+    AWSCognitoProvider: "FASTMCP_SERVER_AUTH_AWS_COGNITO_",
+}
+
+
+@pytest.mark.parametrize(
+    ["provider_type", "params"],
+    [
+        (
+            GoogleProvider,
+            {
+                "client_id": "google-client",
+                "client_secret": "google-secret",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "timeout_seconds": "12",
+                "extra_authorize_params": "access_type, offline, prompt, consent",
+                "enable_cimd": "false",
+            },
+        ),
+        (
+            AzureProvider,
+            {
+                "client_id": "azure-client",
+                "client_secret": "azure-secret",
+                "tenant_id": "azure-tenant",
+                "required_scopes": "read",
+                "base_url": "https://server.example.com",
+                "additional_authorize_scopes": "openid,profile",
+                "enable_cimd": "false",
+                "require_authorization_consent": "external",
+            },
+        ),
+        (
+            AuthKitProvider,
+            {
+                "authkit_domain": "https://tenant.authkit.app",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,profile,email",
+            },
+        ),
+        (
+            Auth0Provider,
+            {
+                "config_url": "https://auth.example.com/.well-known/openid-configuration",
+                "client_id": "auth0-client",
+                "client_secret": "auth0-secret",
+                "audience": "https://api.example.com",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "allowed_client_redirect_uris": "http://localhost:3000/*,https://app.example.com/*",
+                "require_authorization_consent": "external",
+                "forward_resource": "false",
+            },
+        ),
+        (
+            AWSCognitoProvider,
+            {
+                "user_pool_id": "eu-central-1_abc123",
+                "aws_region": "eu-central-1",
+                "client_id": "aws-client",
+                "client_secret": "aws-secret",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "forward_resource": "false",
+            },
+        ),
+    ],
+    ids=["Google", "Azure", "AuthKit", "Auth0", "AWSCognito"],
+)
+def test_get_auth_provider_fastmcp_v2_envs(
+    monkeypatch, provider_type, params, tmp_path, patch_oidc
+) -> None:
+    provider_info = AuthProviderInfo(
+        provider_type=provider_type,
+        provider_name=_FASTMCP_PROVIDER_SELECTORS[provider_type],
+        env_prefix=_FASTMCP_ENV_PREFIXES[provider_type],
+        parameters=[],
+    )
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, _FASTMCP_PROVIDER_SELECTORS[provider_type])
+    monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
+
+    for key, value in params.items():
+        monkeypatch.setenv(parameter_env_name(provider_info, AuthParameter(key)), value)
+
+    provider = get_auth_provider()
+    assert isinstance(provider, provider_type)
 
 
 def test_get_auth_kwargs(monkeypatch) -> None:

@@ -53,10 +53,20 @@ At the time of writing, the following providers are supported:
 * `Google <https://gofastmcp.com/integrations/google>`__
 * `WorkOS <https://gofastmcp.com/integrations/workos>`__
 
+FastMCP v3 removed the automatic configuration of these specific providers from
+environment variables. Exasol MCP Server restores this capability for the
+following provider classes using the FastMCP v2-compatible variable names:
+
+* ``fastmcp.server.auth.providers.auth0.Auth0Provider``
+* ``fastmcp.server.auth.providers.aws.AWSCognitoProvider``
+* ``fastmcp.server.auth.providers.azure.AzureProvider``
+* ``fastmcp.server.auth.providers.google.GoogleProvider``
+* ``fastmcp.server.auth.providers.workos.AuthKitProvider``
+
 To configure the MCP authentication with any of these providers, please set the
-environment variables, as described in the FastMCP documentation for a particular
-provider. As an example, the following environment variables shall be set when
-working with AuthKit:
+environment variables as described in the FastMCP v2 documentation for a
+particular provider. As an example, the following environment variables shall be
+set when working with AuthKit:
 
 .. code-block:: shell
 
@@ -65,7 +75,8 @@ working with AuthKit:
     export FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_BASE_URL=https://your-server.com
 
 Note that the ``FASTMCP_SERVER_AUTH`` should always be set to the module path of the
-provider's class.
+provider's class. The generic providers described below still use the Exasol-specific
+``EXA_AUTH_*`` environment variables.
 
 FastMCP Generic OAuth Providers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -110,10 +121,11 @@ Both *Remote OAuth* and *OAuthProxy* require a `Token Verifier <https://gofastmc
 The choice of the token verifier depends on the token verification model supported by a
 particular identity provider.
 
-At the time of writing, the latest release of the FastMCP - 2.13.0 - offers two types of
-verification - `JWT Token Verification <https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification>`__
+FastMCP v3 offers two types of verification -
+`JWT Token Verification <https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification>`__
 and `Opaque Token Verification <https://gofastmcp.com/servers/auth/token-verification#opaque-token-verification>`__.
-The variation of the former is `Static Public Key Verification <https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification>`__.
+The variation of the former is
+`Static Public Key Verification <https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification>`__.
 
 A token verifier provider may be the only module needed if the MCP Authentication uses
 an externally supplied bearer token. However, this guide doesn't give any details on how
