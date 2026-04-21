@@ -53,10 +53,20 @@ At the time of writing, the following providers are supported:
 * `Google <https://gofastmcp.com/integrations/google>`__
 * `WorkOS <https://gofastmcp.com/integrations/workos>`__
 
+FastMCP v3 removed the automatic configuration of these specific providers from
+environment variables. Exasol MCP Server restores this capability for the
+following provider classes using the FastMCP v2-compatible variable names:
+
+* ``fastmcp.server.auth.providers.auth0.Auth0Provider``
+* ``fastmcp.server.auth.providers.aws.AWSCognitoProvider``
+* ``fastmcp.server.auth.providers.azure.AzureProvider``
+* ``fastmcp.server.auth.providers.google.GoogleProvider``
+* ``fastmcp.server.auth.providers.workos.AuthKitProvider``
+
 To configure the MCP authentication with any of these providers, please set the
-environment variables, as described in the FastMCP documentation for a particular
-provider. As an example, the following environment variables shall be set when
-working with AuthKit:
+environment variables as described in the FastMCP v2 documentation for a
+particular provider. As an example, the following environment variables shall be
+set when working with AuthKit:
 
 .. code-block:: shell
 
@@ -65,7 +75,8 @@ working with AuthKit:
     export FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_BASE_URL=https://your-server.com
 
 Note that the ``FASTMCP_SERVER_AUTH`` should always be set to the module path of the
-provider's class.
+provider's class. The generic providers described below still use the Exasol-specific
+``EXA_AUTH_*`` environment variables.
 
 FastMCP Generic OAuth Providers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -27,7 +27,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 from io import StringIO
-from typing import Any
+from typing import (
+    Any,
+    Literal,
+)
 
 from fastmcp.server.auth import (
     AuthProvider,
@@ -35,10 +38,16 @@ from fastmcp.server.auth import (
     RemoteAuthProvider,
 )
 from fastmcp.server.auth.auth import TokenVerifier
+from fastmcp.server.auth.providers.auth0 import Auth0Provider
+from fastmcp.server.auth.providers.aws import AWSCognitoProvider
+from fastmcp.server.auth.providers.azure import AzureProvider
+from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.auth.providers.workos import AuthKitProvider
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
+_EXA_ENV_PREFIX = "EXA_AUTH_"
 
 
 def str_to_list(s) -> list[str]:
@@ -64,6 +73,13 @@ def str_to_bool(s) -> bool:
     raise ValueError(f"Invalid boolean parameter: {s}")
 
 
+def str_to_bool_or_external(s) -> bool | Literal["external"]:
+    s_lower = str_to_str(s).lower()
+    if s_lower == "external":
+        return "external"
+    return str_to_bool(s)
+
+
 def str_to_int(s: str) -> int:
     return int(str_to_str(s))
 
@@ -82,12 +98,15 @@ def str_to_dict(s) -> dict[str, str]:
 class AuthParameter:
     name: str
     conv: Callable[[str], Any] = lambda v: str_to_str(v)
+    env_name: str | None = None
 
 
 @dataclass
 class AuthProviderInfo:
     provider_type: type[AuthProvider]
     parameters: list[AuthParameter]
+    provider_name: str | None = None
+    env_prefix: str = _EXA_ENV_PREFIX
 
 
 _generic_providers = [
@@ -145,9 +164,122 @@ _generic_providers = [
     ),
 ]
 
+_builtin_providers = [
+    AuthProviderInfo(
+        provider_type=Auth0Provider,
+        provider_name="fastmcp.server.auth.providers.auth0.Auth0Provider",
+        env_prefix="FASTMCP_SERVER_AUTH_AUTH0_",
+        parameters=[
+            AuthParameter("config_url"),
+            AuthParameter("client_id"),
+            AuthParameter("client_secret"),
+            AuthParameter("audience"),
+            AuthParameter("base_url"),
+            AuthParameter("resource_base_url"),
+            AuthParameter("issuer_url"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("redirect_path"),
+            AuthParameter("allowed_client_redirect_uris", str_to_list),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
+            AuthParameter("consent_csp_policy"),
+            AuthParameter("forward_resource", str_to_bool),
+        ],
+    ),
+    AuthProviderInfo(
+        provider_type=AWSCognitoProvider,
+        provider_name="fastmcp.server.auth.providers.aws.AWSCognitoProvider",
+        env_prefix="FASTMCP_SERVER_AUTH_AWS_COGNITO_",
+        parameters=[
+            AuthParameter("user_pool_id"),
+            AuthParameter("aws_region"),
+            AuthParameter("client_id"),
+            AuthParameter("client_secret"),
+            AuthParameter("base_url"),
+            AuthParameter("resource_base_url"),
+            AuthParameter("issuer_url"),
+            AuthParameter("redirect_path"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("allowed_client_redirect_uris", str_to_list),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
+            AuthParameter("consent_csp_policy"),
+            AuthParameter("forward_resource", str_to_bool),
+        ],
+    ),
+    AuthProviderInfo(
+        provider_type=AzureProvider,
+        provider_name="fastmcp.server.auth.providers.azure.AzureProvider",
+        env_prefix="FASTMCP_SERVER_AUTH_AZURE_",
+        parameters=[
+            AuthParameter("client_id"),
+            AuthParameter("client_secret"),
+            AuthParameter("tenant_id"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("base_url"),
+            AuthParameter("resource_base_url"),
+            AuthParameter("identifier_uri"),
+            AuthParameter("issuer_url"),
+            AuthParameter("redirect_path"),
+            AuthParameter("additional_authorize_scopes", str_to_list),
+            AuthParameter("allowed_client_redirect_uris", str_to_list),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
+            AuthParameter("consent_csp_policy"),
+            AuthParameter("forward_resource", str_to_bool),
+            AuthParameter("base_authority"),
+            AuthParameter("enable_cimd", str_to_bool),
+        ],
+    ),
+    AuthProviderInfo(
+        provider_type=GoogleProvider,
+        provider_name="fastmcp.server.auth.providers.google.GoogleProvider",
+        env_prefix="FASTMCP_SERVER_AUTH_GOOGLE_",
+        parameters=[
+            AuthParameter("client_id"),
+            AuthParameter("client_secret"),
+            AuthParameter("base_url"),
+            AuthParameter("resource_base_url"),
+            AuthParameter("issuer_url"),
+            AuthParameter("redirect_path"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("valid_scopes", str_to_list),
+            AuthParameter("timeout_seconds", str_to_int),
+            AuthParameter("allowed_client_redirect_uris", str_to_list),
+            AuthParameter("require_authorization_consent", str_to_bool_or_external),
+            AuthParameter("consent_csp_policy"),
+            AuthParameter("forward_resource", str_to_bool),
+            AuthParameter("extra_authorize_params", str_to_dict),
+            AuthParameter("enable_cimd", str_to_bool),
+        ],
+    ),
+    AuthProviderInfo(
+        provider_type=AuthKitProvider,
+        provider_name="fastmcp.server.auth.providers.workos.AuthKitProvider",
+        env_prefix="FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_",
+        parameters=[
+            AuthParameter("authkit_domain"),
+            AuthParameter("base_url"),
+            AuthParameter("resource_base_url"),
+            AuthParameter("required_scopes", str_to_list),
+            AuthParameter("scopes_supported", str_to_list),
+            AuthParameter("resource_name"),
+            AuthParameter("resource_documentation"),
+        ],
+    ),
+]
+
 
 def exa_provider_name(provider_type: type[AuthProvider]) -> str:
     return f"exa.{provider_type.__module__}.{provider_type.__qualname__}"
+
+
+def provider_name(provider_info: AuthProviderInfo) -> str:
+    if provider_info.provider_name is not None:
+        return provider_info.provider_name
+    return exa_provider_name(provider_info.provider_type)
+
+
+def parameter_env_name(provider_info: AuthProviderInfo, param: AuthParameter) -> str:
+    env_name = param.env_name if param.env_name is not None else param.name.upper()
+    return f"{provider_info.env_prefix}{env_name}"
 
 
 def exa_parameter_env_name(param: AuthParameter) -> str:
@@ -155,19 +287,22 @@ def exa_parameter_env_name(param: AuthParameter) -> str:
     # this can potentially create a name clash between the parameters of JWTVerifier
     # and either OAuthProxy or RemoteAuthProvider. This is very unlikely though,
     # and we will deal with if and when it happens.
-    return f"EXA_AUTH_{param.name.upper()}"
+    env_name = param.env_name if param.env_name is not None else param.name.upper()
+    return f"{_EXA_ENV_PREFIX}{env_name}"
 
 
 @cache
-def _get_provider_map() -> dict[str, AuthProviderInfo]:
+def _get_generic_provider_map() -> dict[str, AuthProviderInfo]:
     """
     Indexes all known providers by their names as they would apper in the
     FASTMCP_SERVER_AUTH envar.
     """
-    return {
-        exa_provider_name(provider.provider_type): provider
-        for provider in _generic_providers
-    }
+    return {provider_name(provider): provider for provider in _generic_providers}
+
+
+@cache
+def _get_builtin_provider_map() -> dict[str, AuthProviderInfo]:
+    return {provider_name(provider): provider for provider in _builtin_providers}
 
 
 @cache
@@ -176,8 +311,9 @@ def _get_verifier_map() -> dict[str, AuthProviderInfo]:
     Indexes all known Token Verifiers by their names.
     """
     return {
-        exa_provider_name(ver_type): ver_type
-        for ver_type in [JWTVerifier, IntrospectionTokenVerifier]
+        provider_name(ver_type): ver_type
+        for ver_type in _generic_providers
+        if issubclass(ver_type.provider_type, TokenVerifier)
     }
 
 
@@ -185,9 +321,9 @@ def create_auth_provider(
     provider_info: AuthProviderInfo, **extra_kwargs
 ) -> AuthProvider:
     kwargs = {
-        param.name: param.conv(os.environ[exa_parameter_env_name(param)])
+        param.name: param.conv(os.environ[parameter_env_name(provider_info, param)])
         for param in provider_info.parameters
-        if exa_parameter_env_name(param) in os.environ
+        if parameter_env_name(provider_info, param) in os.environ
     }
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
@@ -221,10 +357,10 @@ def get_token_verifier(provider_name: str) -> tuple[TokenVerifier, str]:
     """
 
     # First check if the requested Auth provider is one of the Token Verifier types:
-    provider_map = _get_provider_map()
+    provider_map = _get_generic_provider_map()
     verifier_map = _get_verifier_map()
-    provider_type = verifier_map.get(provider_name)
-    if provider_type is not None:
+    verifier_type = verifier_map.get(provider_name)
+    if verifier_type is not None:
         provider = _try_create_auth_provider(provider_map[provider_name])
         return provider, provider_name
 
@@ -252,14 +388,20 @@ def get_auth_provider() -> AuthProvider | None:
     if not provider_name:
         return None
 
-    provider_map = _get_provider_map()
-    if provider_name not in provider_map:
+    generic_provider_map = _get_generic_provider_map()
+    if provider_name in generic_provider_map:
+        verifier, verifier_name = get_token_verifier(provider_name)
+        if provider_name == verifier_name:
+            return verifier
+        return create_auth_provider(
+            generic_provider_map[provider_name], token_verifier=verifier
+        )
+
+    builtin_provider_map = _get_builtin_provider_map()
+    if provider_name not in builtin_provider_map:
         return None
 
-    verifier, verifier_name = get_token_verifier(provider_name)
-    if provider_name == verifier_name:
-        return verifier
-    return create_auth_provider(provider_map[provider_name], token_verifier=verifier)
+    return _try_create_auth_provider(builtin_provider_map[provider_name])
 
 
 def get_auth_kwargs() -> dict[str, AuthProvider]:
