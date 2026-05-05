@@ -41,7 +41,7 @@ pathvalidate = "^3.3.1"
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^6.0.0"
 pytest-exasol-backend = "^1.2.1"
-pytest-exasol-extension = "^0.2.4"
+pytest-exasol-extension = "^1.0.1"
 exasol-integration-test-docker-environment = "^5.0.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"
