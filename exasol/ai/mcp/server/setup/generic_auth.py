@@ -140,6 +140,7 @@ _generic_providers = [
             AuthParameter("base_url"),
             AuthParameter("resource_name"),
             AuthParameter("resource_documentation"),
+            AuthParameter("scopes_supported", str_to_list),
         ],
     ),
     AuthProviderInfo(

@@ -60,9 +60,4 @@ jobs:
         id: generate-github-summary
         run: |-
           echo -e "# Summary\n" >> $GITHUB_STEP_SUMMARY
-          poetry run -- nox -s project:report -- --format markdown >> $GITHUB_STEP_SUMMARY
           poetry run -- nox -s dependency:licenses >> $GITHUB_STEP_SUMMARY
-          echo -e "\n\n# Coverage\n" >> $GITHUB_STEP_SUMMARY
-          poetry run -- coverage report --format markdown >> $GITHUB_STEP_SUMMARY || true
-          poetry run -- tbx lint pretty-print >> $GITHUB_STEP_SUMMARY
-          poetry run -- tbx security pretty-print .security.json >> $GITHUB_STEP_SUMMARY
