@@ -20,7 +20,6 @@ from exasol.ai.mcp.server.setup.generic_auth import (
     AuthParameter,
     AuthProviderInfo,
     create_auth_provider,
-    exa_parameter_env_name,
     exa_provider_name,
     get_auth_kwargs,
     get_auth_provider,
@@ -143,10 +142,6 @@ def test_exa_provider_name() -> None:
     )
 
 
-def test_exa_parameter_env_name() -> None:
-    assert exa_parameter_env_name(AuthParameter("abc")) == "EXA_AUTH_ABC"
-
-
 def test_fastmcp_parameter_env_name() -> None:
     provider_info = AuthProviderInfo(
         provider_type=GoogleProvider,
@@ -179,7 +174,7 @@ def test_create_auth_provider(
     fake_provider_info, monkeypatch, params, extra_kwargs, expected_kwargs
 ) -> None:
     for key, value in params.items():
-        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+        monkeypatch.setenv(f"EXA_AUTH_{key.upper()}", value)
     provider = create_auth_provider(fake_provider_info, **extra_kwargs)
     assert isinstance(provider, FakeAuthProvider)
     assert provider.kwargs == expected_kwargs
@@ -246,7 +241,7 @@ def test_get_token_verifier(monkeypatch, verifier_type, provider_type, params) -
     provider_name = exa_provider_name(provider_type)
     monkeypatch.setenv(ENV_PROVIDER_TYPE, provider_name)
     for key, value in params.items():
-        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+        monkeypatch.setenv(f"EXA_AUTH_{key.upper()}", value)
     verifier, verifier_name = get_token_verifier(provider_name)
     assert isinstance(verifier, verifier_type)
     assert verifier_name == exa_provider_name(verifier_type)
@@ -260,7 +255,7 @@ def test_get_token_verifier_error(monkeypatch) -> None:
         "base_url": "http://my_mcp_server.com",
     }
     for key, value in params.items():
-        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+        monkeypatch.setenv(f"EXA_AUTH_{key.upper()}", value)
     with pytest.raises(ValueError, match="Insufficient parameters"):
         get_token_verifier(provider_name)
 
@@ -289,7 +284,7 @@ def test_get_auth_provider(monkeypatch, provider_type, params, tmp_path) -> None
     if provider_type is OAuthProxy:
         monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
     for key, value in params.items():
-        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+        monkeypatch.setenv(f"EXA_AUTH_{key.upper()}", value)
     provider = get_auth_provider()
     assert isinstance(provider, provider_type)
 
@@ -426,9 +421,7 @@ def test_get_auth_provider_fastmcp_v2_envs(
 
 def test_get_auth_kwargs(monkeypatch) -> None:
     monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(JWTVerifier))
-    monkeypatch.setenv(
-        exa_parameter_env_name(AuthParameter("jwks_uri")), "http://some_url:1234"
-    )
+    monkeypatch.setenv("EXA_AUTH_JWKS_URI", "http://some_url:1234")
     kwargs = get_auth_kwargs()
     assert len(kwargs) == 1
     assert isinstance(kwargs["auth"], JWTVerifier)

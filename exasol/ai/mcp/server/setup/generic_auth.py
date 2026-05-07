@@ -283,15 +283,6 @@ def parameter_env_name(provider_info: AuthProviderInfo, param: AuthParameter) ->
     return f"{provider_info.env_prefix}{env_name}"
 
 
-def exa_parameter_env_name(param: AuthParameter) -> str:
-    # We don't use the class name in the environment variable names. In the future,
-    # this can potentially create a name clash between the parameters of JWTVerifier
-    # and either OAuthProxy or RemoteAuthProvider. This is very unlikely though,
-    # and we will deal with if and when it happens.
-    env_name = param.env_name if param.env_name is not None else param.name.upper()
-    return f"{_EXA_ENV_PREFIX}{env_name}"
-
-
 @cache
 def _get_generic_provider_map() -> dict[str, AuthProviderInfo]:
     """

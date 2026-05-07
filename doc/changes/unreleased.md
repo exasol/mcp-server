@@ -18,3 +18,11 @@ This release upgrades FastMCP to 3.2.4 to fix CVE-2026-32871. It restores FastMC
     - CVE-2026-41425 (Authlib)
     - CVE-2026-40347 (python-multipart)
     - CVE-2026-25645 (requests)
+
+## Bug fixing
+
+* #185: Made the health check uneffected by authentication.
+
+## Refactoring
+
+* #205: Removed dangling function in `generic_auth.py`

@@ -490,6 +490,54 @@ def test_get_connection_factory_no_claim(mock_connect) -> None:
             pass
 
 
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
+def test_get_connection_factory_no_auth_skips_claim_check(
+    mock_oidc_user, mock_connect
+) -> None:
+    """
+    When no_auth=True, the username claim check is skipped even if ENV_USERNAME_CLAIM is
+    set but no user is present in the OAuth context (e.g. the health check endpoint).
+    The factory should fall back to the server's pre-configured credentials.
+    """
+    env = {
+        ENV_DSN: "my.db.dsn",
+        ENV_USER: "server_user",
+        ENV_PASSWORD: "server_password",
+        ENV_USERNAME_CLAIM: "username",
+    }
+    mock_oidc_user.return_value = (None, None)
+    factory = get_connection_factory(env)
+    with factory(no_auth=True):
+        pass
+    assert mock_connect.call_count == 1
+    _, connect_kwargs = mock_connect.call_args
+    assert connect_kwargs["user"] == "server_user"
+    assert connect_kwargs["password"] == "server_password"
+    # No impersonation should occur since no user was identified.
+    mock_connect.return_value.execute.assert_not_called()
+
+
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
+def test_get_connection_factory_no_auth_false_still_raises(
+    mock_oidc_user, mock_connect
+) -> None:
+    """
+    When no_auth=False (the default), the RuntimeError is still raised when
+    ENV_USERNAME_CLAIM is set but no user is found in the OAuth context.
+    """
+    env = {
+        ENV_DSN: "my.db.dsn",
+        ENV_USER: "server_user",
+        ENV_PASSWORD: "server_password",
+        ENV_USERNAME_CLAIM: "username",
+    }
+    mock_oidc_user.return_value = (None, None)
+    factory = get_connection_factory(env)
+    with pytest.raises(RuntimeError, match="Username not found"):
+        with factory(no_auth=False):
+            pass
+
+
 @patch("exasol.saas.client.api_access.get_connection_params")
 def test_get_connection_factory_sass(mock_connection_params, mock_connect) -> None:
     """

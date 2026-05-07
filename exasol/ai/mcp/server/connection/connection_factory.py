@@ -364,14 +364,16 @@ def get_connection_factory(
     connection_pool = _create_connection_pool(env)
 
     @contextmanager
-    def connection_factory() -> Generator[pyexasol.ExaConnection, None, None]:
+    def connection_factory(
+        no_auth: bool = False,
+    ) -> Generator[pyexasol.ExaConnection, None, None]:
         if saas_env_complete(env):
             conn_kwargs = get_saas_kwargs(env)
             user: str | None = None
         else:
             conn_kwargs = get_local_kwargs(env)
             user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
-            if (ENV_USERNAME_CLAIM in env) and (not user):
+            if (not no_auth) and (ENV_USERNAME_CLAIM in env) and (not user):
                 raise RuntimeError(
                     f"Username not found in the OAuth claim {ENV_USERNAME_CLAIM}"
                 )

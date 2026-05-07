@@ -50,7 +50,7 @@ class FakeConnectionFactory:
         self.connection.is_closed = True
 
     @contextmanager
-    def __call__(self) -> ContextManager[pyexasol.ExaConnection]:
+    def __call__(self, no_auth: bool = False) -> ContextManager[pyexasol.ExaConnection]:
         self.connection.is_closed = False
         yield self.connection
         self.conn_state.append(self.connection.is_closed)
