@@ -279,7 +279,7 @@ def log_connection(conn_kwargs: dict[str, Any], user: str, env: dict[str, Any]) 
 
 def get_connection_factory(
     env: dict[str, Any], **extra_kwargs
-) -> Callable[[], ContextManager[pyexasol.ExaConnection]]:
+) -> Callable[..., ContextManager[pyexasol.ExaConnection]]:
     """
     Returns the pyexasol connection factory required by a DBConnection object.
     Authentication method will be inferred from the provided configuration
