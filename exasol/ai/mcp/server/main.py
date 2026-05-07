@@ -7,6 +7,7 @@ from typing import Any
 
 import click
 import exasol.bucketfs as bfs
+from exasol.telemetry import client as telemetry
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
@@ -458,30 +459,44 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
+def setup_telemetry(logger: logging.Logger):
+    # register telemetry library and shutdown hook, send "started" event
+    try:
+        if not telemetry.was_setup():
+            telemetry.setup()
+            telemetry.track("mcp-server.started")
+    except telemetry.TelemetryError as e:
+        logger.warning("Telemetry init error: %s", str(e))
+
+
 def mcp_server() -> ExasolMCPServer:
     """
     Builds the Exasol MCP server and all its components.
     """
     env = get_env()
     logger = setup_logger(env)
-    mcp_settings = get_mcp_settings(env)
-    auth_kwargs = get_auth_kwargs()
-    connection_factory = cf.get_connection_factory(env)
+    setup_telemetry(logger)
+    try:
+        mcp_settings = get_mcp_settings(env)
+        auth_kwargs = get_auth_kwargs()
+        connection_factory = cf.get_connection_factory(env)
 
-    connection = DbConnection(connection_factory=connection_factory)
-    # Try to get the BucketFS location only if the bucketfs tools are enabled.
-    if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
-        bucketfs_location = cf.get_bucketfs_location(env)
-    else:
-        bucketfs_location = None
+        connection = DbConnection(connection_factory=connection_factory)
+        # Try to get the BucketFS location only if the bucketfs tools are enabled.
+        if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
+            bucketfs_location = cf.get_bucketfs_location(env)
+        else:
+            bucketfs_location = None
 
-    server = create_mcp_server(
-        connection=connection,
-        config=mcp_settings,
-        bucketfs_location=bucketfs_location,
-        **auth_kwargs,
-    )
-    logger.info("Exasol MCP Server created.")
+        server = create_mcp_server(
+            connection=connection,
+            config=mcp_settings,
+            bucketfs_location=bucketfs_location,
+            **auth_kwargs,
+        )
+        logger.info("Exasol MCP Server created.")
+    finally:
+        telemetry.shutdown()
     return server
 
 
