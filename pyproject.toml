@@ -37,13 +37,13 @@ exasol-saas-api = "^2.4.0"
 exasol-bucketfs = "^2.1.0"
 aiofile = "^3.9.0"
 pathvalidate = "^3.3.1"
-exasol-telemetry-client = "^0.1.2"
+exasol-telemetry-client = "^0.1.4"
 fakeredis = "<2.35.0"   # To be removed once upgraded to FastMCP v3
 
 [tool.poetry.group.dev.dependencies]
 exasol-toolbox = "^6.0.0"
 pytest-exasol-backend = "^1.2.1"
-pytest-exasol-extension = "^0.2.4"
+pytest-exasol-extension = "^1.0.1"
 exasol-integration-test-docker-environment = "^5.0.0"
 oidc-provider-mock = "^0.2.9"
 flask-oidc = "^2.4.0"

@@ -13,3 +13,10 @@ This release upgrades FastMCP to 3.2.4 to fix CVE-2026-32871. It restores FastMC
 ## Security
 
 * #192: Upgrade FastMCP to 3.2.4 to fix CVE-2026-32871
+* #203: Fixed the following CVEs:
+    - CVE-2026-42215 (GitPython)
+    - CVE-2026-42284 (GitPython)
+    - CVE-2025-71176 (pytest)
+    - CVE-2026-41425 (Authlib)
+    - CVE-2026-40347 (python-multipart)
+    - CVE-2026-25645 (requests)

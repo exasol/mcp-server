@@ -69,9 +69,9 @@ from urllib.parse import quote
 
 import docker
 import httpx
+import joserfc.jwk as jose
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
-from authlib import jose
 from authlib.integrations.flask_oauth2 import AuthorizationServer
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
 from docker.models.containers import Container
@@ -126,6 +126,8 @@ from exasol.ai.mcp.server.setup.server_settings import (
     MetaListSettings,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
+
+AUTH_SCOPE = "openid"
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
@@ -248,7 +250,7 @@ def start_oidc_server() -> Generator[None, None, str]:
     """
     original_init_app = AuthorizationServer.init_app
     original_storage_init = Storage.__init__
-    jwk = jose.RSAKey.generate_key(is_private=True)
+    jwk = jose.RSAKey.generate_key(private=True)
 
     class MyJWTBearerTokenGenerator(JWTBearerTokenGenerator):
         def get_jwks(self):
@@ -523,6 +525,7 @@ def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     _set_auth_type(monkeypatch, RemoteAuthProvider)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(monkeypatch, "authorization_servers", oidc_server)
+    _set_auth_param(monkeypatch, "scopes_supported", AUTH_SCOPE)
 
     for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with Remote OAuth started at {url}")
@@ -603,9 +606,9 @@ async def _run_tool_async(
     elif headers:
         oauth = None
     elif auto_auth:
-        oauth = OAuthHeadless(mcp_url=http_server_url)
+        oauth = OAuthHeadless(mcp_url=http_server_url, scopes=AUTH_SCOPE)
     else:
-        oauth = OAuth(mcp_url=http_server_url)
+        oauth = OAuth(mcp_url=http_server_url, scopes=AUTH_SCOPE)
     async with Client(
         transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:
