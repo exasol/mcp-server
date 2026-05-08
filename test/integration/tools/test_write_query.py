@@ -33,7 +33,9 @@ async def _run_tool_async(
     """
 
     @contextmanager
-    def connection_factory() -> Generator[ExaConnection, None, None]:
+    def connection_factory(
+        no_auth: bool = False,
+    ) -> Generator[ExaConnection, None, None]:
         yield connection
 
     async def elicitation_handler(message: str, response_type: type, params, context):

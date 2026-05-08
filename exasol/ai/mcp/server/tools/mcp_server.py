@@ -406,7 +406,7 @@ class ExasolMCPServer(FastMCP):
         A simple health check, runs a trivial query to verify that the DB is accessible.
         """
         try:
-            result = self.connection.execute_query("SELECT 1").fetchval()
+            result = self.connection.execute_query("SELECT 1", no_auth=True).fetchval()
             if result == 1:
                 return JSONResponse(
                     {"status": "healthy", "service": "exasol-mcp-server"}
