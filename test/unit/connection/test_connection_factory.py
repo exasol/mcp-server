@@ -23,6 +23,7 @@ from exasol.ai.mcp.server.connection.connection_factory import (
     ENV_DSN,
     ENV_LOG_CLAIMS,
     ENV_LOG_HTTP_HEADERS,
+    ENV_NO_AUTH_PASSWORD,
     ENV_PASSWORD,
     ENV_REFRESH_TOKEN,
     ENV_SAAS_ACCOUNT_ID,
@@ -83,6 +84,31 @@ def _get_test_env(keys: list[str]) -> dict[str, Any]:
 )
 def test_local_env_complete(keys, is_complete) -> None:
     assert local_env_complete(_get_test_env(keys)) == is_complete
+
+
+@pytest.mark.parametrize(
+    ["keys", "no_auth", "is_complete"],
+    [
+        # no_auth=True still requires DSN and USER
+        ([ENV_USER, ENV_NO_AUTH_PASSWORD], True, False),
+        ([ENV_DSN, ENV_NO_AUTH_PASSWORD], True, False),
+        # ENV_NO_AUTH_PASSWORD alone as auth satisfies the check when no_auth=True
+        ([ENV_DSN, ENV_USER, ENV_NO_AUTH_PASSWORD], True, True),
+        # Regular auth vars still work when no_auth=True
+        ([ENV_DSN, ENV_USER, ENV_PASSWORD], True, True),
+        # ENV_NO_AUTH_PASSWORD is not counted as auth when no_auth=False
+        ([ENV_DSN, ENV_USER, ENV_NO_AUTH_PASSWORD], False, False),
+    ],
+    ids=[
+        "no_auth=True, no-dsn",
+        "no_auth=True, no-user",
+        "no_auth=True, complete with ENV_NO_AUTH_PASSWORD",
+        "no_auth=True, complete with ENV_PASSWORD",
+        "no_auth=False, ENV_NO_AUTH_PASSWORD not counted",
+    ],
+)
+def test_local_env_complete_no_auth(keys, no_auth, is_complete) -> None:
+    assert local_env_complete(_get_test_env(keys), no_auth=no_auth) == is_complete
 
 
 @pytest.mark.parametrize(
@@ -149,6 +175,51 @@ def test_get_local_kwargs():
         "access_token": "the_access_token",
         "refresh_token": "the_refresh_token",
     }
+
+
+@pytest.mark.parametrize(
+    ["env", "no_auth", "expected_password"],
+    [
+        # no_auth=False: ENV_NO_AUTH_PASSWORD is ignored
+        (
+            {ENV_DSN: "d", ENV_USER: "u", ENV_NO_AUTH_PASSWORD: "no_auth_pw"},
+            False,
+            None,
+        ),
+        # no_auth=True, ENV_PASSWORD absent: use ENV_NO_AUTH_PASSWORD
+        (
+            {ENV_DSN: "d", ENV_USER: "u", ENV_NO_AUTH_PASSWORD: "no_auth_pw"},
+            True,
+            "no_auth_pw",
+        ),
+        # no_auth=True, ENV_PASSWORD present: prefer ENV_PASSWORD
+        (
+            {
+                ENV_DSN: "d",
+                ENV_USER: "u",
+                ENV_PASSWORD: "main_pw",
+                ENV_NO_AUTH_PASSWORD: "no_auth_pw",
+            },
+            True,
+            "main_pw",
+        ),
+        # no_auth=True, neither password set: no password in kwargs
+        (
+            {ENV_DSN: "d", ENV_USER: "u"},
+            True,
+            None,
+        ),
+    ],
+    ids=[
+        "no_auth=False ignores ENV_NO_AUTH_PASSWORD",
+        "no_auth=True uses ENV_NO_AUTH_PASSWORD fallback",
+        "no_auth=True prefers ENV_PASSWORD over ENV_NO_AUTH_PASSWORD",
+        "no_auth=True, no password set",
+    ],
+)
+def test_get_local_kwargs_no_auth(env, no_auth, expected_password):
+    kwargs = get_local_kwargs(env, no_auth=no_auth)
+    assert kwargs.get("password") == expected_password
 
 
 @pytest.mark.parametrize(
@@ -536,6 +607,34 @@ def test_get_connection_factory_no_auth_false_still_raises(
     with pytest.raises(RuntimeError, match="Username not found"):
         with factory(no_auth=False):
             pass
+
+
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
+def test_get_connection_factory_no_auth_password_health_check(
+    mock_oidc_user, mock_connect
+) -> None:
+    """
+    When ENV_NO_AUTH_PASSWORD is set without ENV_PASSWORD and no_auth=True,
+    the factory connects using ENV_USER + ENV_NO_AUTH_PASSWORD.  This supports
+    unauthenticated clients (e.g. health checks) while keeping the passthrough-token
+    requirement intact for regular users.
+    """
+    env = {
+        ENV_DSN: "my.db.dsn",
+        ENV_USER: "server_user",
+        ENV_NO_AUTH_PASSWORD: "health_check_password",
+        ENV_USERNAME_CLAIM: "username",
+    }
+    mock_oidc_user.return_value = (None, None)
+    factory = get_connection_factory(env)
+    with factory(no_auth=True):
+        pass
+    assert mock_connect.call_count == 1
+    _, connect_kwargs = mock_connect.call_args
+    assert connect_kwargs["user"] == "server_user"
+    assert connect_kwargs["password"] == "health_check_password"
+    assert "access_token" not in connect_kwargs
+    mock_connect.return_value.execute.assert_not_called()
 
 
 @patch("exasol.saas.client.api_access.get_connection_params")

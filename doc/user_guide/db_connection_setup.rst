@@ -101,6 +101,26 @@ will request access token regeneration when its validity period expires.
 EXA_USERNAME_CLAIM is where the name of the username claim should be provided.
 EXA_POOL_SIZE is the maximum size of the connection pool, defaults to 5.
 
+Health Check Support
+""""""""""""""""""""
+
+Some clients, such as health check endpoints, do not carry an OAuth access token.
+To allow them to connect without breaking the passthrough-token requirement for
+regular users, set ``EXA_USER`` and ``EXA_NO_AUTH_PASSWORD`` in addition to the
+variables above.
+
+By setting ``EXA_NO_AUTH_PASSWORD`` without setting ``EXA_PASSWORD``, an admin
+ensures that normal traffic always uses passthrough tokens while the health check
+route uses password authentication.
+
++----------------------------------------+----------+
+| Variable Name                          | Required |
++========================================+==========+
+| EXA_USER                               |   yes    |
++----------------------------------------+----------+
+| EXA_NO_AUTH_PASSWORD                   |   yes    |
++----------------------------------------+----------+
+
 User Impersonation (On-Prem)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
