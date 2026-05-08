@@ -116,6 +116,8 @@ from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
+    AuthParameter,
+    exa_parameter_env_name,
     exa_provider_name,
     get_auth_provider,
 )
@@ -404,7 +406,7 @@ def _set_auth_type(monkeypatch: MonkeyPatch, provider_type: type[AuthProvider]):
 
 
 def _set_auth_param(monkeypatch: MonkeyPatch, name: str, value: str):
-    monkeypatch.setenv(f"EXA_AUTH_{name.upper()}", value)
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter(name)), value)
 
 
 def _mcp_server_factory(env: dict[str, str], monkeypatch: MonkeyPatch | None = None):
