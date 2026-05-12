@@ -1,3 +1,5 @@
+from typing import Union
+
 import pytest
 from fastmcp.server.auth import (
     AuthProvider,
@@ -19,6 +21,9 @@ from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
     AuthParameter,
     AuthProviderInfo,
+    _build_provider_info_from_type,
+    _import_type,
+    _type_to_converter,
     create_auth_provider,
     exa_parameter_env_name,
     exa_provider_name,
@@ -39,6 +44,27 @@ class FakeAuthProvider(AuthProvider):
     # pylint: disable=super-init-not-called
     def __init__(self, **kwargs) -> None:
         self.kwargs = kwargs
+
+
+class TypeAnnotatedFakeProvider(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(
+        self,
+        str_param: str,
+        bool_param: bool,
+        int_param: int,
+        list_param: list[str],
+        dict_param: dict[str, str],
+        optional_param: str | None = None,
+    ) -> None:
+        self.kwargs = {
+            "str_param": str_param,
+            "bool_param": bool_param,
+            "int_param": int_param,
+            "list_param": list_param,
+            "dict_param": dict_param,
+            "optional_param": optional_param,
+        }
 
 
 @pytest.fixture
@@ -408,18 +434,90 @@ _FASTMCP_ENV_PREFIXES = {
 def test_get_auth_provider_fastmcp_v2_envs(
     monkeypatch, provider_type, params, tmp_path, patch_oidc
 ) -> None:
-    provider_info = AuthProviderInfo(
-        provider_type=provider_type,
-        provider_name=_FASTMCP_PROVIDER_SELECTORS[provider_type],
-        env_prefix=_FASTMCP_ENV_PREFIXES[provider_type],
-        parameters=[],
-    )
+    """Old FastMCP v2 env var prefix names are still accepted (backward compat)."""
     monkeypatch.setenv(ENV_PROVIDER_TYPE, _FASTMCP_PROVIDER_SELECTORS[provider_type])
     monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
-
+    prefix = _FASTMCP_ENV_PREFIXES[provider_type]
     for key, value in params.items():
-        monkeypatch.setenv(parameter_env_name(provider_info, AuthParameter(key)), value)
+        monkeypatch.setenv(f"{prefix}{key.upper()}", value)
+    provider = get_auth_provider()
+    assert isinstance(provider, provider_type)
 
+
+@pytest.mark.parametrize(
+    ["provider_type", "params"],
+    [
+        (
+            GoogleProvider,
+            {
+                "client_id": "google-client",
+                "client_secret": "google-secret",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "timeout_seconds": "12",
+                "extra_authorize_params": "access_type, offline, prompt, consent",
+                "enable_cimd": "false",
+            },
+        ),
+        (
+            AzureProvider,
+            {
+                "client_id": "azure-client",
+                "client_secret": "azure-secret",
+                "tenant_id": "azure-tenant",
+                "required_scopes": "read",
+                "base_url": "https://server.example.com",
+                "additional_authorize_scopes": "openid,profile",
+                "enable_cimd": "false",
+                "require_authorization_consent": "external",
+            },
+        ),
+        (
+            AuthKitProvider,
+            {
+                "authkit_domain": "https://tenant.authkit.app",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,profile,email",
+            },
+        ),
+        (
+            Auth0Provider,
+            {
+                "config_url": "https://auth.example.com/.well-known/openid-configuration",
+                "client_id": "auth0-client",
+                "client_secret": "auth0-secret",
+                "audience": "https://api.example.com",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "allowed_client_redirect_uris": "http://localhost:3000/*,https://app.example.com/*",
+                "require_authorization_consent": "external",
+                "forward_resource": "false",
+            },
+        ),
+        (
+            AWSCognitoProvider,
+            {
+                "user_pool_id": "eu-central-1_abc123",
+                "aws_region": "eu-central-1",
+                "client_id": "aws-client",
+                "client_secret": "aws-secret",
+                "base_url": "https://server.example.com",
+                "required_scopes": "openid,email",
+                "forward_resource": "false",
+            },
+        ),
+    ],
+    ids=["Google", "Azure", "AuthKit", "Auth0", "AWSCognito"],
+)
+def test_get_auth_provider_new_prefix(
+    monkeypatch, provider_type, params, tmp_path, patch_oidc
+) -> None:
+    """New derived class-name prefix (FASTMCP_SERVER_AUTH_<CLASSNAME>_) is accepted."""
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, _FASTMCP_PROVIDER_SELECTORS[provider_type])
+    monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
+    prefix = f"FASTMCP_SERVER_AUTH_{provider_type.__name__.upper()}_"
+    for key, value in params.items():
+        monkeypatch.setenv(f"{prefix}{key.upper()}", value)
     provider = get_auth_provider()
     assert isinstance(provider, provider_type)
 
@@ -436,3 +534,140 @@ def test_get_auth_kwargs(monkeypatch) -> None:
 
 def test_get_auth_kwargs_empty() -> None:
     assert not get_auth_kwargs()
+
+
+# ---------------------------------------------------------------------------
+# _type_to_converter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ["annotation", "input_str", "expected"],
+    [
+        (str, " hello ", "hello"),
+        (bool, "true", True),
+        (bool, "false", False),
+        (int, " 7 ", 7),
+        (list, "a, b", ["a", "b"]),
+        (list[str], "a, b", ["a", "b"]),
+        (dict, "k, v", {"k": "v"}),
+        (dict[str, str], "k, v", {"k": "v"}),
+        (Union[bool, str], "hello", "hello"),  # unrecognised union → str fallback
+        # Optional unwrapping
+        (str | None, " x ", "x"),
+        (bool | None, "yes", True),
+        (int | None, "3", 3),
+        (list[str] | None, "a,b", ["a", "b"]),
+    ],
+    ids=[
+        "str",
+        "bool_true",
+        "bool_false",
+        "int",
+        "list",
+        "list_str",
+        "dict",
+        "dict_str_str",
+        "union_bool_str",
+        "optional_str",
+        "optional_bool",
+        "optional_int",
+        "optional_list",
+    ],
+)
+def test__type_to_converter(annotation, input_str, expected) -> None:
+    converter = _type_to_converter(annotation)
+    assert converter(input_str) == expected
+
+
+def test__type_to_converter_bool_or_external() -> None:
+    from typing import Literal
+
+    annotation = Union[bool, Literal["external"]]
+    conv = _type_to_converter(annotation)
+    assert conv("true") is True
+    assert conv("false") is False
+    assert conv("external") == "external"
+
+
+# ---------------------------------------------------------------------------
+# _import_type
+# ---------------------------------------------------------------------------
+
+
+def test__import_type_success() -> None:
+    assert (
+        _import_type("fastmcp.server.auth.providers.google.GoogleProvider")
+        is GoogleProvider
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "no_dot_here",
+        "non_existent_module.SomeClass",
+        "fastmcp.server.auth.providers.google.NonExistentClass",
+    ],
+    ids=["no_dot", "bad_module", "bad_class"],
+)
+def test__import_type_failure(name) -> None:
+    assert _import_type(name) is None
+
+
+# ---------------------------------------------------------------------------
+# _build_provider_info_from_type
+# ---------------------------------------------------------------------------
+
+
+def test__build_provider_info_from_type() -> None:
+    info = _build_provider_info_from_type(TypeAnnotatedFakeProvider)
+    qualified = f"{TypeAnnotatedFakeProvider.__module__}.{TypeAnnotatedFakeProvider.__qualname__}"
+    assert info.provider_name == qualified
+    assert (
+        info.env_prefix
+        == f"FASTMCP_SERVER_AUTH_{TypeAnnotatedFakeProvider.__name__.upper()}_"
+    )
+    assert info.legacy_env_prefix is None  # not a known FastMCP built-in
+
+    param_names = [p.name for p in info.parameters]
+    assert param_names == [
+        "str_param",
+        "bool_param",
+        "int_param",
+        "list_param",
+        "dict_param",
+        "optional_param",
+    ]
+
+    converters = {p.name: p.conv for p in info.parameters}
+    assert converters["str_param"](" hello ") == "hello"
+    assert converters["bool_param"]("true") is True
+    assert converters["int_param"]("42") == 42
+    assert converters["list_param"]("a, b") == ["a", "b"]
+    assert converters["dict_param"]("k, v") == {"k": "v"}
+    assert converters["optional_param"](" x ") == "x"
+
+
+# ---------------------------------------------------------------------------
+# get_auth_provider — fully dynamic path (TypeAnnotatedFakeProvider)
+# ---------------------------------------------------------------------------
+
+
+def test_get_auth_provider_dynamic(monkeypatch) -> None:
+    qualified_name = f"{TypeAnnotatedFakeProvider.__module__}.{TypeAnnotatedFakeProvider.__qualname__}"
+    prefix = f"FASTMCP_SERVER_AUTH_{TypeAnnotatedFakeProvider.__name__.upper()}_"
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, qualified_name)
+    monkeypatch.setenv(f"{prefix}STR_PARAM", "hello")
+    monkeypatch.setenv(f"{prefix}BOOL_PARAM", "true")
+    monkeypatch.setenv(f"{prefix}INT_PARAM", "42")
+    monkeypatch.setenv(f"{prefix}LIST_PARAM", "a, b, c")
+    monkeypatch.setenv(f"{prefix}DICT_PARAM", "k1, v1, k2, v2")
+    provider = get_auth_provider()
+    assert isinstance(provider, TypeAnnotatedFakeProvider)
+    assert provider.kwargs["str_param"] == "hello"
+    assert provider.kwargs["bool_param"] is True
+    assert provider.kwargs["int_param"] == 42
+    assert provider.kwargs["list_param"] == ["a", "b", "c"]
+    assert provider.kwargs["dict_param"] == {"k1": "v1", "k2": "v2"}
+    assert provider.kwargs["optional_param"] is None
