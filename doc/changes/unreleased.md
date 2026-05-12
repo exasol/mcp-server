@@ -6,4 +6,4 @@
 
 ## Refactoring
 
-* #219: Changed the org name in docker hub from "exadockerci4" to "exasol".
+* #210: Changed the org name in docker hub from "exadockerci4" to "exasol".
