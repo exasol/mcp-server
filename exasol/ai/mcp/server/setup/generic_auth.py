@@ -42,7 +42,9 @@ from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifi
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
+ENV_STORAGE_BACKEND = "EXA_MCP_STORAGE_BACKEND"
 _EXA_ENV_PREFIX = "EXA_AUTH_"
+_SKIP_PARAMS = frozenset({"client_storage"})
 
 
 def str_to_list(s) -> list[str]:
@@ -198,7 +200,9 @@ def _build_provider_info_from_type(provider_type: type) -> AuthProviderInfo:
     parameters = [
         AuthParameter(name=pname, conv=_type_to_converter(hints.get(pname, str)))
         for pname, param in sig.parameters.items()
-        if pname != "self" and param.kind not in _skip_kinds
+        if pname != "self"
+        and param.kind not in _skip_kinds
+        and pname not in _SKIP_PARAMS
     ]
 
     qualified_name = f"{provider_type.__module__}.{provider_type.__qualname__}"
@@ -313,6 +317,29 @@ def _get_verifier_map() -> dict[str, AuthProviderInfo]:
     }
 
 
+def create_client_storage() -> Any:
+    """
+    Returns an ``AsyncKeyValue`` storage backend for OAuth state based on
+    ``EXA_MCP_STORAGE_BACKEND``, or ``None`` to let FastMCP use its default
+    (encrypted ``FileTreeStore``).
+
+    Valid values:
+    - unset or ``filetree``: FastMCP default — encrypted FileTreeStore, NFS-safe
+    - ``memory``: in-memory MemoryStore, no persistence, no corruption risk
+    """
+    backend = os.environ.get(ENV_STORAGE_BACKEND, "").strip().lower()
+    if not backend or backend == "filetree":
+        return None
+    if backend == "memory":
+        from key_value.aio.stores.memory import MemoryStore
+
+        return MemoryStore()
+    raise ValueError(
+        f"Unknown storage backend '{backend}'. "
+        "Valid values: 'filetree' (default), 'memory'."
+    )
+
+
 def create_auth_provider(
     provider_info: AuthProviderInfo, **extra_kwargs
 ) -> AuthProvider:
@@ -337,6 +364,14 @@ def create_auth_provider(
             )
             if legacy_env in os.environ:
                 kwargs[param.name] = param.conv(os.environ[legacy_env])
+    if "client_storage" not in kwargs and "client_storage" not in extra_kwargs:
+        if (
+            "client_storage"
+            in inspect.signature(provider_info.provider_type.__init__).parameters
+        ):
+            storage = create_client_storage()
+            if storage is not None:
+                kwargs["client_storage"] = storage
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
 
