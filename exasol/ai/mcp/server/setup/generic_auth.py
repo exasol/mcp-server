@@ -1,28 +1,24 @@
 """
-This module allows to create and use one of generic OAuth providers included in FastMCP.
+This module restores the FastMCP v2 mechanism of configuring OAuth2 providers through
+environment variables. The provider to use is selected by setting FASTMCP_SERVER_AUTH
+to the fully qualified class name of the desired provider.
 
-FastMCP also supports a number of specific identity providers, e.g. Google or Auth0.
-It offers a mechanism of configuring one of these providers using a set of defined
-environment variables. The selection of the provider the MCP server is configured with
-is defined in the environment variable FASTMCP_SERVER_AUTH.
+For FastMCP's generic providers (JWTVerifier, IntrospectionTokenVerifier, OAuthProxy,
+RemoteAuthProvider) the env vars are prefixed with EXA_AUTH_ and the provider name
+must use the exa.<module>.<Class> convention.
 
-For some reason FastMCP chose not to extend this mechanism on their generic providers.
-This module does just that. It allows configuring one the three providers - JWTVerifier,
-OAuthProxy, RemoteAuthProvider. To be precise, JWTVerifier can be configured using the
-FastMCP environment variables, but because it is a part of the other two it is included
-here as well. All optional parameters of these providers are supported, without giving
-much thought on their usefulness in our use case.
-
-If at any point in time FastMCP defines environment variables for the generic providers,
-this module can be retired.
-
-We deliberately use our own prefixes in the names of environment variables. If FastMCP
-defines environment variables for the generic providers they can be used immediately
-without waiting for this module to be removed.
+For any other importable AuthProvider subclass (FastMCP built-ins and future providers),
+this module dynamically inspects the constructor type annotations to determine the
+expected parameters and their types. The env var prefix is derived from the class name
+as FASTMCP_SERVER_AUTH_<CLASSNAME>_. For the five providers that were previously
+hardcoded, the old FastMCP v2 prefix names are also accepted for backward compatibility.
 """
 
 import csv
+import importlib
+import inspect
 import os
+import types as _types
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
@@ -30,6 +26,10 @@ from io import StringIO
 from typing import (
     Any,
     Literal,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
 )
 
 from fastmcp.server.auth import (
@@ -38,13 +38,8 @@ from fastmcp.server.auth import (
     RemoteAuthProvider,
 )
 from fastmcp.server.auth.auth import TokenVerifier
-from fastmcp.server.auth.providers.auth0 import Auth0Provider
-from fastmcp.server.auth.providers.aws import AWSCognitoProvider
-from fastmcp.server.auth.providers.azure import AzureProvider
-from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
-from fastmcp.server.auth.providers.workos import AuthKitProvider
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
 _EXA_ENV_PREFIX = "EXA_AUTH_"
@@ -84,6 +79,65 @@ def str_to_int(s: str) -> int:
     return int(str_to_str(s))
 
 
+def _type_to_converter(annotation) -> Callable[[str], Any]:
+    """
+    Returns the string-to-value converter that best matches a type annotation.
+
+    Handles the common scalar types (str, bool, int), generic collections
+    (list, dict), Optional variants, and the special ``bool | Literal["external"]``
+    union used by several FastMCP providers. Falls back to ``str_to_str`` for any
+    annotation that does not match a known pattern.
+    """
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+
+    if origin is Union:
+        non_none = [a for a in args if a is not type(None)]
+        literal_args = [a for a in args if get_origin(a) is Literal]
+        non_none_non_literal = [a for a in non_none if get_origin(a) is not Literal]
+        if (
+            len(non_none_non_literal) == 1
+            and non_none_non_literal[0] is bool
+            and literal_args
+        ):
+            return str_to_bool_or_external
+        if type(None) in args and len(non_none) == 1:
+            return _type_to_converter(non_none[0])
+        return str_to_str
+
+    if hasattr(_types, "UnionType") and isinstance(annotation, _types.UnionType):
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _type_to_converter(non_none[0])
+        return str_to_str
+
+    if annotation is bool:
+        return str_to_bool
+    if annotation is int:
+        return str_to_int
+    if annotation is list or origin is list:
+        return str_to_list
+    if annotation is dict or origin is dict:
+        return str_to_dict
+    return str_to_str
+
+
+def _import_type(qualified_name: str) -> type | None:
+    """
+    Imports and returns the class identified by ``qualified_name`` (e.g.
+    ``"fastmcp.server.auth.providers.google.GoogleProvider"``).
+    Returns ``None`` if the module cannot be imported or the class does not exist.
+    """
+    if "." not in qualified_name:
+        return None
+    module_name, class_name = qualified_name.rsplit(".", 1)
+    try:
+        module = importlib.import_module(module_name)
+        return getattr(module, class_name)
+    except (ImportError, AttributeError):
+        return None
+
+
 def str_to_dict(s) -> dict[str, str]:
     fields = str_to_list(s)
     if (len(fields) % 2) != 0:
@@ -107,6 +161,54 @@ class AuthProviderInfo:
     parameters: list[AuthParameter]
     provider_name: str | None = None
     env_prefix: str = _EXA_ENV_PREFIX
+    legacy_env_prefix: str | None = None
+
+
+_FASTMCP_V2_PREFIXES: dict[str, str] = {
+    "fastmcp.server.auth.providers.auth0.Auth0Provider": "FASTMCP_SERVER_AUTH_AUTH0_",
+    "fastmcp.server.auth.providers.aws.AWSCognitoProvider": "FASTMCP_SERVER_AUTH_AWS_COGNITO_",
+    "fastmcp.server.auth.providers.azure.AzureProvider": "FASTMCP_SERVER_AUTH_AZURE_",
+    "fastmcp.server.auth.providers.google.GoogleProvider": "FASTMCP_SERVER_AUTH_GOOGLE_",
+    "fastmcp.server.auth.providers.workos.AuthKitProvider": "FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_",
+}
+
+
+def _build_provider_info_from_type(provider_type: type) -> AuthProviderInfo:
+    """
+    Builds an ``AuthProviderInfo`` by introspecting the constructor of
+    ``provider_type``.
+
+    The env var prefix is derived from the class name as
+    ``FASTMCP_SERVER_AUTH_<CLASSNAME>_``.  For the five providers that were
+    previously hardcoded (Auth0, AWS Cognito, Azure, Google, AuthKit) the
+    corresponding FastMCP v2 prefix is stored in ``legacy_env_prefix`` so that
+    old deployments continue to work without reconfiguration.
+
+    Each constructor parameter is mapped to a string converter via
+    ``_type_to_converter``. Parameters without a type annotation default to
+    ``str_to_str``.
+    """
+    try:
+        hints = get_type_hints(provider_type.__init__)
+    except Exception:
+        hints = {}
+
+    _skip_kinds = {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
+    sig = inspect.signature(provider_type.__init__)
+    parameters = [
+        AuthParameter(name=pname, conv=_type_to_converter(hints.get(pname, str)))
+        for pname, param in sig.parameters.items()
+        if pname != "self" and param.kind not in _skip_kinds
+    ]
+
+    qualified_name = f"{provider_type.__module__}.{provider_type.__qualname__}"
+    return AuthProviderInfo(
+        provider_type=provider_type,
+        parameters=parameters,
+        provider_name=qualified_name,
+        env_prefix=f"FASTMCP_SERVER_AUTH_{provider_type.__name__.upper()}_",
+        legacy_env_prefix=_FASTMCP_V2_PREFIXES.get(qualified_name),
+    )
 
 
 _generic_providers = [
@@ -165,108 +267,6 @@ _generic_providers = [
     ),
 ]
 
-_builtin_providers = [
-    AuthProviderInfo(
-        provider_type=Auth0Provider,
-        provider_name="fastmcp.server.auth.providers.auth0.Auth0Provider",
-        env_prefix="FASTMCP_SERVER_AUTH_AUTH0_",
-        parameters=[
-            AuthParameter("config_url"),
-            AuthParameter("client_id"),
-            AuthParameter("client_secret"),
-            AuthParameter("audience"),
-            AuthParameter("base_url"),
-            AuthParameter("resource_base_url"),
-            AuthParameter("issuer_url"),
-            AuthParameter("required_scopes", str_to_list),
-            AuthParameter("redirect_path"),
-            AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter("require_authorization_consent", str_to_bool_or_external),
-            AuthParameter("consent_csp_policy"),
-            AuthParameter("forward_resource", str_to_bool),
-        ],
-    ),
-    AuthProviderInfo(
-        provider_type=AWSCognitoProvider,
-        provider_name="fastmcp.server.auth.providers.aws.AWSCognitoProvider",
-        env_prefix="FASTMCP_SERVER_AUTH_AWS_COGNITO_",
-        parameters=[
-            AuthParameter("user_pool_id"),
-            AuthParameter("aws_region"),
-            AuthParameter("client_id"),
-            AuthParameter("client_secret"),
-            AuthParameter("base_url"),
-            AuthParameter("resource_base_url"),
-            AuthParameter("issuer_url"),
-            AuthParameter("redirect_path"),
-            AuthParameter("required_scopes", str_to_list),
-            AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter("require_authorization_consent", str_to_bool_or_external),
-            AuthParameter("consent_csp_policy"),
-            AuthParameter("forward_resource", str_to_bool),
-        ],
-    ),
-    AuthProviderInfo(
-        provider_type=AzureProvider,
-        provider_name="fastmcp.server.auth.providers.azure.AzureProvider",
-        env_prefix="FASTMCP_SERVER_AUTH_AZURE_",
-        parameters=[
-            AuthParameter("client_id"),
-            AuthParameter("client_secret"),
-            AuthParameter("tenant_id"),
-            AuthParameter("required_scopes", str_to_list),
-            AuthParameter("base_url"),
-            AuthParameter("resource_base_url"),
-            AuthParameter("identifier_uri"),
-            AuthParameter("issuer_url"),
-            AuthParameter("redirect_path"),
-            AuthParameter("additional_authorize_scopes", str_to_list),
-            AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter("require_authorization_consent", str_to_bool_or_external),
-            AuthParameter("consent_csp_policy"),
-            AuthParameter("forward_resource", str_to_bool),
-            AuthParameter("base_authority"),
-            AuthParameter("enable_cimd", str_to_bool),
-        ],
-    ),
-    AuthProviderInfo(
-        provider_type=GoogleProvider,
-        provider_name="fastmcp.server.auth.providers.google.GoogleProvider",
-        env_prefix="FASTMCP_SERVER_AUTH_GOOGLE_",
-        parameters=[
-            AuthParameter("client_id"),
-            AuthParameter("client_secret"),
-            AuthParameter("base_url"),
-            AuthParameter("resource_base_url"),
-            AuthParameter("issuer_url"),
-            AuthParameter("redirect_path"),
-            AuthParameter("required_scopes", str_to_list),
-            AuthParameter("valid_scopes", str_to_list),
-            AuthParameter("timeout_seconds", str_to_int),
-            AuthParameter("allowed_client_redirect_uris", str_to_list),
-            AuthParameter("require_authorization_consent", str_to_bool_or_external),
-            AuthParameter("consent_csp_policy"),
-            AuthParameter("forward_resource", str_to_bool),
-            AuthParameter("extra_authorize_params", str_to_dict),
-            AuthParameter("enable_cimd", str_to_bool),
-        ],
-    ),
-    AuthProviderInfo(
-        provider_type=AuthKitProvider,
-        provider_name="fastmcp.server.auth.providers.workos.AuthKitProvider",
-        env_prefix="FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_",
-        parameters=[
-            AuthParameter("authkit_domain"),
-            AuthParameter("base_url"),
-            AuthParameter("resource_base_url"),
-            AuthParameter("required_scopes", str_to_list),
-            AuthParameter("scopes_supported", str_to_list),
-            AuthParameter("resource_name"),
-            AuthParameter("resource_documentation"),
-        ],
-    ),
-]
-
 
 def exa_provider_name(provider_type: type[AuthProvider]) -> str:
     return f"exa.{provider_type.__module__}.{provider_type.__qualname__}"
@@ -302,11 +302,6 @@ def _get_generic_provider_map() -> dict[str, AuthProviderInfo]:
 
 
 @cache
-def _get_builtin_provider_map() -> dict[str, AuthProviderInfo]:
-    return {provider_name(provider): provider for provider in _builtin_providers}
-
-
-@cache
 def _get_verifier_map() -> dict[str, AuthProviderInfo]:
     """
     Indexes all known Token Verifiers by their names.
@@ -321,11 +316,27 @@ def _get_verifier_map() -> dict[str, AuthProviderInfo]:
 def create_auth_provider(
     provider_info: AuthProviderInfo, **extra_kwargs
 ) -> AuthProvider:
-    kwargs = {
-        param.name: param.conv(os.environ[parameter_env_name(provider_info, param)])
-        for param in provider_info.parameters
-        if parameter_env_name(provider_info, param) in os.environ
-    }
+    """
+    Instantiates the provider described by ``provider_info`` by reading its
+    parameters from environment variables.
+
+    For each parameter the primary env var name (built from ``env_prefix``) is
+    checked first. If it is absent and ``legacy_env_prefix`` is set, the
+    corresponding legacy name is tried as a fallback, preserving backward
+    compatibility with FastMCP v2 env var naming conventions.
+    """
+    kwargs = {}
+    for param in provider_info.parameters:
+        env = parameter_env_name(provider_info, param)
+        if env in os.environ:
+            kwargs[param.name] = param.conv(os.environ[env])
+        elif provider_info.legacy_env_prefix is not None:
+            legacy_env = (
+                f"{provider_info.legacy_env_prefix}"
+                f"{param.env_name if param.env_name is not None else param.name.upper()}"
+            )
+            if legacy_env in os.environ:
+                kwargs[param.name] = param.conv(os.environ[legacy_env])
     return provider_info.provider_type(**kwargs, **extra_kwargs)
 
 
@@ -381,9 +392,19 @@ def get_token_verifier(provider_name: str) -> tuple[TokenVerifier, str]:
 
 def get_auth_provider() -> AuthProvider | None:
     """
-    Creates one of FastMCP generic OAuth2 providers, if the correspondent type name is
-    set in the FASTMCP_SERVER_AUTH environment variable. Will raise ValueError if the
-    requested provider type is unknown or no Token Verifier can be created.
+    Creates an OAuth2 provider based on the class name stored in
+    ``FASTMCP_SERVER_AUTH``.
+
+    EXA generic providers (``exa.<module>.<Class>`` names) are constructed using
+    the hardcoded ``_generic_providers`` list and ``EXA_AUTH_`` env var prefix.
+
+    All other class names are handled dynamically: the class is imported, its
+    constructor is introspected, and the provider is instantiated from env vars
+    prefixed with ``FASTMCP_SERVER_AUTH_<CLASSNAME>_``.  For the five previously
+    hardcoded FastMCP built-ins the old v2 prefix names are also accepted.
+
+    Returns ``None`` if ``FASTMCP_SERVER_AUTH`` is unset, the named class cannot
+    be imported, or the provider cannot be constructed from the available env vars.
     """
     provider_name = os.environ.get(ENV_PROVIDER_TYPE)
     if not provider_name:
@@ -398,11 +419,14 @@ def get_auth_provider() -> AuthProvider | None:
             generic_provider_map[provider_name], token_verifier=verifier
         )
 
-    builtin_provider_map = _get_builtin_provider_map()
-    if provider_name not in builtin_provider_map:
+    provider_type = _import_type(provider_name)
+    if provider_type is None:
         return None
-
-    return _try_create_auth_provider(builtin_provider_map[provider_name])
+    provider_info = _build_provider_info_from_type(provider_type)
+    try:
+        return _try_create_auth_provider(provider_info)
+    except ValueError:
+        return None
 
 
 def get_auth_kwargs() -> dict[str, AuthProvider]:
