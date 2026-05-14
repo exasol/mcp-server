@@ -42,7 +42,7 @@ from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifi
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
-ENV_STORAGE_BACKEND = "EXA_MCP_STORAGE_BACKEND"
+ENV_STORAGE_BACKEND = "EXA_MCP_OAUTH_STORAGE_BACKEND"
 _EXA_ENV_PREFIX = "EXA_AUTH_"
 _SKIP_PARAMS = frozenset({"client_storage"})
 
@@ -320,7 +320,7 @@ def _get_verifier_map() -> dict[str, AuthProviderInfo]:
 def create_client_storage() -> Any:
     """
     Returns an ``AsyncKeyValue`` storage backend for OAuth state based on
-    ``EXA_MCP_STORAGE_BACKEND``, or ``None`` to let FastMCP use its default
+    ``EXA_MCP_OAUTH_STORAGE_BACKEND``, or ``None`` to let FastMCP use its default
     (encrypted ``FileTreeStore``).
 
     Valid values:

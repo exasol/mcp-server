@@ -262,7 +262,7 @@ clients, and token mappings. FastMCP v3 persists this state using an encrypted
 `FileTreeStore <https://gofastmcp.com/servers/storage-backends>`__ by default: one file
 per entry with atomic writes, which is safe on network filesystems such as AWS EFS or NFS.
 
-Exasol MCP Server exposes the backend selection through the ``EXA_MCP_STORAGE_BACKEND``
+Exasol MCP Server exposes the backend selection through the ``EXA_MCP_OAUTH_STORAGE_BACKEND``
 environment variable:
 
 +------------------+------------------------------------------------------------------------------+
@@ -280,7 +280,7 @@ environment variable:
 .. code-block:: shell
 
     # Use in-memory storage (e.g. for ephemeral containers):
-    export EXA_MCP_STORAGE_BACKEND=memory
+    export EXA_MCP_OAUTH_STORAGE_BACKEND=memory
 
 For more information on storage backends and advanced options such as Redis or DynamoDB,
 see the `FastMCP storage backends documentation <https://gofastmcp.com/servers/storage-backends>`__.
