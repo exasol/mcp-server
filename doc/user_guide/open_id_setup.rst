@@ -252,6 +252,40 @@ OAuth Proxy
 | EXA_AUTH_EXTRA_TOKEN_PARAMS              |    no    | Additional parameters to forward to the upstream token endpoint.             |
 |                                          |          | Useful for provider-specific parameters during token exchange.               |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
+| EXA_AUTH_JWT_SIGNING_KEY                 |    no    | Stable secret for signing FastMCP JWTs and deriving the storage              |
+|                                          |          | encryption key. When unset, both are derived from                            |
+|                                          |          | ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``, so rotating it changes the              |
+|                                          |          | storage directory and wipes all client registrations.                        |
+|                                          |          | Recommended for production.                                                  |
++------------------------------------------+----------+------------------------------------------------------------------------------+
+
+.. warning::
+
+   **Upstream secret rotation wipes the client registry**
+
+   When ``EXA_AUTH_JWT_SIGNING_KEY`` is not set, FastMCP derives both the JWT
+   signing key and the storage encryption key from
+   ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``. Because the storage directory path is
+   a fingerprint of the encryption key, rotating the upstream client secret
+   silently creates a new empty storage directory — all existing client
+   registrations are abandoned without any log entry or error.
+
+   MCP clients that support Dynamic Client Registration (DCR) — such as Claude
+   Desktop and Cursor — recover automatically: they re-register when they
+   receive a 400 response from ``/authorize``. Clients that do not support DCR
+   — such as ChatGPT — will be permanently stuck and require the user to
+   manually remove and re-add the connector.
+
+   To decouple the client registry from ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``,
+   set ``EXA_AUTH_JWT_SIGNING_KEY`` to a stable, independently managed secret:
+
+   .. code-block:: shell
+
+       export EXA_AUTH_JWT_SIGNING_KEY=<long-random-string>
+
+   FastMCP runs the value through PBKDF2 key derivation, so any sufficiently
+   long random string (32+ characters) is suitable. This secret signs all
+   FastMCP access and refresh tokens; treat it like a private key.
 
 OAuth State Storage Backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -267,6 +267,12 @@ _generic_providers = [
             AuthParameter("token_endpoint_auth_method"),
             AuthParameter("extra_authorize_params", str_to_dict),
             AuthParameter("extra_token_params", str_to_dict),
+            # Setting jwt_signing_key to a stable independent secret decouples
+            # JWT signing and the storage directory fingerprint from
+            # upstream_client_secret. Without it, rotating upstream_client_secret
+            # changes the storage fingerprint, silently moving to a new empty
+            # directory and invalidating all existing client registrations.
+            AuthParameter("jwt_signing_key"),
         ],
     ),
 ]
