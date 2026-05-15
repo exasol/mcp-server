@@ -748,6 +748,37 @@ def test_create_auth_provider_no_storage_for_jwt_verifier(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# OAuthProxy — default storage
+# ---------------------------------------------------------------------------
+
+
+def test_oauth_proxy_default_storage_is_filetree(monkeypatch, tmp_path) -> None:
+    from key_value.aio.stores.filetree import FileTreeStore
+    from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+
+    monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
+    token_verifier = IntrospectionTokenVerifier(
+        introspection_url="http://my_identity_server.com/introspection",
+        client_id="my_client_id",
+        client_secret="my_client_secret",
+        base_url="http://my_mcp_server.com",
+    )
+    proxy = OAuthProxy(
+        upstream_authorization_endpoint="http://my_identity_server.com/authorize",
+        upstream_token_endpoint="http://my_identity_server.com/token",
+        upstream_client_id="my_client_id",
+        upstream_client_secret="my_client_secret",
+        token_verifier=token_verifier,
+        base_url="http://my_mcp_server.com",
+    )
+
+    assert isinstance(proxy._client_storage, FernetEncryptionWrapper)
+    assert isinstance(proxy._client_storage.key_value, FileTreeStore)
+    oauth_proxy_dirs = list((tmp_path / "oauth-proxy").iterdir())
+    assert len(oauth_proxy_dirs) == 1
+
+
+# ---------------------------------------------------------------------------
 # _build_provider_info_from_type — client_storage excluded
 # ---------------------------------------------------------------------------
 
