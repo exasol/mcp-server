@@ -30,7 +30,7 @@ jobs:
           SAAS_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
           SAAS_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
           SAAS_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
-        run: poetry run -- nox -s test:integration -- -s --coverage --backend=saas --keep-saas-database
+        run: poetry run -- nox -s test:integration -- -s --coverage --backend=saas
 
       - name: Upload Artifacts
         id: upload-artifacts
