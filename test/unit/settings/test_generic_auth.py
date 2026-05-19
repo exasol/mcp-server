@@ -16,15 +16,18 @@ from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.providers.workos import AuthKitProvider
+from key_value.aio.stores.memory import MemoryStore
 
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
+    ENV_STORAGE_BACKEND,
     AuthParameter,
     AuthProviderInfo,
     _build_provider_info_from_type,
     _import_type,
     _type_to_converter,
     create_auth_provider,
+    create_client_storage,
     exa_parameter_env_name,
     exa_provider_name,
     get_auth_kwargs,
@@ -671,3 +674,123 @@ def test_get_auth_provider_dynamic(monkeypatch) -> None:
     assert provider.kwargs["list_param"] == ["a", "b", "c"]
     assert provider.kwargs["dict_param"] == {"k1": "v1", "k2": "v2"}
     assert provider.kwargs["optional_param"] is None
+
+
+# ---------------------------------------------------------------------------
+# create_client_storage
+# ---------------------------------------------------------------------------
+
+
+def test_create_client_storage_default(monkeypatch) -> None:
+    monkeypatch.delenv(ENV_STORAGE_BACKEND, raising=False)
+    assert create_client_storage() is None
+
+
+def test_create_client_storage_filetree(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "filetree")
+    assert create_client_storage() is None
+
+
+def test_create_client_storage_memory(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "memory")
+    storage = create_client_storage()
+    assert isinstance(storage, MemoryStore)
+
+
+def test_create_client_storage_unknown(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "disk")
+    with pytest.raises(ValueError, match="Unknown storage backend"):
+        create_client_storage()
+
+
+# ---------------------------------------------------------------------------
+# create_auth_provider — storage injection
+# ---------------------------------------------------------------------------
+
+
+class StorageCapableProvider(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(self, client_storage=None, **kwargs) -> None:
+        self.client_storage = client_storage
+        self.kwargs = kwargs
+
+
+def test_create_auth_provider_injects_memory_storage(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "memory")
+    info = AuthProviderInfo(provider_type=StorageCapableProvider, parameters=[])
+    provider = create_auth_provider(info)
+    assert isinstance(provider, StorageCapableProvider)
+    assert isinstance(provider.client_storage, MemoryStore)
+
+
+def test_create_auth_provider_no_injection_when_filetree(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "filetree")
+    info = AuthProviderInfo(provider_type=StorageCapableProvider, parameters=[])
+    provider = create_auth_provider(info)
+    assert isinstance(provider, StorageCapableProvider)
+    assert provider.client_storage is None
+
+
+def test_create_auth_provider_no_storage_for_jwt_verifier(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "memory")
+    monkeypatch.setenv(
+        exa_parameter_env_name(AuthParameter("jwks_uri")), "http://example.com/jwks"
+    )
+    monkeypatch.setenv(
+        exa_parameter_env_name(AuthParameter("base_url")), "http://example.com"
+    )
+    info = AuthProviderInfo(
+        provider_type=JWTVerifier,
+        parameters=[AuthParameter("jwks_uri"), AuthParameter("base_url")],
+    )
+    provider = create_auth_provider(info)
+    assert isinstance(provider, JWTVerifier)
+
+
+# ---------------------------------------------------------------------------
+# OAuthProxy — default storage
+# ---------------------------------------------------------------------------
+
+
+def test_oauth_proxy_default_storage_is_filetree(monkeypatch, tmp_path) -> None:
+    from key_value.aio.stores.filetree import FileTreeStore
+    from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+
+    monkeypatch.setattr(oauth_proxy_module.settings, "home", tmp_path)
+    token_verifier = IntrospectionTokenVerifier(
+        introspection_url="http://my_identity_server.com/introspection",
+        client_id="my_client_id",
+        client_secret="my_client_secret",
+        base_url="http://my_mcp_server.com",
+    )
+    proxy = OAuthProxy(
+        upstream_authorization_endpoint="http://my_identity_server.com/authorize",
+        upstream_token_endpoint="http://my_identity_server.com/token",
+        upstream_client_id="my_client_id",
+        upstream_client_secret="my_client_secret",
+        token_verifier=token_verifier,
+        base_url="http://my_mcp_server.com",
+    )
+
+    assert isinstance(proxy._client_storage, FernetEncryptionWrapper)
+    assert isinstance(proxy._client_storage.key_value, FileTreeStore)
+    oauth_proxy_dirs = list((tmp_path / "oauth-proxy").iterdir())
+    assert len(oauth_proxy_dirs) == 1
+
+
+# ---------------------------------------------------------------------------
+# _build_provider_info_from_type — client_storage excluded
+# ---------------------------------------------------------------------------
+
+
+class ProviderWithClientStorage(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(self, name: str, client_storage=None) -> None:
+        pass
+
+
+def test_build_provider_info_skips_client_storage() -> None:
+    info = _build_provider_info_from_type(ProviderWithClientStorage)
+    param_names = [p.name for p in info.parameters]
+    assert "client_storage" not in param_names
+    assert "name" in param_names

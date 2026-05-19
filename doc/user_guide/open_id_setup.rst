@@ -40,33 +40,18 @@ development.
 FastMCP Integration with Identity Providers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The FastMCP provides an integration with several popular OAuth providers.
-At the time of writing, the following providers are supported:
+FastMCP provides integrations with several popular OAuth identity providers. For the
+current list of supported providers and the configurable parameters for each, refer to
+the `FastMCP v3 documentation <https://gofastmcp.com/servers/auth/authentication>`__.
 
-* `Auth0 <https://gofastmcp.com/integrations/auth0>`__
-* `AuthKit <https://gofastmcp.com/integrations/authkit>`__
-* `AWS Cognito <https://gofastmcp.com/integrations/aws-cognito>`__
-* `Azure <https://gofastmcp.com/integrations/azure>`__
-* `Descope <https://gofastmcp.com/integrations/descope>`__
-* `GitHub <https://gofastmcp.com/integrations/github>`__
-* `Scalekit <https://gofastmcp.com/integrations/scalekit>`__
-* `Google <https://gofastmcp.com/integrations/google>`__
-* `WorkOS <https://gofastmcp.com/integrations/workos>`__
+Exasol MCP Server restores the environment variable-based provider configuration that
+was available in FastMCP v2. Any FastMCP ``AuthProvider`` subclass can be selected and
+configured entirely through environment variables, without writing Python code.
 
-FastMCP v3 removed the automatic configuration of these specific providers from
-environment variables. Exasol MCP Server restores this capability for the
-following provider classes using the FastMCP v2-compatible variable names:
-
-* ``fastmcp.server.auth.providers.auth0.Auth0Provider``
-* ``fastmcp.server.auth.providers.aws.AWSCognitoProvider``
-* ``fastmcp.server.auth.providers.azure.AzureProvider``
-* ``fastmcp.server.auth.providers.google.GoogleProvider``
-* ``fastmcp.server.auth.providers.workos.AuthKitProvider``
-
-To configure the MCP authentication with any of these providers, please set the
-environment variables as described in the FastMCP v2 documentation for a
-particular provider. As an example, the following environment variables shall be
-set when working with AuthKit:
+To activate a provider, set ``FASTMCP_SERVER_AUTH`` to its fully qualified class name.
+Each constructor parameter is then configured via an environment variable named
+``FASTMCP_SERVER_AUTH_<CLASSNAME>_<PARAM>``, where ``<CLASSNAME>`` is the provider class
+name in uppercase and ``<PARAM>`` is the parameter name in uppercase. For example:
 
 .. code-block:: shell
 
@@ -74,7 +59,27 @@ set when working with AuthKit:
     export FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_AUTHKIT_DOMAIN=https://your-project.authkit.app
     export FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_BASE_URL=https://your-server.com
 
-Note that the ``FASTMCP_SERVER_AUTH`` should always be set to the module path of the
+Use the FastMCP v3 documentation page for the chosen provider to find the available
+parameters and which ones are required.
+
+For the following five providers, the FastMCP v2 environment variable prefix names are
+also accepted for backward compatibility with existing deployments:
+
++------------------------------------------------------------------+------------------------------------------+
+| Provider class                                                   | Legacy v2 prefix                         |
++==================================================================+==========================================+
+| ``fastmcp.server.auth.providers.auth0.Auth0Provider``            | ``FASTMCP_SERVER_AUTH_AUTH0_``           |
++------------------------------------------------------------------+------------------------------------------+
+| ``fastmcp.server.auth.providers.aws.AWSCognitoProvider``         | ``FASTMCP_SERVER_AUTH_AWS_COGNITO_``     |
++------------------------------------------------------------------+------------------------------------------+
+| ``fastmcp.server.auth.providers.azure.AzureProvider``            | ``FASTMCP_SERVER_AUTH_AZURE_``           |
++------------------------------------------------------------------+------------------------------------------+
+| ``fastmcp.server.auth.providers.google.GoogleProvider``          | ``FASTMCP_SERVER_AUTH_GOOGLE_``          |
++------------------------------------------------------------------+------------------------------------------+
+| ``fastmcp.server.auth.providers.workos.AuthKitProvider``         | ``FASTMCP_SERVER_AUTH_AUTHKITPROVIDER_`` |
++------------------------------------------------------------------+------------------------------------------+
+
+Note that ``FASTMCP_SERVER_AUTH`` should always be set to the full module path of the
 provider's class. The generic providers described below still use the Exasol-specific
 ``EXA_AUTH_*`` environment variables.
 
@@ -100,8 +105,7 @@ Currently, FastMCP does not define environment variables for generic providers. 
 MCP Server fills the gap by providing its own set of variables in a similar fashion.
 As with specific providers, the variable ``FASTMCP_SERVER_AUTH`` should be set to the path
 of the chosen generic auth provider class. The required value for this variable can be
-found in one of t
-he tables below.
+found in one of the tables below.
 
 Normally, two sets of variables must be configured - one for a Token Verifier and another
 one for the provider - Remote OAuth or OAuth Proxy.
@@ -248,6 +252,72 @@ OAuth Proxy
 | EXA_AUTH_EXTRA_TOKEN_PARAMS              |    no    | Additional parameters to forward to the upstream token endpoint.             |
 |                                          |          | Useful for provider-specific parameters during token exchange.               |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
+| EXA_AUTH_JWT_SIGNING_KEY                 |    no    | Stable secret for signing FastMCP JWTs and deriving the storage              |
+|                                          |          | encryption key. When unset, both are derived from                            |
+|                                          |          | ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``, so rotating it changes the              |
+|                                          |          | storage directory and wipes all client registrations.                        |
+|                                          |          | Recommended for production.                                                  |
++------------------------------------------+----------+------------------------------------------------------------------------------+
+
+.. warning::
+
+   **Upstream secret rotation wipes the client registry**
+
+   When ``EXA_AUTH_JWT_SIGNING_KEY`` is not set, FastMCP derives both the JWT
+   signing key and the storage encryption key from
+   ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``. Because the storage directory path is
+   a fingerprint of the encryption key, rotating the upstream client secret
+   silently creates a new empty storage directory — all existing client
+   registrations are abandoned without any log entry or error.
+
+   MCP clients that support Dynamic Client Registration (DCR) — such as Claude
+   Desktop and Cursor — recover automatically: they re-register when they
+   receive a 400 response from ``/authorize``. Clients that do not support DCR
+   — such as ChatGPT — will be permanently stuck and require the user to
+   manually remove and re-add the connector.
+
+   To decouple the client registry from ``EXA_AUTH_UPSTREAM_CLIENT_SECRET``,
+   set ``EXA_AUTH_JWT_SIGNING_KEY`` to a stable, independently managed secret:
+
+   .. code-block:: shell
+
+       export EXA_AUTH_JWT_SIGNING_KEY=<long-random-string>
+
+   FastMCP runs the value through PBKDF2 key derivation, so any sufficiently
+   long random string (32+ characters) is suitable. This secret signs all
+   FastMCP access and refresh tokens; treat it like a private key.
+
+OAuth State Storage Backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+OAuth providers such as `OAuth Proxy <https://gofastmcp.com/servers/auth/oauth-proxy>`__
+maintain state between requests — active sessions, authorization codes, registered
+clients, and token mappings. FastMCP v3 persists this state using an encrypted
+`FileTreeStore <https://gofastmcp.com/servers/storage-backends>`__ by default: one file
+per entry with atomic writes, which is safe on network filesystems such as AWS EFS or NFS.
+
+Exasol MCP Server exposes the backend selection through the ``EXA_MCP_OAUTH_STORAGE_BACKEND``
+environment variable:
+
++------------------+------------------------------------------------------------------------------+
+| Value            | Behaviour                                                                    |
++==================+==============================================================================+
+| (unset) or       | **Default.** FastMCP's encrypted FileTreeStore, persisted under              |
+| ``filetree``     | ``~/.local/share/fastmcp/oauth-proxy/<fingerprint>/``.                       |
+|                  | Safe on network filesystems; sessions survive server restarts.               |
++------------------+------------------------------------------------------------------------------+
+| ``memory``       | In-memory store. No files are written; no corruption risk.                   |
+|                  | All OAuth sessions are lost when the server restarts.                        |
+|                  | Suitable for stateless or ephemeral deployments.                             |
++------------------+------------------------------------------------------------------------------+
+
+.. code-block:: shell
+
+    # Use in-memory storage (e.g. for ephemeral containers):
+    export EXA_MCP_OAUTH_STORAGE_BACKEND=memory
+
+For more information on storage backends and advanced options such as Redis or DynamoDB,
+see the `FastMCP storage backends documentation <https://gofastmcp.com/servers/storage-backends>`__.
 
 OpenID with SaaS Backend
 ------------------------
