@@ -2,14 +2,21 @@ from textwrap import dedent
 from unittest.mock import MagicMock
 
 import pytest
+import sqlglot.expressions as exp
 
 from exasol.ai.mcp.server.tools.mcp_server import (
     ExasolMCPServer,
+    _build_column_summaries,
+    _build_stats_query,
+    _is_numeric_type,
     remove_info_column,
     verify_query,
 )
 from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
-from exasol.ai.mcp.server.tools.schema.db_output_schema import DBObject
+from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    DBColumn,
+    DBObject,
+)
 
 
 def sample_select_query() -> str:
@@ -184,3 +191,109 @@ def test_execute_meta_query_empty_result():
     server = ExasolMCPServer(connection=connection, config=config)
     result = server._execute_meta_query("SELECT 1", DBObject)
     assert result == []
+
+
+@pytest.mark.parametrize(
+    ["sql_type", "expected"],
+    [
+        ("DECIMAL(18,0)", True),
+        ("NUMERIC(10,2)", True),
+        ("DOUBLE", True),
+        ("DOUBLE PRECISION", True),
+        ("FLOAT", True),
+        ("INTEGER", True),
+        ("INT", True),
+        ("BIGINT", True),
+        ("SMALLINT", True),
+        ("TINYINT", True),
+        ("NUMBER", True),
+        ("VARCHAR(100) UTF8", False),
+        ("CHAR(10)", False),
+        ("DATE", False),
+        ("TIMESTAMP", False),
+        ("BOOLEAN", False),
+    ],
+)
+def test_is_numeric_type(sql_type, expected):
+    assert _is_numeric_type(sql_type) == expected
+
+
+def _make_table_ref() -> exp.Table:
+    return exp.Table(
+        this=exp.Identifier(this="my_table", quoted=True),
+        db=exp.Identifier(this="my_schema", quoted=True),
+    )
+
+
+def test_build_stats_query_mixed_columns():
+    columns = [
+        DBColumn(name="id", type="DECIMAL(18,0)", comment=None),
+        DBColumn(name="label", type="VARCHAR(100) UTF8", comment=None),
+    ]
+    sql = _build_stats_query(_make_table_ref(), columns)
+
+    assert "DISTINCT_0" in sql
+    assert "MIN_0" in sql
+    assert "MAX_0" in sql
+    assert "DISTINCT_1" in sql
+    assert "MIN_1" not in sql
+    assert "MAX_1" not in sql
+    assert '"id"' in sql
+    assert '"label"' in sql
+    assert '"my_table"' in sql
+    assert '"my_schema"' in sql
+
+
+def test_build_stats_query_all_non_numeric():
+    columns = [
+        DBColumn(name="a", type="VARCHAR(10)", comment=None),
+        DBColumn(name="b", type="DATE", comment=None),
+    ]
+    sql = _build_stats_query(_make_table_ref(), columns)
+
+    assert "DISTINCT_0" in sql
+    assert "DISTINCT_1" in sql
+    assert "MIN_" not in sql
+    assert "MAX_" not in sql
+
+
+def test_build_column_summaries_with_data():
+    columns = [
+        DBColumn(name="id", type="DECIMAL(18,0)", comment=None),
+        DBColumn(name="label", type="VARCHAR(100) UTF8", comment="a label"),
+    ]
+    stats_row = {"DISTINCT_0": 5, "MIN_0": 1, "MAX_0": 10, "DISTINCT_1": 3}
+
+    summaries = _build_column_summaries(columns, stats_row)
+
+    assert len(summaries) == 2
+    assert summaries[0].name == "id"
+    assert summaries[0].distinct_count == 5
+    assert summaries[0].min == "1"
+    assert summaries[0].max == "10"
+    assert summaries[1].name == "label"
+    assert summaries[1].comment == "a label"
+    assert summaries[1].distinct_count == 3
+    assert summaries[1].min is None
+    assert summaries[1].max is None
+
+
+def test_build_column_summaries_empty_table():
+    columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
+    stats_row = {"DISTINCT_0": 0, "MIN_0": None, "MAX_0": None}
+
+    summaries = _build_column_summaries(columns, stats_row)
+
+    assert summaries[0].distinct_count == 0
+    assert summaries[0].min is None
+    assert summaries[0].max is None
+
+
+def test_build_column_summaries_no_stats_row():
+    columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
+
+    summaries = _build_column_summaries(columns, None)
+
+    assert summaries[0].distinct_count == 0
+    assert summaries[0].min is None
+    assert summaries[0].max is None

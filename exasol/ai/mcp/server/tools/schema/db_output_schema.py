@@ -1,4 +1,7 @@
-from typing import Annotated
+from typing import (
+    Annotated,
+    Any,
+)
 
 from pydantic import (
     BaseModel,
@@ -181,6 +184,31 @@ class BuiltInFunction(BaseModel):
     ]
     example: Annotated[
         str | None, Field(description="One or more call examples", default=None)
+    ]
+
+
+class DBColumnSummary(DBColumn):
+    distinct_count: Annotated[
+        int, Field(description="Number of distinct non-NULL values in this column")
+    ]
+    min: Annotated[
+        str | None,
+        Field(description="Minimum value for numeric columns", default=None),
+    ]
+    max: Annotated[
+        str | None,
+        Field(description="Maximum value for numeric columns", default=None),
+    ]
+
+
+class DBTableSummary(QualifiedDBObject):
+    columns: Annotated[
+        list[DBColumnSummary],
+        Field(description="Per-column statistics"),
+    ]
+    sample: Annotated[
+        list[dict[str, Any]],
+        Field(description="Sample rows from the table"),
     ]
 
 

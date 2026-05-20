@@ -144,6 +144,35 @@ describe_exasol_table_or_view
             - ``referenced_table``: table referenced in the FOREIGN KEY constraint
             - ``referenced_columns``: comma separated list of columns in the referenced table in the FOREIGN KEY constraint
 
+summarize_exasol_table
+~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Summarizes the content of a table or view.
+    For each column it returns the number of distinct values and, for numeric columns, the minimum and maximum values.
+    Also returns a configurable number of sample rows (default: 10).
+    Must be explicitly enabled in the settings (see :doc:`tool_setup`).
+
+:Parameters:
+    - ``schema_name``: name of the schema
+    - ``table_name``: name of the table or view
+    - ``sample_size`` *(optional, default 10)*: number of sample rows to include, between 1 and 100
+
+:Returns:
+    - **Type**: ``dict``
+    - **Data**:
+        - ``schema``: name of the schema where the table or view is located
+        - ``name``: name of the table or view
+        - ``comment``: table or view comment, if available
+        - ``columns``: list of column statistics
+            - ``name``: column name
+            - ``comment``: column comment, if available
+            - ``type``: SQL type, e.g. "DECIMAL(18,0)"
+            - ``distinct_count``: number of distinct non-NULL values
+            - ``min``: minimum value for numeric columns, ``null`` otherwise
+            - ``max``: maximum value for numeric columns, ``null`` otherwise
+        - ``sample``: list of sample rows, each row is a dict with column names as keys
+
 describe_exasol_custom_function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

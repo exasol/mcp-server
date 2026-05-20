@@ -805,6 +805,77 @@ def test_describe_script(
             assert result_json == expected_json
 
 
+def test_summarize_table(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+) -> None:
+    """
+    Test the `summarize_exasol_table` tool. Verifies column statistics and sample data
+    for the `ski_resort` table (which has known rows).
+    """
+    config = McpServerSettings(
+        enable_summarize_table=True,
+        columns=MetaColumnSettings(enable=True),
+    )
+    ski_resort = next(t for t in db_tables if t.name == "ski_resort")
+
+    for schema in db_schemas:
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "summarize_exasol_table",
+            schema_name=schema.name,
+            table_name=ski_resort.name,
+        )
+        result_json = get_result_json(result)
+
+        assert result_json[SCHEMA_FIELD] == schema.name
+        assert result_json[NAME_FIELD] == ski_resort.name
+        assert result_json[COMMENT_FIELD] == ski_resort.comment
+
+        columns_json = result_json[COLUMNS_FIELD]
+        assert len(columns_json) == len(ski_resort.columns)
+
+        col_by_name = {c["name"]: c for c in columns_json}
+
+        # resort_id is DECIMAL(18,0) — numeric
+        resort_id = col_by_name["resort_id"]
+        assert resort_id["distinct_count"] == 3
+        assert resort_id["min"] is not None
+        assert resort_id["max"] is not None
+
+        # resort_name is VARCHAR — not numeric
+        resort_name = col_by_name["resort_name"]
+        assert resort_name["distinct_count"] == 3
+        assert resort_name["min"] is None
+        assert resort_name["max"] is None
+
+        # country is VARCHAR — not numeric
+        country = col_by_name["country"]
+        assert country["distinct_count"] == 2  # France, Austria
+        assert country["min"] is None
+
+        # altitude is DECIMAL(18,0) — numeric
+        altitude = col_by_name["altitude"]
+        assert altitude["distinct_count"] == 3
+        assert altitude["min"] is not None
+        assert altitude["max"] is not None
+
+        # Sample
+        sample = result_json["sample"]
+        assert len(sample) > 0
+        assert len(sample) <= 10
+
+
+def test_summarize_table_disabled(pyexasol_connection) -> None:
+    """
+    Test that `summarize_exasol_table` is not registered when disabled.
+    """
+    config = McpServerSettings()  # enable_summarize_table defaults to False
+    result = list_tools(pyexasol_connection, config)
+    tool_list = [tool.name for tool in result]
+    assert "summarize_exasol_table" not in tool_list
+
+
 def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
     """
     Test the `execute_query` tool. Runs the simplest SELECT query that grabs the entire
