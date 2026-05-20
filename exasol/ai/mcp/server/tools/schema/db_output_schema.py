@@ -199,9 +199,19 @@ class DBColumnSummary(DBColumn):
         str | None,
         Field(description="Maximum value for numeric columns", default=None),
     ]
+    top_values: Annotated[
+        list[Any],
+        Field(
+            description=(
+                "Most common distinct values in descending frequency order. "
+                "Empty if all values in the column are NULL."
+            )
+        ),
+    ]
 
 
 class DBTableSummary(QualifiedDBObject):
+    row_count: Annotated[int, Field(description="Total number of rows in the table")]
     columns: Annotated[
         list[DBColumnSummary],
         Field(description="Per-column statistics"),

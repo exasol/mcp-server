@@ -162,11 +162,15 @@ def _is_numeric_type(sql_type: str) -> bool:
 
 def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
     """
-    Builds a SELECT that computes COUNT(DISTINCT) for every column, plus MIN/MAX
-    for numeric columns.  Aliases use positional indices (DISTINCT_i, MIN_i, MAX_i)
-    to avoid collisions with arbitrary column names.
+    Builds a single-row SELECT that computes:
+    - ROW_COUNT: total row count
+    - DISTINCT_i: COUNT(DISTINCT col) for every column
+    - MIN_i / MAX_i: min and max for numeric columns
+    Positional aliases avoid collisions with arbitrary column names.
     """
-    select_exprs: list[exp.Expression] = []
+    select_exprs: list[exp.Expression] = [
+        exp.alias_(exp.Count(this=exp.Star()), "ROW_COUNT"),
+    ]
     for i, col in enumerate(columns):
         col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
         select_exprs.append(
@@ -181,6 +185,27 @@ def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
     return exp.Select().from_(table_ref).select(*select_exprs).sql(dialect="exasol")
 
 
+def _build_top_values_query(table_ref: exp.Table, col: DBColumn, top_n: int) -> str:
+    """
+    Builds a query that returns the top_n most frequent non-NULL values of a column,
+    ordered by descending frequency.
+    """
+
+    def col_ref() -> exp.Column:
+        return exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+
+    return (
+        exp.Select()
+        .from_(table_ref)
+        .select(col_ref())
+        .where(exp.Not(this=exp.Is(this=col_ref(), expression=exp.Null())))
+        .group_by(col_ref())
+        .order_by(exp.Ordered(this=exp.Count(this=exp.Star()), desc=True))
+        .limit(top_n)
+        .sql(dialect="exasol")
+    )
+
+
 def _build_sample_query(table_ref: exp.Table, sample_size: int) -> str:
     return (
         exp.Select()
@@ -192,7 +217,9 @@ def _build_sample_query(table_ref: exp.Table, sample_size: int) -> str:
 
 
 def _build_column_summaries(
-    columns: list[DBColumn], stats_row: dict[str, Any] | None
+    columns: list[DBColumn],
+    stats_row: dict[str, Any] | None,
+    column_top_values: list[list[Any]],
 ) -> list[DBColumnSummary]:
     summaries = []
     for i, col in enumerate(columns):
@@ -207,6 +234,7 @@ def _build_column_summaries(
                 distinct_count=stats_row.get(f"DISTINCT_{i}", 0) if stats_row else 0,
                 min=str(raw_min) if raw_min is not None else None,
                 max=str(raw_max) if raw_max is not None else None,
+                top_values=column_top_values[i],
             )
         )
     return summaries
@@ -394,6 +422,17 @@ class ExasolMCPServer(FastMCP):
             raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
         return table_meta[0].comment
 
+    def _fetch_column_top_values(
+        self, table_ref: exp.Table, columns: list[DBColumn], top_n: int
+    ) -> list[list[Any]]:
+        result = []
+        for col in columns:
+            rows = self.connection.execute_query(
+                _build_top_values_query(table_ref, col, top_n), snapshot=False
+            ).fetchall()
+            result.append([list(row.values())[0] for row in rows])
+        return result
+
     def summarize_table(
         self,
         schema_name: SchemaNameArg,
@@ -407,6 +446,15 @@ class ExasolMCPServer(FastMCP):
                 le=100,
             ),
         ] = 10,
+        top_values: Annotated[
+            int,
+            Field(
+                description="Number of most common distinct values to return per column",
+                default=5,
+                ge=1,
+                le=100,
+            ),
+        ] = 5,
     ) -> DBTableSummary:
         if not self.config.enable_summarize_table:
             raise RuntimeError("The table summarization is disabled.")
@@ -419,6 +467,9 @@ class ExasolMCPServer(FastMCP):
         stats_row = self.connection.execute_query(
             _build_stats_query(table_ref, columns), snapshot=False
         ).fetchone()
+        column_top_values = self._fetch_column_top_values(
+            table_ref, columns, top_values
+        )
         sample_data = self.connection.execute_query(
             _build_sample_query(table_ref, sample_size), snapshot=False
         ).fetchall()
@@ -426,7 +477,8 @@ class ExasolMCPServer(FastMCP):
             schema=schema_name,
             name=table_name,
             comment=comment,
-            columns=_build_column_summaries(columns, stats_row),
+            row_count=stats_row.get("ROW_COUNT", 0) if stats_row else 0,
+            columns=_build_column_summaries(columns, stats_row, column_top_values),
             sample=sample_data,
         )
 

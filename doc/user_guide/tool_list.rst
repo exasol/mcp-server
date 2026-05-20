@@ -157,6 +157,7 @@ summarize_exasol_table
     - ``schema_name``: name of the schema
     - ``table_name``: name of the table or view
     - ``sample_size`` *(optional, default 10)*: number of sample rows to include, between 1 and 100
+    - ``top_values`` *(optional, default 5)*: number of most common distinct values to return per column, between 1 and 100
 
 :Returns:
     - **Type**: ``dict``
@@ -164,6 +165,7 @@ summarize_exasol_table
         - ``schema``: name of the schema where the table or view is located
         - ``name``: name of the table or view
         - ``comment``: table or view comment, if available
+        - ``row_count``: total number of rows in the table or view
         - ``columns``: list of column statistics
             - ``name``: column name
             - ``comment``: column comment, if available
@@ -171,6 +173,7 @@ summarize_exasol_table
             - ``distinct_count``: number of distinct non-NULL values
             - ``min``: minimum value for numeric columns, ``null`` otherwise
             - ``max``: maximum value for numeric columns, ``null`` otherwise
+            - ``top_values``: most common distinct values in descending frequency order; empty list if all values are NULL
         - ``sample``: list of sample rows, each row is a dict with column names as keys
 
 describe_exasol_custom_function

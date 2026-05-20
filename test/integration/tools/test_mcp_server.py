@@ -837,28 +837,36 @@ def test_summarize_table(
 
         col_by_name = {c["name"]: c for c in columns_json}
 
+        # Total row count
+        assert result_json["row_count"] == 3
+
         # resort_id is DECIMAL(18,0) — numeric
         resort_id = col_by_name["resort_id"]
         assert resort_id["distinct_count"] == 3
         assert resort_id["min"] is not None
         assert resort_id["max"] is not None
+        assert len(resort_id["top_values"]) == 3
 
         # resort_name is VARCHAR — not numeric
         resort_name = col_by_name["resort_name"]
         assert resort_name["distinct_count"] == 3
         assert resort_name["min"] is None
         assert resort_name["max"] is None
+        assert len(resort_name["top_values"]) == 3
 
-        # country is VARCHAR — not numeric
+        # country is VARCHAR — not numeric; France appears twice, Austria once
         country = col_by_name["country"]
-        assert country["distinct_count"] == 2  # France, Austria
+        assert country["distinct_count"] == 2
         assert country["min"] is None
+        assert len(country["top_values"]) == 2
+        assert country["top_values"][0] == "France"  # highest frequency first
 
         # altitude is DECIMAL(18,0) — numeric
         altitude = col_by_name["altitude"]
         assert altitude["distinct_count"] == 3
         assert altitude["min"] is not None
         assert altitude["max"] is not None
+        assert len(altitude["top_values"]) == 3
 
         # Sample
         sample = result_json["sample"]
