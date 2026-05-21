@@ -447,7 +447,7 @@ class ExasolMCPServer(FastMCP):
             result.append(
                 self.connection.execute_query(
                     _build_top_values_query(table_ref, col, top_n), snapshot=False
-                ).fetchall()
+                ).fetchcol()
             )
         return result
 
