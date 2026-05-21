@@ -846,6 +846,8 @@ def test_summarize_table(
         assert resort_id["min"] is not None
         assert resort_id["max"] is not None
         assert len(resort_id["top_values"]) == 3
+        assert resort_id["has_nulls"] is False
+        assert resort_id["null_percentage"] == 0
 
         # resort_name is VARCHAR — not numeric
         resort_name = col_by_name["resort_name"]
@@ -853,6 +855,8 @@ def test_summarize_table(
         assert resort_name["min"] is None
         assert resort_name["max"] is None
         assert len(resort_name["top_values"]) == 3
+        assert resort_name["has_nulls"] is False
+        assert resort_name["null_percentage"] == 0
 
         # country is VARCHAR — not numeric; France appears twice, Austria once
         country = col_by_name["country"]
@@ -860,6 +864,8 @@ def test_summarize_table(
         assert country["min"] is None
         assert len(country["top_values"]) == 2
         assert country["top_values"][0] == "France"  # highest frequency first
+        assert country["has_nulls"] is False
+        assert country["null_percentage"] == 0
 
         # altitude is DECIMAL(18,0) — numeric
         altitude = col_by_name["altitude"]
@@ -867,6 +873,8 @@ def test_summarize_table(
         assert altitude["min"] is not None
         assert altitude["max"] is not None
         assert len(altitude["top_values"]) == 3
+        assert altitude["has_nulls"] is False
+        assert altitude["null_percentage"] == 0
 
         # Sample
         sample = result_json["sample"]

@@ -239,7 +239,9 @@ def test_build_stats_query_mixed_columns():
             COUNT(DISTINCT "id") AS DISTINCT_0,
             MIN("id") AS MIN_0,
             MAX("id") AS MAX_0,
-            COUNT(DISTINCT "label") AS DISTINCT_1
+            COUNT(*) - COUNT("id") AS NULL_COUNT_0,
+            COUNT(DISTINCT "label") AS DISTINCT_1,
+            COUNT(*) - COUNT("label") AS NULL_COUNT_1
         FROM "my_schema"."my_table"
     """)
     assert query == expected_query
@@ -255,7 +257,9 @@ def test_build_stats_query_all_non_numeric():
         SELECT
             COUNT(*) AS ROW_COUNT,
             COUNT(DISTINCT "a") AS DISTINCT_0,
-            COUNT(DISTINCT "b") AS DISTINCT_1
+            COUNT(*) - COUNT("a") AS NULL_COUNT_0,
+            COUNT(DISTINCT "b") AS DISTINCT_1,
+            COUNT(*) - COUNT("b") AS NULL_COUNT_1
         FROM "my_schema"."my_table"
     """)
     assert query == expected_query
@@ -280,7 +284,15 @@ def test_build_column_summaries_with_data():
         DBColumn(name="id", type="DECIMAL(18,0)", comment=None),
         DBColumn(name="label", type="VARCHAR(100) UTF8", comment="a label"),
     ]
-    stats_row = {"DISTINCT_0": 5, "MIN_0": 1, "MAX_0": 10, "DISTINCT_1": 3}
+    stats_row = {
+        "ROW_COUNT": 10,
+        "DISTINCT_0": 5,
+        "MIN_0": 1,
+        "MAX_0": 10,
+        "NULL_COUNT_0": 0,
+        "DISTINCT_1": 3,
+        "NULL_COUNT_1": 2,
+    }
     top_values = [[1, 2, 3], ["x", "y", "z"]]
 
     summaries = _build_column_summaries(columns, stats_row, top_values)
@@ -291,17 +303,27 @@ def test_build_column_summaries_with_data():
     assert summaries[0].min == "1"
     assert summaries[0].max == "10"
     assert summaries[0].top_values == [1, 2, 3]
+    assert summaries[0].has_nulls is False
+    assert summaries[0].null_percentage == 0
     assert summaries[1].name == "label"
     assert summaries[1].comment == "a label"
     assert summaries[1].distinct_count == 3
     assert summaries[1].min is None
     assert summaries[1].max is None
     assert summaries[1].top_values == ["x", "y", "z"]
+    assert summaries[1].has_nulls is True
+    assert summaries[1].null_percentage == 20
 
 
 def test_build_column_summaries_empty_table():
     columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
-    stats_row = {"DISTINCT_0": 0, "MIN_0": None, "MAX_0": None}
+    stats_row = {
+        "ROW_COUNT": 0,
+        "DISTINCT_0": 0,
+        "MIN_0": None,
+        "MAX_0": None,
+        "NULL_COUNT_0": 0,
+    }
 
     summaries = _build_column_summaries(columns, stats_row, [[]])
 
@@ -309,6 +331,8 @@ def test_build_column_summaries_empty_table():
     assert summaries[0].min is None
     assert summaries[0].max is None
     assert summaries[0].top_values == []
+    assert summaries[0].has_nulls is False
+    assert summaries[0].null_percentage == 0
 
 
 def test_build_column_summaries_no_stats_row():
@@ -320,3 +344,5 @@ def test_build_column_summaries_no_stats_row():
     assert summaries[0].min is None
     assert summaries[0].max is None
     assert summaries[0].top_values == []
+    assert summaries[0].has_nulls is False
+    assert summaries[0].null_percentage == 0

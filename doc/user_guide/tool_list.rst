@@ -149,8 +149,14 @@ summarize_exasol_table
 
 :Description:
     Summarizes the content of a table or view.
-    For each column it returns the number of distinct values and, for numeric columns, the minimum and maximum values.
-    Also returns a configurable number of sample rows (default: 10).
+    Returns the total row count and a configurable number of sample rows (default: 10).
+    For each column returns:
+
+    - most common distinct values in descending frequency order
+    - number of distinct non-NULL values
+    - presence of NULL values and their percentage
+    - minimum and maximum values (numeric columns only)
+
     Must be explicitly enabled in the settings (see :doc:`tool_setup`).
 
 :Parameters:
@@ -166,7 +172,7 @@ summarize_exasol_table
         - ``name``: name of the table or view
         - ``comment``: table or view comment, if available
         - ``row_count``: total number of rows in the table or view
-        - ``columns``: list of column statistics
+        - ``columns``: list of column statistics, each column contains:
             - ``name``: column name
             - ``comment``: column comment, if available
             - ``type``: SQL type, e.g. "DECIMAL(18,0)"
@@ -174,6 +180,8 @@ summarize_exasol_table
             - ``min``: minimum value for numeric columns, ``null`` otherwise
             - ``max``: maximum value for numeric columns, ``null`` otherwise
             - ``top_values``: most common distinct values in descending frequency order; empty list if all values are NULL
+            - ``has_nulls``: ``true`` if the column contains at least one NULL value
+            - ``null_percentage``: percentage of NULL values rounded to whole percent
         - ``sample``: list of sample rows, each row is a dict with column names as keys
 
 describe_exasol_custom_function

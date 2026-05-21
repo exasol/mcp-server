@@ -166,6 +166,7 @@ def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
     - ROW_COUNT: total row count
     - DISTINCT_i: COUNT(DISTINCT col) for every column
     - MIN_i / MAX_i: min and max for numeric columns
+    - NULL_COUNT_i: COUNT(*) - COUNT(col) — number of NULLs per column
     Positional aliases avoid collisions with arbitrary column names.
     """
     select_exprs: list[exp.Expression] = [
@@ -182,6 +183,16 @@ def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
         if _is_numeric_type(col.type):
             select_exprs.append(exp.alias_(exp.Min(this=col_ref), f"MIN_{i}"))
             select_exprs.append(exp.alias_(exp.Max(this=col_ref), f"MAX_{i}"))
+        null_col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+        select_exprs.append(
+            exp.alias_(
+                exp.Sub(
+                    this=exp.Count(this=exp.Star()),
+                    expression=exp.Count(this=null_col_ref),
+                ),
+                f"NULL_COUNT_{i}",
+            )
+        )
     return exp.Select().from_(table_ref).select(*select_exprs).sql(dialect="exasol")
 
 
@@ -222,10 +233,12 @@ def _build_column_summaries(
     column_top_values: list[list[Any]],
 ) -> list[DBColumnSummary]:
     summaries = []
+    row_count = stats_row.get("ROW_COUNT", 0) if stats_row else 0
     for i, col in enumerate(columns):
         is_numeric = _is_numeric_type(col.type)
         raw_min = stats_row.get(f"MIN_{i}") if is_numeric and stats_row else None
         raw_max = stats_row.get(f"MAX_{i}") if is_numeric and stats_row else None
+        null_count = stats_row.get(f"NULL_COUNT_{i}", 0) if stats_row else 0
         summaries.append(
             DBColumnSummary(
                 name=col.name,
@@ -235,6 +248,10 @@ def _build_column_summaries(
                 min=str(raw_min) if raw_min is not None else None,
                 max=str(raw_max) if raw_max is not None else None,
                 top_values=column_top_values[i],
+                has_nulls=null_count > 0,
+                null_percentage=(
+                    round(null_count / row_count * 100) if row_count > 0 else 0
+                ),
             )
         )
     return summaries
@@ -427,10 +444,11 @@ class ExasolMCPServer(FastMCP):
     ) -> list[list[Any]]:
         result = []
         for col in columns:
-            rows = self.connection.execute_query(
-                _build_top_values_query(table_ref, col, top_n), snapshot=False
-            ).fetchall()
-            result.append([next(iter(row.values())) for row in rows])
+            result.append(
+                self.connection.execute_query(
+                    _build_top_values_query(table_ref, col, top_n), snapshot=False
+                ).fetchall()
+            )
         return result
 
     def summarize_table(

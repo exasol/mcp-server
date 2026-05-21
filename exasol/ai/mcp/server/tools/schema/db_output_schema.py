@@ -208,6 +208,15 @@ class DBColumnSummary(DBColumn):
             )
         ),
     ]
+    has_nulls: Annotated[
+        bool, Field(description="True if the column contains at least one NULL value")
+    ]
+    null_percentage: Annotated[
+        int,
+        Field(
+            description="Percentage of NULL values in the column, rounded to whole percent"
+        ),
+    ]
 
 
 class DBTableSummary(QualifiedDBObject):
