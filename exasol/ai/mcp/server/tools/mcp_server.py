@@ -233,12 +233,12 @@ def _build_column_summaries(
     column_top_values: list[list[Any]],
 ) -> list[DBColumnSummary]:
     summaries = []
-    row_count = stats_row.get("ROW_COUNT", 0) if stats_row else 0
+    row_count = int(stats_row.get("ROW_COUNT", 0) or 0) if stats_row else 0
     for i, col in enumerate(columns):
         is_numeric = _is_numeric_type(col.type)
         raw_min = stats_row.get(f"MIN_{i}") if is_numeric and stats_row else None
         raw_max = stats_row.get(f"MAX_{i}") if is_numeric and stats_row else None
-        null_count = stats_row.get(f"NULL_COUNT_{i}", 0) if stats_row else 0
+        null_count = int(stats_row.get(f"NULL_COUNT_{i}", 0) or 0) if stats_row else 0
         summaries.append(
             DBColumnSummary(
                 name=col.name,
