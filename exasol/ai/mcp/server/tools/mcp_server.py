@@ -430,7 +430,7 @@ class ExasolMCPServer(FastMCP):
             rows = self.connection.execute_query(
                 _build_top_values_query(table_ref, col, top_n), snapshot=False
             ).fetchall()
-            result.append([list(row.values())[0] for row in rows])
+            result.append([next(iter(row.values())) for row in rows])
         return result
 
     def summarize_table(
