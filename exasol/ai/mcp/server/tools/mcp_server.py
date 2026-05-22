@@ -43,11 +43,13 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
+    DBColumnSummary,
     DBConstraint,
     DBEmitFunction,
     DBObject,
     DBReturnFunction,
     DBTable,
+    DBTableSummary,
     QualifiedDBObject,
     SQLTypeInfo,
 )
@@ -132,6 +134,127 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if INFO_COLUMN in row:
             row.pop(INFO_COLUMN)
     return result
+
+
+_NUMERIC_TYPE_PREFIXES = frozenset(
+    [
+        "DECIMAL",
+        "NUMERIC",
+        "DOUBLE",
+        "DOUBLE PRECISION",
+        "FLOAT",
+        "REAL",
+        "INTEGER",
+        "INT",
+        "BIGINT",
+        "SMALLINT",
+        "SHORTINT",
+        "BYTEINT",
+        "TINYINT",
+        "NUMBER",
+    ]
+)
+
+
+def _is_numeric_type(sql_type: str) -> bool:
+    return sql_type.split("(")[0].strip().upper() in _NUMERIC_TYPE_PREFIXES
+
+
+def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
+    """
+    Builds a single-row SELECT that computes:
+    - ROW_COUNT: total row count
+    - DISTINCT_i: COUNT(DISTINCT col) for every column
+    - MIN_i / MAX_i: min and max for numeric columns
+    - NULL_COUNT_i: COUNT(*) - COUNT(col) — number of NULLs per column
+    Positional aliases avoid collisions with arbitrary column names.
+    """
+    select_exprs: list[exp.Expression] = [
+        exp.alias_(exp.Count(this=exp.Star()), "ROW_COUNT"),
+    ]
+    for i, col in enumerate(columns):
+        col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+        select_exprs.append(
+            exp.alias_(
+                exp.Count(this=exp.Distinct(expressions=[col_ref])),
+                f"DISTINCT_{i}",
+            )
+        )
+        if _is_numeric_type(col.type):
+            select_exprs.append(exp.alias_(exp.Min(this=col_ref), f"MIN_{i}"))
+            select_exprs.append(exp.alias_(exp.Max(this=col_ref), f"MAX_{i}"))
+        null_col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+        select_exprs.append(
+            exp.alias_(
+                exp.Sub(
+                    this=exp.Count(this=exp.Star()),
+                    expression=exp.Count(this=null_col_ref),
+                ),
+                f"NULL_COUNT_{i}",
+            )
+        )
+    return exp.Select().from_(table_ref).select(*select_exprs).sql(dialect="exasol")
+
+
+def _build_top_values_query(table_ref: exp.Table, col: DBColumn, top_n: int) -> str:
+    """
+    Builds a query that returns the top_n most frequent non-NULL values of a column,
+    ordered by descending frequency.
+    """
+
+    def col_ref() -> exp.Column:
+        return exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+
+    return (
+        exp.Select()
+        .from_(table_ref)
+        .select(col_ref())
+        .where(exp.Not(this=exp.Is(this=col_ref(), expression=exp.Null())))
+        .group_by(col_ref())
+        .order_by(exp.Ordered(this=exp.Count(this=exp.Star()), desc=True))
+        .limit(top_n)
+        .sql(dialect="exasol")
+    )
+
+
+def _build_sample_query(table_ref: exp.Table, sample_size: int) -> str:
+    return (
+        exp.Select()
+        .from_(table_ref)
+        .select(exp.Star())
+        .limit(sample_size)
+        .sql(dialect="exasol")
+    )
+
+
+def _build_column_summaries(
+    columns: list[DBColumn],
+    stats_row: dict[str, Any] | None,
+    column_top_values: list[list[Any]],
+) -> list[DBColumnSummary]:
+    summaries = []
+    row_count = int(stats_row.get("ROW_COUNT", 0) or 0) if stats_row else 0
+    for i, col in enumerate(columns):
+        is_numeric = _is_numeric_type(col.type)
+        raw_min = stats_row.get(f"MIN_{i}") if is_numeric and stats_row else None
+        raw_max = stats_row.get(f"MAX_{i}") if is_numeric and stats_row else None
+        null_count = int(stats_row.get(f"NULL_COUNT_{i}", 0) or 0) if stats_row else 0
+        summaries.append(
+            DBColumnSummary(
+                name=col.name,
+                type=col.type,
+                comment=col.comment,
+                distinct_count=stats_row.get(f"DISTINCT_{i}", 0) if stats_row else 0,
+                min=str(raw_min) if raw_min is not None else None,
+                max=str(raw_max) if raw_max is not None else None,
+                top_values=column_top_values[i],
+                has_nulls=null_count > 0,
+                null_percentage=(
+                    round(null_count / row_count * 100) if row_count > 0 else 0
+                ),
+            )
+        )
+    return summaries
 
 
 class ExasolMCPServer(FastMCP):
@@ -304,6 +427,77 @@ class ExasolMCPServer(FastMCP):
                 if system_table
                 else self.describe_constraints(schema_name, table_name)
             ),
+        )
+
+    def _get_table_comment(self, schema_name: str, table_name: str) -> str | None:
+        if is_system_schema(schema_name):
+            query = self.meta_query.get_system_tables(schema_name, table_name)
+        else:
+            query = self.meta_query.describe_table(schema_name, table_name)
+        table_meta = self._execute_meta_query(query, QualifiedDBObject)
+        if not table_meta:
+            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
+        return table_meta[0].comment
+
+    def _fetch_column_top_values(
+        self, table_ref: exp.Table, columns: list[DBColumn], top_n: int
+    ) -> list[list[Any]]:
+        result = []
+        for col in columns:
+            result.append(
+                self.connection.execute_query(
+                    _build_top_values_query(table_ref, col, top_n), snapshot=False
+                ).fetchcol()
+            )
+        return result
+
+    def summarize_table(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: Annotated[
+            int,
+            Field(
+                description="Number of sample rows to include in the result",
+                default=10,
+                ge=1,
+                le=100,
+            ),
+        ] = 10,
+        top_values: Annotated[
+            int,
+            Field(
+                description="Number of most common distinct values to return per column",
+                default=5,
+                ge=1,
+                le=100,
+            ),
+        ] = 5,
+    ) -> DBTableSummary:
+        if not self.config.enable_summarize_table:
+            raise RuntimeError("The table summarization is disabled.")
+        columns = self.describe_columns(schema_name, table_name)
+        comment = self._get_table_comment(schema_name, table_name)
+        table_ref = exp.Table(
+            this=exp.Identifier(this=table_name, quoted=True),
+            db=exp.Identifier(this=schema_name, quoted=True),
+        )
+        stats_row = self.connection.execute_query(
+            _build_stats_query(table_ref, columns), snapshot=False
+        ).fetchone()
+        column_top_values = self._fetch_column_top_values(
+            table_ref, columns, top_values
+        )
+        sample_data = self.connection.execute_query(
+            _build_sample_query(table_ref, sample_size), snapshot=False
+        ).fetchall()
+        return DBTableSummary(
+            schema=schema_name,
+            name=table_name,
+            comment=comment,
+            row_count=stats_row.get("ROW_COUNT", 0) if stats_row else 0,
+            columns=_build_column_summaries(columns, stats_row, column_top_values),
+            sample=sample_data,
         )
 
     def describe_function(

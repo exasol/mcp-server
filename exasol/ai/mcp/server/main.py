@@ -114,6 +114,15 @@ def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.summarize_table,
+        name="summarize_exasol_table",
+        description="Column statistics (distinct count, numeric min/max) and a row sample.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
 def _register_describe_function(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_function,
@@ -322,6 +331,8 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_find_scripts(mcp_server)
     if config.columns.enable:
         _register_describe_table(mcp_server)
+    if config.enable_summarize_table and config.columns.enable:
+        _register_summarize_table(mcp_server)
     if config.parameters.enable:
         _register_describe_function(mcp_server)
         _register_describe_script(mcp_server)

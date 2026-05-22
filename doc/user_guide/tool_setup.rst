@@ -25,6 +25,22 @@ is :ref:`explicitly disabled <disable-elicitation>`.
         "enable_write_query": true
     }
 
+Enable table summarization
+--------------------------
+
+The ``summarize_exasol_table`` tool reads actual table data to compute column statistics
+and collect sample rows. Because it accesses user data rather than metadata, it is
+disabled by default. To enable it, set ``enable_summarize_table`` to true:
+
+.. code-block:: json
+
+    {
+        "enable_summarize_table": true
+    }
+
+Note that the column description feature must also be enabled (``columns.enable``, which is
+the default) because the tool needs column type information to build the statistics query.
+
 Enable BucketFS I/O
 --------------------
 
@@ -203,6 +219,7 @@ The following JSON shows the default settings.
         },
         "enable_read_query": false,
         "enable_write_query": false,
+        "enable_summarize_table": false,
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,

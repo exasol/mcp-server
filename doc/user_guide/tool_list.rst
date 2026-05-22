@@ -144,6 +144,46 @@ describe_exasol_table_or_view
             - ``referenced_table``: table referenced in the FOREIGN KEY constraint
             - ``referenced_columns``: comma separated list of columns in the referenced table in the FOREIGN KEY constraint
 
+summarize_exasol_table
+~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Summarizes the content of a table or view.
+    Returns the total row count and a configurable number of sample rows (default: 10).
+    For each column returns:
+
+    - most common distinct values in descending frequency order
+    - number of distinct non-NULL values
+    - presence of NULL values and their percentage
+    - minimum and maximum values (numeric columns only)
+
+    Must be explicitly enabled in the settings (see :doc:`tool_setup`).
+
+:Parameters:
+    - ``schema_name``: name of the schema
+    - ``table_name``: name of the table or view
+    - ``sample_size`` *(optional, default 10)*: number of sample rows to include, between 1 and 100
+    - ``top_values`` *(optional, default 5)*: number of most common distinct values to return per column, between 1 and 100
+
+:Returns:
+    - **Type**: ``dict``
+    - **Data**:
+        - ``schema``: name of the schema where the table or view is located
+        - ``name``: name of the table or view
+        - ``comment``: table or view comment, if available
+        - ``row_count``: total number of rows in the table or view
+        - ``columns``: list of column statistics, each column contains:
+            - ``name``: column name
+            - ``comment``: column comment, if available
+            - ``type``: SQL type, e.g. "DECIMAL(18,0)"
+            - ``distinct_count``: number of distinct non-NULL values
+            - ``min``: minimum value for numeric columns, ``null`` otherwise
+            - ``max``: maximum value for numeric columns, ``null`` otherwise
+            - ``top_values``: most common distinct values in descending frequency order; empty list if all values are NULL
+            - ``has_nulls``: ``true`` if the column contains at least one NULL value
+            - ``null_percentage``: percentage of NULL values rounded to whole percent
+        - ``sample``: list of sample rows, each row is a dict with column names as keys
+
 describe_exasol_custom_function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
