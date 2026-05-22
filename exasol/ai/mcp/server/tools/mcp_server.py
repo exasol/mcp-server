@@ -97,6 +97,18 @@ QueryArg = Annotated[
     ),
 ]
 
+RowLimitArg = Annotated[
+    int | None,
+    Field(
+        description=(
+            "If specified, wraps the query in SELECT * FROM (<query>) LIMIT <row_limit> "
+            "to preview a sample of results without fetching all rows."
+        ),
+        default=None,
+        ge=1,
+    ),
+]
+
 M = TypeVar("M", bound=BaseModel)
 
 
@@ -255,6 +267,43 @@ def _build_column_summaries(
             )
         )
     return summaries
+
+
+_PROFILE_TABLE = exp.Table(
+    this=exp.Identifier(this="EXA_USER_PROFILE_LAST_DAY"),
+    db=exp.Identifier(this="EXA_STATISTICS"),
+)
+
+_PROFILE_COLUMNS = (
+    "PART_NAME",
+    "PART_INFO",
+    "OBJECT_SCHEMA",
+    "OBJECT_NAME",
+    "OBJECT_ROWS",
+    "DURATION",
+    "CPU",
+)
+
+
+def _build_profile_select(query: str) -> str:
+    """
+    Builds a SELECT against EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY that returns
+    the execution plan rows for the given query. sqlglot handles single-quote escaping.
+    """
+    subquery = (
+        exp.Select()
+        .from_(_PROFILE_TABLE)
+        .select(exp.Max(this=exp.column("STMT_ID")))
+        .where(exp.column("SQL_TEXT").eq(exp.Literal.string(query)))
+    )
+    return (
+        exp.Select()
+        .from_(_PROFILE_TABLE)
+        .select(*_PROFILE_COLUMNS)
+        .where(exp.column("STMT_ID").eq(subquery.subquery()))
+        .order_by(exp.column("PART_ID"))
+        .sql(dialect="exasol")
+    )
 
 
 class ExasolMCPServer(FastMCP):
@@ -514,12 +563,33 @@ class ExasolMCPServer(FastMCP):
             DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
-    def execute_query(self, query: QueryArg) -> list[dict[str, Any]]:
+    def execute_query(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> list[dict[str, Any]]:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
-        if verify_query(query):
-            return self.connection.execute_query(query, snapshot=False).fetchall()
-        raise ValueError("The query is invalid or not a SELECT statement.")
+        if not verify_query(query):
+            raise ValueError("The query is invalid or not a SELECT statement.")
+        effective_query = (
+            f"SELECT * FROM ({query}) LIMIT {row_limit}"
+            if row_limit is not None
+            else query
+        )
+        return self.connection.execute_query(effective_query, snapshot=False).fetchall()
+
+    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+        if not self.config.enable_query_profiling:
+            raise RuntimeError("Query profiling is disabled.")
+        if not verify_query(query):
+            raise ValueError("The query is invalid or not a SELECT statement.")
+        statements = [
+            "ALTER SESSION SET PROFILE = 'ON'",
+            query,
+            "FLUSH STATISTICS",
+            "ALTER SESSION SET PROFILE = 'OFF'",
+            _build_profile_select(query),
+        ]
+        return self.connection.execute_query(statements, snapshot=False).fetchall()
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:

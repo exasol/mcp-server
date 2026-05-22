@@ -41,6 +41,23 @@ disabled by default. To enable it, set ``enable_summarize_table`` to true:
 Note that the column description feature must also be enabled (``columns.enable``, which is
 the default) because the tool needs column type information to build the statistics query.
 
+Enable query profiling
+----------------------
+
+The ``profile_exasol_query`` tool runs a query with Exasol's built-in profiling
+enabled and returns the execution plan breakdown from
+``EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY``. This lets the agent diagnose why a
+query is slow. The tool is disabled by default. To enable it, set
+``enable_query_profiling`` to true:
+
+.. code-block:: json
+
+    {
+        "enable_query_profiling": true
+    }
+
+Note that the connecting user must have access to the ``EXA_STATISTICS`` system schema.
+
 Enable BucketFS I/O
 --------------------
 
@@ -220,6 +237,7 @@ The following JSON shows the default settings.
         "enable_read_query": false,
         "enable_write_query": false,
         "enable_summarize_table": false,
+        "enable_query_profiling": false,
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,

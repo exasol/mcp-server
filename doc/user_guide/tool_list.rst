@@ -226,11 +226,32 @@ execute_exasol_query
 :Description:
     Executes the specified query, which must be a SELECT statement.
     The query should not modify the data. SELECT INTO command is not allowed.
+    An optional ``row_limit`` parameter can be used to preview a sample of results
+    without fetching all rows. The query is then wrapped in
+    ``SELECT * FROM (<query>) LIMIT <row_limit>``.
 
 :Returns:
     - **Type**: ``list``
     - **Data**:
         - selected rows in a form of dictionaries, with column names as keys
+
+profile_exasol_query
+~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Runs the specified SELECT query with profiling enabled and returns a breakdown
+    of the execution plan. Use this to understand why a query is slow.
+
+:Returns:
+    - **Type**: ``list``
+    - **Data**:
+        - ``PART_NAME``: name of the execution step
+        - ``PART_INFO``: additional information about the step
+        - ``OBJECT_SCHEMA``: schema of the database object involved
+        - ``OBJECT_NAME``: name of the database object involved
+        - ``OBJECT_ROWS``: number of rows processed
+        - ``DURATION``: duration of the step in milliseconds
+        - ``CPU``: CPU time in milliseconds
 
 execute_exasol_write_query
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

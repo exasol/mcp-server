@@ -941,3 +941,69 @@ def test_execute_query_error(
                     tool_name="execute_exasol_query",
                     query=query,
                 )
+
+
+def test_execute_query_with_row_limit(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    Test that the row_limit parameter caps the number of returned rows.
+    """
+    config = McpServerSettings(enable_read_query=True)
+    row_limit = 1
+    for schema in db_schemas:
+        for table in db_tables:
+            if not table.rows:
+                continue
+            query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+            result = run_tool(
+                pyexasol_connection,
+                config,
+                tool_name="execute_exasol_query",
+                query=query,
+                row_limit=row_limit,
+            )
+            result_json = get_list_result_json(result) if result.content else []
+            assert len(result_json) <= row_limit
+
+
+def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+    """
+    Test that profile_exasol_query returns a non-empty execution plan for a valid query.
+    """
+    config = McpServerSettings(enable_query_profiling=True)
+    schema = db_schemas[0]
+    table = db_tables[0]
+    query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name="profile_exasol_query",
+        query=query,
+    )
+    result_json = get_list_result_json(result)
+    assert len(result_json) > 0
+    assert "PART_NAME" in result_json[0]
+    assert "DURATION" in result_json[0]
+
+
+def test_profile_query_error(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    Test that profile_exasol_query rejects non-SELECT queries.
+    """
+    config = McpServerSettings(enable_query_profiling=True)
+    schema = db_schemas[0]
+    table = db_tables[0]
+    query = (
+        f'SELECT * INTO TABLE "{schema.name}"."ANOTHER_TABLE" '
+        f'FROM "{schema.name}"."{table.name}"'
+    )
+    with pytest.raises(ToolError):
+        run_tool(
+            pyexasol_connection,
+            config,
+            tool_name="profile_exasol_query",
+            query=query,
+        )

@@ -150,6 +150,18 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.profile_query,
+        name="profile_exasol_query",
+        description=(
+            "Runs the query with profiling enabled and returns a breakdown of the "
+            "execution plan. Use this to understand why a query is slow."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
 def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.execute_write_query,
@@ -338,6 +350,8 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_describe_script(mcp_server)
     if config.enable_read_query:
         _register_execute_query(mcp_server)
+    if config.enable_query_profiling:
+        _register_profile_query(mcp_server)
     if config.enable_write_query:
         _register_execute_write_query(mcp_server)
     if config.enable_read_bucketfs:
