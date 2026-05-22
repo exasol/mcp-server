@@ -269,6 +269,15 @@ def _build_column_summaries(
     return summaries
 
 
+def _build_preview_query(query: str, row_limit: int) -> str:
+    return (
+        exp.select(exp.Star())
+        .from_(parse_one(query, read="exasol").subquery())
+        .limit(row_limit)
+        .sql(dialect="exasol")
+    )
+
+
 _PROFILE_TABLE = exp.Table(
     this=exp.Identifier(this="EXA_USER_PROFILE_LAST_DAY"),
     db=exp.Identifier(this="EXA_STATISTICS"),
@@ -571,9 +580,7 @@ class ExasolMCPServer(FastMCP):
         if not verify_query(query):
             raise ValueError("The query is invalid or not a SELECT statement.")
         effective_query = (
-            f"SELECT * FROM ({query}) LIMIT {row_limit}"
-            if row_limit is not None
-            else query
+            _build_preview_query(query, row_limit) if row_limit is not None else query
         )
         return self.connection.execute_query(effective_query, snapshot=False).fetchall()
 
