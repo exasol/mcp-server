@@ -375,7 +375,10 @@ def test_build_profile_select():
     expected = collapse_spaces(f"""
         SELECT {_PROFILE_COLS_SQL}
         FROM {_PROFILE_TABLE_SQL}
-        WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID = (CURRENT_STATEMENT - 4)
+        WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID = (
+            SELECT MAX(STMT_ID) FROM {_PROFILE_TABLE_SQL}
+            WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID < CURRENT_STATEMENT AND COMMAND_CLASS = 'DQL'
+        )
         ORDER BY PART_ID
     """)
     assert sql == expected

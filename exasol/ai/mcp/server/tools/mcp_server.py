@@ -297,20 +297,29 @@ _PROFILE_COLUMNS = (
 def _build_profile_select(_query: str) -> str:
     """
     Builds a SELECT against EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY that returns
-    the execution plan rows for the query executed 4 statements ago in the current session.
+    the execution plan rows for the most recent DQL statement in the current session.
     """
-    session_cond = exp.column("SESSION_ID").eq(exp.column("CURRENT_SESSION"))
-    stmt_cond = exp.column("STMT_ID").eq(
-        exp.Sub(
-            this=exp.column("CURRENT_STATEMENT"),
-            expression=exp.Literal.number(4),
+    current_session = exp.column("CURRENT_SESSION")
+    subquery = (
+        exp.Select()
+        .from_(_PROFILE_TABLE)
+        .select(exp.Max(this=exp.column("STMT_ID")))
+        .where(
+            exp.column("SESSION_ID").eq(current_session),
+            exp.LT(
+                this=exp.column("STMT_ID"), expression=exp.column("CURRENT_STATEMENT")
+            ),
+            exp.column("COMMAND_CLASS").eq(exp.Literal.string("DQL")),
         )
     )
     return (
         exp.Select()
         .from_(_PROFILE_TABLE)
         .select(*_PROFILE_COLUMNS)
-        .where(exp.and_(session_cond, stmt_cond))
+        .where(
+            exp.column("SESSION_ID").eq(current_session),
+            exp.column("STMT_ID").eq(subquery.subquery()),
+        )
         .order_by(exp.column("PART_ID"))
         .sql(dialect="exasol")
     )
