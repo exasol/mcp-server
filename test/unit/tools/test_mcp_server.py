@@ -370,33 +370,12 @@ _PROFILE_COLS_SQL = (
 )
 
 
-def test_build_profile_select_simple():
-    query = 'SELECT * FROM "MY_SCHEMA"."MY_TABLE"'
-    sql = collapse_spaces(_build_profile_select(query))
+def test_build_profile_select():
+    sql = collapse_spaces(_build_profile_select("SELECT 1"))
     expected = collapse_spaces(f"""
         SELECT {_PROFILE_COLS_SQL}
         FROM {_PROFILE_TABLE_SQL}
-        WHERE STMT_ID = (
-            SELECT MAX(STMT_ID) FROM {_PROFILE_TABLE_SQL}
-            WHERE SQL_TEXT = '{query}'
-        )
-        ORDER BY PART_ID
-    """)
-    assert sql == expected
-
-
-def test_build_profile_select_escapes_single_quotes():
-    query = "SELECT * FROM t WHERE x = 'it''s'"
-    sql = collapse_spaces(_build_profile_select(query))
-    # sqlglot escapes single quotes: each ' in the raw string becomes '' in SQL output
-    escaped_query = query.replace("'", "''")
-    expected = collapse_spaces(f"""
-        SELECT {_PROFILE_COLS_SQL}
-        FROM {_PROFILE_TABLE_SQL}
-        WHERE STMT_ID = (
-            SELECT MAX(STMT_ID) FROM {_PROFILE_TABLE_SQL}
-            WHERE SQL_TEXT = '{escaped_query}'
-        )
+        WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID = (CURRENT_STATEMENT - 4)
         ORDER BY PART_ID
     """)
     assert sql == expected

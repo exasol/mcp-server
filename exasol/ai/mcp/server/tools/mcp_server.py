@@ -294,22 +294,23 @@ _PROFILE_COLUMNS = (
 )
 
 
-def _build_profile_select(query: str) -> str:
+def _build_profile_select(_query: str) -> str:
     """
     Builds a SELECT against EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY that returns
-    the execution plan rows for the given query. sqlglot handles single-quote escaping.
+    the execution plan rows for the query executed 4 statements ago in the current session.
     """
-    subquery = (
-        exp.Select()
-        .from_(_PROFILE_TABLE)
-        .select(exp.Max(this=exp.column("STMT_ID")))
-        .where(exp.column("SQL_TEXT").eq(exp.Literal.string(query)))
+    session_cond = exp.column("SESSION_ID").eq(exp.column("CURRENT_SESSION"))
+    stmt_cond = exp.column("STMT_ID").eq(
+        exp.Sub(
+            this=exp.column("CURRENT_STATEMENT"),
+            expression=exp.Literal.number(4),
+        )
     )
     return (
         exp.Select()
         .from_(_PROFILE_TABLE)
         .select(*_PROFILE_COLUMNS)
-        .where(exp.column("STMT_ID").eq(subquery.subquery()))
+        .where(exp.and_(session_cond, stmt_cond))
         .order_by(exp.column("PART_ID"))
         .sql(dialect="exasol")
     )
