@@ -354,13 +354,15 @@ def _build_current_preprocessor_query() -> str:
     return (
         exp.select(exp.column("SESSION_VALUE"))
         .from_(exp.Table(this=exp.Identifier(this="EXA_PARAMETERS"), db=_SYS))
-        .where(exp.column("PARAM_NAME").eq("SQL_PREPROCESSOR_SCRIPT"))
+        .where(exp.column("PARAMETER_NAME").eq("SQL_PREPROCESSOR_SCRIPT"))
         .sql(dialect="exasol", identify=True)
     )
 
 
 def _build_set_preprocessor_query(schema_name: str, script_name: str) -> str:
-    return f"ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = '{schema_name}.{script_name}'"
+    return (
+        f'ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = "{schema_name}"."{script_name}"'
+    )
 
 
 class ExasolMCPServer(FastMCP):

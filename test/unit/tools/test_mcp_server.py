@@ -406,7 +406,7 @@ def test_build_current_preprocessor_query():
     expected = collapse_spaces("""
         SELECT "SESSION_VALUE"
         FROM "SYS"."EXA_PARAMETERS"
-        WHERE "PARAM_NAME" = 'SQL_PREPROCESSOR_SCRIPT'
+        WHERE "PARAMETER_NAME" = 'SQL_PREPROCESSOR_SCRIPT'
     """)
     assert sql == expected
 
@@ -414,5 +414,6 @@ def test_build_current_preprocessor_query():
 def test_build_set_preprocessor_query():
     sql = _build_set_preprocessor_query("MY_SCHEMA", "MY_PREPROCESSOR")
     assert (
-        sql == "ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = 'MY_SCHEMA.MY_PREPROCESSOR'"
+        sql
+        == 'ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = "MY_SCHEMA"."MY_PREPROCESSOR"'
     )
