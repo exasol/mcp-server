@@ -120,6 +120,44 @@ find_exasol_user_defined_functions
         - ``name``: name of the UDF
         - ``comment``: UDF comment, if available
 
+list_exasol_preprocessors
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Lists available SQL preprocessor scripts and reports which one is currently
+    active in the session.
+    Can be disabled in the settings (see :doc:`tool_setup`).
+
+:Returns:
+    - **Type**: ``dict``
+    - **Data**:
+        - ``preprocessors``: list of preprocessor scripts, each with:
+            - ``schema``: name of the schema where the preprocessor is located
+            - ``name``: name of the preprocessor script
+            - ``comment``: script comment, if available
+        - ``current_preprocessor``: fully-qualified name of the active preprocessor
+          (e.g. ``MY_SCHEMA.MY_PREPROCESSOR``), or ``null`` if none is set
+
+set_exasol_preprocessor
+~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Activates a SQL preprocessor script at the session level.
+    This setting is not persistent: the MCP server manages the database connection
+    independently and may reconnect without notice, silently resetting the active
+    preprocessor. Before running queries that depend on a preprocessor, the agent
+    should verify the active setting with ``list_exasol_preprocessors`` and
+    re-apply if necessary.
+    Can be disabled in the settings (see :doc:`tool_setup`).
+
+:Arguments:
+    - ``schema_name``: name of the schema containing the preprocessor script
+    - ``script_name``: name of the preprocessor script
+
+:Returns:
+    - **Type**: ``string``
+    - **Data**: fully-qualified name of the newly-activated preprocessor
+
 describe_exasol_table_or_view
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

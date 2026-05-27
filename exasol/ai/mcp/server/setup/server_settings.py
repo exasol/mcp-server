@@ -188,6 +188,7 @@ class McpServerSettings(BaseModel):
     enable_write_query: bool = False
     enable_summarize_table: bool = False
     enable_query_profiling: bool = False
+    enable_preprocessor_tools: bool = True
     enable_read_bucketfs: bool = False
     enable_write_bucketfs: bool = False
     disable_elicitation: bool = False

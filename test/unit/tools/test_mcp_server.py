@@ -8,8 +8,11 @@ import sqlglot.expressions as exp
 from exasol.ai.mcp.server.tools.mcp_server import (
     ExasolMCPServer,
     _build_column_summaries,
+    _build_current_preprocessor_query,
+    _build_list_preprocessors_query,
     _build_preview_query,
     _build_profile_select,
+    _build_set_preprocessor_query,
     _build_stats_query,
     _build_top_values_query,
     _is_numeric_type,
@@ -382,3 +385,35 @@ def test_build_profile_select():
         ORDER BY PART_ID
     """)
     assert sql == expected
+
+
+def test_build_list_preprocessors_query():
+    sql = collapse_spaces(_build_list_preprocessors_query())
+    expected = collapse_spaces("""
+        SELECT
+            "SCRIPT_SCHEMA" AS "schema",
+            "SCRIPT_NAME" AS "name",
+            "SCRIPT_COMMENT" AS "comment"
+        FROM "SYS"."EXA_ALL_SCRIPTS"
+        WHERE "SCRIPT_TYPE" = 'PREPROCESSOR'
+        ORDER BY "SCRIPT_SCHEMA" NULLS FIRST, "SCRIPT_NAME" NULLS FIRST
+    """)
+    assert sql == expected
+
+
+def test_build_current_preprocessor_query():
+    sql = collapse_spaces(_build_current_preprocessor_query())
+    expected = collapse_spaces("""
+        SELECT "SESSION_VALUE"
+        FROM "SYS"."EXA_PARAMETERS"
+        WHERE "PARAMETER_NAME" = 'SQL_PREPROCESSOR_SCRIPT'
+    """)
+    assert sql == expected
+
+
+def test_build_set_preprocessor_query():
+    sql = _build_set_preprocessor_query("MY_SCHEMA", "MY_PREPROCESSOR")
+    assert (
+        sql
+        == 'ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = "MY_SCHEMA"."MY_PREPROCESSOR"'
+    )

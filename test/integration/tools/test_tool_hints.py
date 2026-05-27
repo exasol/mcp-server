@@ -76,5 +76,7 @@ def test_tool_hints(pyexasol_connection) -> None:
             read_only=True,
             idempotent=True,
         ),
+        ToolHints(tool_name="list_exasol_preprocessors", read_only=True),
+        ToolHints(tool_name="set_exasol_preprocessor"),
     }
     assert tool_list == expected_tool_list

@@ -301,6 +301,29 @@ def db_scripts() -> list[ExaFunction]:
     ]
 
 
+@pytest.fixture
+def db_preprocessor(pyexasol_connection, db_schema_name):
+    name = "passthrough_preprocessor"
+    pyexasol_connection.execute(dedent(f"""\
+            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{db_schema_name}"."{name}" AS
+                sqlparsing.setsqltext(sqlparsing.getsqltext())
+            /
+        """))
+    pyexasol_connection.execute(
+        f'COMMENT ON SCRIPT "{db_schema_name}"."{name}" IS \'A no-op preprocessor for testing\''
+    )
+    yield ExaFunction(
+        name=name,
+        comment="A no-op preprocessor for testing",
+        keywords=[],
+        inputs=[],
+        returns=None,
+        body="",
+    )
+    pyexasol_connection.execute("ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = ''")
+    pyexasol_connection.execute(f'DROP SCRIPT IF EXISTS "{db_schema_name}"."{name}"')
+
+
 @pytest.fixture(scope="session")
 def setup_database(
     pyexasol_connection,
@@ -353,7 +376,6 @@ def setup_database(
                         f"IS '{func.comment}'"
                     )
                     pyexasol_connection.execute(query=query)
-
         pyexasol_connection.execute(query="COMMIT")
         yield
 

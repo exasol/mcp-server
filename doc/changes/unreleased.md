@@ -10,3 +10,7 @@
   Enabled via `enable_query_profiling` configuration flag.
 * #219: Added optional `row_limit` parameter to `execute_exasol_query` for previewing
   query results without fetching all rows.
+* #221: Added `list_exasol_preprocessors` tool that lists available SQL preprocessor
+  scripts and reports the currently active one. Added `set_exasol_preprocessor` tool
+  that activates a preprocessor at the session level. Both tools are enabled by default
+  and can be disabled via the `enable_preprocessor_tools` configuration flag.
