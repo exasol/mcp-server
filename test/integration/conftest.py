@@ -305,7 +305,7 @@ def db_scripts() -> list[ExaFunction]:
 def db_preprocessor(pyexasol_connection, db_schema_name):
     name = "passthrough_preprocessor"
     pyexasol_connection.execute(dedent(f"""\
-            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{db_schema_name}"."{name}" () AS
+            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{db_schema_name}"."{name}" AS
                 sqlparsing.setsqltext(sqlparsing.getsqltext())
             /
         """))
