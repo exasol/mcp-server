@@ -350,6 +350,15 @@ def _build_list_preprocessors_query() -> str:
     )
 
 
+def _build_profile_status_query() -> str:
+    return (
+        exp.select(exp.column("SESSION_VALUE"))
+        .from_(exp.Table(this=exp.Identifier(this="EXA_PARAMETERS"), db=_SYS))
+        .where(exp.column("PARAMETER_NAME").eq("PROFILE"))
+        .sql(dialect="exasol", identify=True)
+    )
+
+
 def _build_current_preprocessor_query() -> str:
     return (
         exp.select(exp.column("SESSION_VALUE"))
@@ -639,13 +648,17 @@ class ExasolMCPServer(FastMCP):
             raise RuntimeError("Query profiling is disabled.")
         if not verify_query(query):
             raise ValueError("The query is invalid or not a SELECT statement.")
-        statements = [
-            "ALTER SESSION SET PROFILE = 'ON'",
-            query,
-            "FLUSH STATISTICS",
-            "ALTER SESSION SET PROFILE = 'OFF'",
-            _build_profile_select(query),
-        ]
+        profile_already_on = (
+            self.connection.execute_query(_build_profile_status_query()).fetchval()
+            == "ON"
+        )
+        statements: list[str] = []
+        if not profile_already_on:
+            statements.append("ALTER SESSION SET PROFILE = 'ON'")
+        statements.extend([query, "FLUSH STATISTICS"])
+        if not profile_already_on:
+            statements.append("ALTER SESSION SET PROFILE = 'OFF'")
+        statements.append(_build_profile_select(query))
         return self.connection.execute_query(statements, snapshot=False).fetchall()
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
