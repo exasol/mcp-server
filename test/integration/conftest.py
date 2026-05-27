@@ -301,20 +301,27 @@ def db_scripts() -> list[ExaFunction]:
     ]
 
 
-@pytest.fixture(scope="session")
-def db_preprocessor() -> ExaFunction:
-    return ExaFunction(
-        name="passthrough_preprocessor",
-        comment="A no-op preprocessor for testing",
-        keywords=["passthrough_preprocessor"],
-        inputs=[],
-        returns=None,
-        body=dedent("""\
-            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{schema}"."passthrough_preprocessor" AS
+@pytest.fixture
+def db_preprocessor(pyexasol_connection, db_schema_name):
+    name = "passthrough_preprocessor"
+    pyexasol_connection.execute(dedent(f"""\
+            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{db_schema_name}"."{name}" () AS
                 sqlparsing.setsqltext(sqlparsing.getsqltext())
             /
-        """),
+        """))
+    pyexasol_connection.execute(
+        f'COMMENT ON SCRIPT "{db_schema_name}"."{name}" IS \'A no-op preprocessor for testing\''
     )
+    yield ExaFunction(
+        name=name,
+        comment="A no-op preprocessor for testing",
+        keywords=[],
+        inputs=[],
+        returns=None,
+        body="",
+    )
+    pyexasol_connection.execute("ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = ''")
+    pyexasol_connection.execute(f'DROP SCRIPT IF EXISTS "{db_schema_name}"."{name}"')
 
 
 @pytest.fixture(scope="session")
@@ -325,7 +332,6 @@ def setup_database(
     db_views,
     db_functions,
     db_scripts,
-    db_preprocessor,
 ) -> None:
     try:
         for schema in db_schemas:
@@ -370,16 +376,6 @@ def setup_database(
                         f"IS '{func.comment}'"
                     )
                     pyexasol_connection.execute(query=query)
-            pyexasol_connection.execute(
-                query=db_preprocessor.body.format(schema=schema.name)
-            )
-            if db_preprocessor.comment:
-                query = (
-                    f'COMMENT ON SCRIPT "{schema.name}"."{db_preprocessor.name}" '
-                    f"IS '{db_preprocessor.comment}'"
-                )
-                pyexasol_connection.execute(query=query)
-
         pyexasol_connection.execute(query="COMMIT")
         yield
 
@@ -398,10 +394,6 @@ def setup_database(
                 for func in chain(db_functions, db_scripts):
                     query = f'DROP FUNCTION IF EXISTS "{schema.name}"."{func.name}"'
                     pyexasol_connection.execute(query=query)
-                query = (
-                    f'DROP SCRIPT IF EXISTS "{schema.name}"."{db_preprocessor.name}"'
-                )
-                pyexasol_connection.execute(query=query)
 
 
 @pytest.fixture(scope="session")

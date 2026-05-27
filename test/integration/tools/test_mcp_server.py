@@ -808,7 +808,7 @@ def test_describe_script(
 
 
 def test_list_preprocessors(
-    pyexasol_connection, setup_database, db_schemas, db_preprocessor
+    pyexasol_connection, setup_database, db_preprocessor
 ) -> None:
     config = McpServerSettings()
     result = run_tool(pyexasol_connection, config, "list_exasol_preprocessors")
@@ -819,7 +819,7 @@ def test_list_preprocessors(
 
 
 def test_set_preprocessor(
-    pyexasol_connection, setup_database, db_schemas, db_schema_name, db_preprocessor
+    pyexasol_connection, setup_database, db_schema_name, db_preprocessor
 ) -> None:
     config = McpServerSettings()
     run_tool(
