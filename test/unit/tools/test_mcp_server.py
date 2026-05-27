@@ -8,6 +8,8 @@ import sqlglot.expressions as exp
 from exasol.ai.mcp.server.tools.mcp_server import (
     ExasolMCPServer,
     _build_column_summaries,
+    _build_preview_query,
+    _build_profile_select,
     _build_stats_query,
     _build_top_values_query,
     _is_numeric_type,
@@ -346,3 +348,37 @@ def test_build_column_summaries_no_stats_row():
     assert summaries[0].top_values == []
     assert summaries[0].has_nulls is False
     assert summaries[0].null_percentage == 0
+
+
+def test_build_preview_query():
+    query = 'SELECT * FROM "MY_SCHEMA"."MY_TABLE"'
+    sql = collapse_spaces(_build_preview_query(query, 10))
+    expected = collapse_spaces(f"SELECT * FROM ({query}) LIMIT 10")
+    assert sql == expected
+
+
+def test_build_preview_query_preserves_inner_query():
+    query = 'SELECT "A", "B" FROM "S"."T" WHERE "X" > 0 ORDER BY "A"'
+    sql = collapse_spaces(_build_preview_query(query, 1))
+    expected = collapse_spaces(f"SELECT * FROM ({query}) LIMIT 1")
+    assert sql == expected
+
+
+_PROFILE_TABLE_SQL = "EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY"
+_PROFILE_COLS_SQL = (
+    "PART_NAME, PART_INFO, OBJECT_SCHEMA, OBJECT_NAME, OBJECT_ROWS, DURATION, CPU"
+)
+
+
+def test_build_profile_select():
+    sql = collapse_spaces(_build_profile_select("SELECT 1"))
+    expected = collapse_spaces(f"""
+        SELECT {_PROFILE_COLS_SQL}
+        FROM {_PROFILE_TABLE_SQL}
+        WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID = (
+            SELECT MAX(STMT_ID) FROM {_PROFILE_TABLE_SQL}
+            WHERE SESSION_ID = CURRENT_SESSION AND STMT_ID < CURRENT_STATEMENT AND COMMAND_CLASS = 'DQL'
+        )
+        ORDER BY PART_ID
+    """)
+    assert sql == expected

@@ -27,6 +27,7 @@ def test_tool_hints(pyexasol_connection) -> None:
         parameters=MetaParameterSettings(enable=True),
         enable_read_query=True,
         enable_write_query=True,
+        enable_query_profiling=True,
     )
     result = list_tools(pyexasol_connection, config)
 
@@ -44,6 +45,7 @@ def test_tool_hints(pyexasol_connection) -> None:
         ToolHints(tool_name="describe_exasol_custom_function", read_only=True),
         ToolHints(tool_name="describe_exasol_user_defined_function", read_only=True),
         ToolHints(tool_name="execute_exasol_query", read_only=True),
+        ToolHints(tool_name="profile_exasol_query", read_only=True),
         ToolHints(tool_name="execute_exasol_write_query", destructive=True),
         ToolHints(tool_name="list_exasol_sql_types", read_only=True, idempotent=True),
         ToolHints(
