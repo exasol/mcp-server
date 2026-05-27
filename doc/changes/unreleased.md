@@ -1,5 +1,11 @@
 # Unreleased
 
+## Bug Fixes
+
+* #223: Fixed `profile_exasol_query` to be side-effect free: the tool now checks whether
+  session profiling is already enabled via `SYS.EXA_PARAMETERS` and skips the
+  `ALTER SESSION SET PROFILE` statements if it was already `ON`.
+
 ## Features
 
 * #217: Added `summarize_exasol_table` tool that returns per-column statistics

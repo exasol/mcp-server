@@ -12,6 +12,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_list_preprocessors_query,
     _build_preview_query,
     _build_profile_select,
+    _build_profile_status_query,
     _build_set_preprocessor_query,
     _build_stats_query,
     _build_top_values_query,
@@ -385,6 +386,45 @@ def test_build_profile_select():
         ORDER BY PART_ID
     """)
     assert sql == expected
+
+
+def test_build_profile_status_query():
+    sql = collapse_spaces(_build_profile_status_query())
+    expected = collapse_spaces("""
+        SELECT "SESSION_VALUE"
+        FROM "SYS"."EXA_PARAMETERS"
+        WHERE "PARAMETER_NAME" = 'PROFILE'
+    """)
+    assert sql == expected
+
+
+def _make_profile_server(profile_already_on: bool):
+    connection = MagicMock()
+    connection.execute_query.return_value.fetchval.return_value = (
+        "ON" if profile_already_on else "OFF"
+    )
+    connection.execute_query.return_value.fetchall.return_value = []
+    config = MagicMock()
+    config.enable_query_profiling = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    return server, connection
+
+
+def test_profile_query_enables_and_disables_profiling_when_off():
+    server, connection = _make_profile_server(profile_already_on=False)
+    server.profile_query("SELECT 1")
+    calls = [str(c) for c in connection.execute_query.call_args_list]
+    statements = connection.execute_query.call_args_list[-1][0][0]
+    assert statements[0] == "ALTER SESSION SET PROFILE = 'ON'"
+    assert statements[-2] == "ALTER SESSION SET PROFILE = 'OFF'"
+
+
+def test_profile_query_skips_profile_toggle_when_already_on():
+    server, connection = _make_profile_server(profile_already_on=True)
+    server.profile_query("SELECT 1")
+    statements = connection.execute_query.call_args_list[-1][0][0]
+    assert "ALTER SESSION SET PROFILE = 'ON'" not in statements
+    assert "ALTER SESSION SET PROFILE = 'OFF'" not in statements
 
 
 def test_build_list_preprocessors_query():
