@@ -310,10 +310,8 @@ def db_preprocessor() -> ExaFunction:
         inputs=[],
         returns=None,
         body=dedent("""\
-            CREATE OR REPLACE LUA SCRIPT "{schema}"."passthrough_preprocessor" ()
-            PREPROCESSING SCRIPT AS
-                local sql_text = sqlparsing.getsqltext()
-                sqlparsing.setsqltext(sql_text)
+            CREATE OR REPLACE LUA PREPROCESSOR SCRIPT "{schema}"."passthrough_preprocessor" () AS
+                sqlparsing.setsqltext(sqlparsing.getsqltext())
             /
         """),
     )
