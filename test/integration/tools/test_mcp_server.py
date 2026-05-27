@@ -34,11 +34,13 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     CONSTRAINT_NAME_FIELD,
     CONSTRAINT_TYPE_FIELD,
     CONSTRAINTS_FIELD,
+    CURRENT_PREPROCESSOR_FIELD,
     DYNAMIC_INPUT_FIELD,
     DYNAMIC_OUTPUT_FIELD,
     EMITS_FIELD,
     INPUT_FIELD,
     NAME_FIELD,
+    PREPROCESSORS_FIELD,
     REFERENCED_COLUMNS_FIELD,
     REFERENCED_SCHEMA_FIELD,
     REFERENCED_TABLE_FIELD,
@@ -803,6 +805,34 @@ def test_describe_script(
             result_json.pop(USAGE_FIELD)
             expected_json = _get_expected_param_json(script, schema.name)
             assert result_json == expected_json
+
+
+def test_list_preprocessors(
+    pyexasol_connection, setup_database, db_schemas, db_preprocessor
+) -> None:
+    config = McpServerSettings()
+    result = run_tool(pyexasol_connection, config, "list_exasol_preprocessors")
+    data = get_result_json(result)
+    names = [p[NAME_FIELD].upper() for p in data[PREPROCESSORS_FIELD]]
+    assert db_preprocessor.name.upper() in names
+    assert CURRENT_PREPROCESSOR_FIELD in data
+
+
+def test_set_preprocessor(
+    pyexasol_connection, setup_database, db_schemas, db_schema_name, db_preprocessor
+) -> None:
+    config = McpServerSettings()
+    run_tool(
+        pyexasol_connection,
+        config,
+        "set_exasol_preprocessor",
+        schema_name=db_schema_name,
+        script_name=db_preprocessor.name,
+    )
+    list_result = run_tool(pyexasol_connection, config, "list_exasol_preprocessors")
+    data = get_result_json(list_result)
+    assert data[CURRENT_PREPROCESSOR_FIELD] is not None
+    assert db_preprocessor.name.upper() in data[CURRENT_PREPROCESSOR_FIELD].upper()
 
 
 def test_summarize_table(

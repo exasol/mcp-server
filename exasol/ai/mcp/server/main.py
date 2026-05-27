@@ -256,6 +256,26 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
         )
 
 
+def _register_list_preprocessors(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.list_preprocessors,
+        name="list_exasol_preprocessors",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
+def _register_set_preprocessor(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.set_preprocessor,
+        name="set_exasol_preprocessor",
+        description=(
+            "Activates the specified SQL preprocessor script at the session level. "
+            "This setting may be silently reset if the server reconnects to the database. "
+            "Verify with list_exasol_preprocessors before running queries that depend on it."
+        ),
+    )
+
+
 def _register_list_sql_types(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_sql_types,
@@ -341,6 +361,9 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
     if config.scripts.enable:
         _register_list_scripts(mcp_server)
         _register_find_scripts(mcp_server)
+    if config.enable_preprocessor_tools:
+        _register_list_preprocessors(mcp_server)
+        _register_set_preprocessor(mcp_server)
     if config.columns.enable:
         _register_describe_table(mcp_server)
     if config.enable_summarize_table and config.columns.enable:

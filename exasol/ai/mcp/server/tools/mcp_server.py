@@ -42,11 +42,15 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COMMENT_FIELD,
+    NAME_FIELD,
+    SCHEMA_FIELD,
     DBColumn,
     DBColumnSummary,
     DBConstraint,
     DBEmitFunction,
     DBObject,
+    DBPreprocessorList,
     DBReturnFunction,
     DBTable,
     DBTableSummary,
@@ -83,6 +87,10 @@ KeywordsArg = Annotated[
 TableNameArg = Annotated[str, Field(description="Name of the table or view")]
 
 FunctionNameArg = Annotated[str, Field(description="Name of the function")]
+
+PreprocessorScriptNameArg = Annotated[
+    str, Field(description="Name of the preprocessor script")
+]
 
 QueryArg = Annotated[
     str,
@@ -323,6 +331,36 @@ def _build_profile_select(_query: str) -> str:
         .order_by(exp.column("PART_ID"))
         .sql(dialect="exasol")
     )
+
+
+_SYS = exp.Identifier(this="SYS")
+
+
+def _build_list_preprocessors_query() -> str:
+    return (
+        exp.select(
+            exp.column("SCRIPT_SCHEMA").as_(SCHEMA_FIELD),
+            exp.column("SCRIPT_NAME").as_(NAME_FIELD),
+            exp.column("SCRIPT_COMMENT").as_(COMMENT_FIELD),
+        )
+        .from_(exp.Table(this=exp.Identifier(this="EXA_ALL_SCRIPTS"), db=_SYS))
+        .where(exp.column("SCRIPT_TYPE").eq("PREPROCESSOR"))
+        .order_by("SCRIPT_SCHEMA", "SCRIPT_NAME")
+        .sql(dialect="exasol", identify=True)
+    )
+
+
+def _build_current_preprocessor_query() -> str:
+    return (
+        exp.select(exp.column("SESSION_VALUE"))
+        .from_(exp.Table(this=exp.Identifier(this="EXA_PARAMETERS"), db=_SYS))
+        .where(exp.column("PARAM_NAME").eq("SQL_PREPROCESSOR_SCRIPT"))
+        .sql(dialect="exasol", identify=True)
+    )
+
+
+def _build_set_preprocessor_query(schema_name: str, script_name: str) -> str:
+    return f"ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = '{schema_name}.{script_name}'"
 
 
 class ExasolMCPServer(FastMCP):
@@ -681,6 +719,28 @@ class ExasolMCPServer(FastMCP):
     ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
         return self.connection.execute_query(query).fetchcol()
+
+    def list_preprocessors(self) -> DBPreprocessorList:
+        preprocessors = self._execute_meta_query(
+            _build_list_preprocessors_query(), QualifiedDBObject
+        )
+        current = self.connection.execute_query(
+            _build_current_preprocessor_query()
+        ).fetchval()
+        return DBPreprocessorList(
+            preprocessors=preprocessors, current_preprocessor=current
+        )
+
+    def set_preprocessor(
+        self,
+        schema_name: SchemaNameArg,
+        script_name: PreprocessorScriptNameArg,
+    ) -> str:
+        self.connection.execute_query(
+            _build_set_preprocessor_query(schema_name, script_name),
+            snapshot=False,
+        )
+        return f"{schema_name}.{script_name}"
 
     def health_check(self) -> JSONResponse:
         """

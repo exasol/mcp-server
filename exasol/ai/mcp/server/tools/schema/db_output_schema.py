@@ -17,6 +17,8 @@ currently there is no easy way of doing this.
 SCHEMA_FIELD = "schema"
 NAME_FIELD = "name"
 COMMENT_FIELD = "comment"
+PREPROCESSORS_FIELD = "preprocessors"
+CURRENT_PREPROCESSOR_FIELD = "current_preprocessor"
 SQL_TYPE_FIELD = "type"
 COLUMNS_FIELD = "columns"
 CONSTRAINTS_FIELD = "constraints"
@@ -228,6 +230,23 @@ class DBTableSummary(QualifiedDBObject):
     sample: Annotated[
         list[dict[str, Any]],
         Field(description="Sample rows from the table"),
+    ]
+
+
+class DBPreprocessorList(BaseModel):
+    preprocessors: Annotated[
+        list[QualifiedDBObject],
+        Field(description="Available preprocessor scripts"),
+    ]
+    current_preprocessor: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Fully-qualified name of the preprocessor currently set in this session "
+                "(e.g. 'MY_SCHEMA.MY_PREPROCESSOR'), or null if none is set."
+            ),
+            default=None,
+        ),
     ]
 
 

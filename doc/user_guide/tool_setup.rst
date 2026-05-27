@@ -58,6 +58,18 @@ query is slow. The tool is disabled by default. To enable it, set
 
 Note that the connecting user must have access to the ``EXA_STATISTICS`` system schema.
 
+Disable preprocessor tools
+--------------------------
+
+The ``list_exasol_preprocessors`` and ``set_exasol_preprocessor`` tools are enabled by default.
+To disable them, set ``enable_preprocessor_tools`` to false:
+
+.. code-block:: json
+
+    {
+        "enable_preprocessor_tools": false
+    }
+
 Enable BucketFS I/O
 --------------------
 
@@ -238,6 +250,7 @@ The following JSON shows the default settings.
         "enable_write_query": false,
         "enable_summarize_table": false,
         "enable_query_profiling": false,
+        "enable_preprocessor_tools": true,
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,
