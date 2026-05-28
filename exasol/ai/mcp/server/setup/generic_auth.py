@@ -43,6 +43,19 @@ from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 ENV_PROVIDER_TYPE = "FASTMCP_SERVER_AUTH"
 ENV_STORAGE_BACKEND = "EXA_MCP_OAUTH_STORAGE_BACKEND"
+ENV_DYNAMODB_TABLE_NAME = "EXA_MCP_OAUTH_DYNAMODB_TABLE_NAME"
+ENV_DYNAMODB_REGION_NAME = "EXA_MCP_OAUTH_DYNAMODB_REGION_NAME"
+ENV_DYNAMODB_ENDPOINT_URL = "EXA_MCP_OAUTH_DYNAMODB_ENDPOINT_URL"
+ENV_DYNAMODB_AWS_ACCESS_KEY_ID = "EXA_MCP_OAUTH_DYNAMODB_AWS_ACCESS_KEY_ID"
+ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY = "EXA_MCP_OAUTH_DYNAMODB_AWS_SECRET_ACCESS_KEY"
+ENV_DYNAMODB_AWS_SESSION_TOKEN = "EXA_MCP_OAUTH_DYNAMODB_AWS_SESSION_TOKEN"
+ENV_REDIS_URL = "EXA_MCP_OAUTH_REDIS_URL"
+ENV_REDIS_HOST = "EXA_MCP_OAUTH_REDIS_HOST"
+ENV_REDIS_PORT = "EXA_MCP_OAUTH_REDIS_PORT"
+ENV_REDIS_DB = "EXA_MCP_OAUTH_REDIS_DB"
+ENV_REDIS_PASSWORD = "EXA_MCP_OAUTH_REDIS_PASSWORD"
+ENV_MONGODB_URL = "EXA_MCP_OAUTH_MONGODB_URL"
+ENV_MONGODB_DB_NAME = "EXA_MCP_OAUTH_MONGODB_DB_NAME"
 _EXA_ENV_PREFIX = "EXA_AUTH_"
 _SKIP_PARAMS = frozenset({"client_storage"})
 
@@ -323,6 +336,50 @@ def _get_verifier_map() -> dict[str, AuthProviderInfo]:
     }
 
 
+def _create_dynamodb_storage() -> Any:
+    from key_value.aio.stores.dynamodb import DynamoDBStore
+
+    table_name = os.environ.get(ENV_DYNAMODB_TABLE_NAME)
+    if not table_name:
+        raise ValueError(
+            f"{ENV_DYNAMODB_TABLE_NAME} is required for the 'dynamodb' backend."
+        )
+    return DynamoDBStore(
+        table_name=table_name,
+        region_name=os.environ.get(ENV_DYNAMODB_REGION_NAME) or None,
+        endpoint_url=os.environ.get(ENV_DYNAMODB_ENDPOINT_URL) or None,
+        aws_access_key_id=os.environ.get(ENV_DYNAMODB_AWS_ACCESS_KEY_ID) or None,
+        aws_secret_access_key=os.environ.get(ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY)
+        or None,
+        aws_session_token=os.environ.get(ENV_DYNAMODB_AWS_SESSION_TOKEN) or None,
+    )
+
+
+def _create_redis_storage() -> Any:
+    from key_value.aio.stores.redis import RedisStore
+
+    if url := os.environ.get(ENV_REDIS_URL):
+        return RedisStore(url=url)
+    return RedisStore(
+        host=os.environ.get(ENV_REDIS_HOST, "localhost"),
+        port=int(os.environ.get(ENV_REDIS_PORT, "6379")),
+        db=int(os.environ.get(ENV_REDIS_DB, "0")),
+        password=os.environ.get(ENV_REDIS_PASSWORD) or None,
+    )
+
+
+def _create_mongodb_storage() -> Any:
+    from key_value.aio.stores.mongodb import MongoDBStore
+
+    url = os.environ.get(ENV_MONGODB_URL)
+    if not url:
+        raise ValueError(f"{ENV_MONGODB_URL} is required for the 'mongodb' backend.")
+    kwargs: dict[str, Any] = {"url": url}
+    if db_name := os.environ.get(ENV_MONGODB_DB_NAME):
+        kwargs["db_name"] = db_name
+    return MongoDBStore(**kwargs)
+
+
 def create_client_storage() -> Any:
     """
     Returns an ``AsyncKeyValue`` storage backend for OAuth state based on
@@ -332,6 +389,9 @@ def create_client_storage() -> Any:
     Valid values:
     - unset or ``filetree``: FastMCP default — encrypted FileTreeStore, NFS-safe
     - ``memory``: in-memory MemoryStore, no persistence, no corruption risk
+    - ``dynamodb``: AWS DynamoDB — requires ``EXA_MCP_OAUTH_DYNAMODB_TABLE_NAME``
+    - ``redis``: Redis — configure via ``EXA_MCP_OAUTH_REDIS_URL`` or host/port vars
+    - ``mongodb``: MongoDB — requires ``EXA_MCP_OAUTH_MONGODB_URL``
     """
     backend = os.environ.get(ENV_STORAGE_BACKEND, "").strip().lower()
     if not backend or backend == "filetree":
@@ -340,9 +400,15 @@ def create_client_storage() -> Any:
         from key_value.aio.stores.memory import MemoryStore
 
         return MemoryStore()
+    if backend == "dynamodb":
+        return _create_dynamodb_storage()
+    if backend == "redis":
+        return _create_redis_storage()
+    if backend == "mongodb":
+        return _create_mongodb_storage()
     raise ValueError(
         f"Unknown storage backend '{backend}'. "
-        "Valid values: 'filetree' (default), 'memory'."
+        "Valid values: 'filetree' (default), 'memory', 'dynamodb', 'redis', 'mongodb'."
     )
 
 

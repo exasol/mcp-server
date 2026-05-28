@@ -20,3 +20,6 @@
   scripts and reports the currently active one. Added `set_exasol_preprocessor` tool
   that activates a preprocessor at the session level. Both tools are enabled by default
   and can be disabled via the `enable_preprocessor_tools` configuration flag.
+* #225: Added `dynamodb`, `redis`, and `mongodb` storage backends for OAuth state persistence.
+  Configure via `EXA_MCP_OAUTH_STORAGE_BACKEND` and backend-specific environment variables.
+  Install the matching optional extra (`exasol-mcp-server[dynamodb]`, `[redis]`, or `[mongodb]`) for the required client library.
