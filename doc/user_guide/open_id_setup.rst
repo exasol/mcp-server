@@ -329,7 +329,7 @@ environment variable:
     export EXA_MCP_OAUTH_STORAGE_BACKEND=memory
 
 DynamoDB Backend
-""""""""""""""""
+++++++++++++++++
 
 .. list-table::
    :header-rows: 1
@@ -364,7 +364,7 @@ DynamoDB Backend
     export EXA_MCP_OAUTH_DYNAMODB_REGION_NAME=us-east-1
 
 Redis Backend
-"""""""""""""
++++++++++++++
 
 .. list-table::
    :header-rows: 1
@@ -395,7 +395,7 @@ Redis Backend
     export EXA_MCP_OAUTH_REDIS_URL=redis://redis.internal:6379/0
 
 MongoDB Backend
-"""""""""""""""
++++++++++++++++
 
 .. list-table::
    :header-rows: 1
