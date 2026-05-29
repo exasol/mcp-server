@@ -1,4 +1,8 @@
 from typing import Union
+from unittest.mock import (
+    MagicMock,
+    patch,
+)
 
 import pytest
 from fastmcp.server.auth import (
@@ -19,7 +23,20 @@ from fastmcp.server.auth.providers.workos import AuthKitProvider
 from key_value.aio.stores.memory import MemoryStore
 
 from exasol.ai.mcp.server.setup.generic_auth import (
+    ENV_DYNAMODB_AWS_ACCESS_KEY_ID,
+    ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY,
+    ENV_DYNAMODB_AWS_SESSION_TOKEN,
+    ENV_DYNAMODB_ENDPOINT_URL,
+    ENV_DYNAMODB_REGION_NAME,
+    ENV_DYNAMODB_TABLE_NAME,
+    ENV_MONGODB_DB_NAME,
+    ENV_MONGODB_URL,
     ENV_PROVIDER_TYPE,
+    ENV_REDIS_DB,
+    ENV_REDIS_HOST,
+    ENV_REDIS_PASSWORD,
+    ENV_REDIS_PORT,
+    ENV_REDIS_URL,
     ENV_STORAGE_BACKEND,
     AuthParameter,
     AuthProviderInfo,
@@ -701,6 +718,203 @@ def test_create_client_storage_unknown(monkeypatch) -> None:
     monkeypatch.setenv(ENV_STORAGE_BACKEND, "disk")
     with pytest.raises(ValueError, match="Unknown storage backend"):
         create_client_storage()
+
+
+# ---------------------------------------------------------------------------
+# DynamoDB backend
+# ---------------------------------------------------------------------------
+
+# aioboto3, redis, and pymongo are optional extras absent from the dev venv.
+# The production helpers (_create_dynamodb_storage etc.) use deferred imports
+# (`from key_value.aio.stores.X import XStore`) so the ImportError only fires
+# at call time, not at module load.  patch.dict("sys.modules", ...) intercepts
+# that import and returns a MagicMock, letting us assert on constructor args
+# without installing the real packages.
+
+
+def _mock_dynamodb_module():
+    mock_store = MagicMock()
+    mock_module = MagicMock()
+    mock_module.DynamoDBStore = mock_store
+    return mock_store, {"key_value.aio.stores.dynamodb": mock_module}
+
+
+def test_create_client_storage_dynamodb_minimal(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "dynamodb")
+    monkeypatch.setenv(ENV_DYNAMODB_TABLE_NAME, "my-table")
+    for var in (
+        ENV_DYNAMODB_REGION_NAME,
+        ENV_DYNAMODB_ENDPOINT_URL,
+        ENV_DYNAMODB_AWS_ACCESS_KEY_ID,
+        ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY,
+        ENV_DYNAMODB_AWS_SESSION_TOKEN,
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    mock_store, modules = _mock_dynamodb_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(
+        table_name="my-table",
+        region_name=None,
+        endpoint_url=None,
+        aws_access_key_id=None,
+        aws_secret_access_key=None,
+        aws_session_token=None,
+    )
+
+
+def test_create_client_storage_dynamodb_full(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "dynamodb")
+    monkeypatch.setenv(ENV_DYNAMODB_TABLE_NAME, "my-table")
+    monkeypatch.setenv(ENV_DYNAMODB_REGION_NAME, "us-east-1")
+    monkeypatch.setenv(ENV_DYNAMODB_ENDPOINT_URL, "http://localhost:8000")
+    monkeypatch.setenv(ENV_DYNAMODB_AWS_ACCESS_KEY_ID, "AKID")
+    monkeypatch.setenv(ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY, "SECRET")
+    monkeypatch.setenv(ENV_DYNAMODB_AWS_SESSION_TOKEN, "TOKEN")
+
+    mock_store, modules = _mock_dynamodb_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(
+        table_name="my-table",
+        region_name="us-east-1",
+        endpoint_url="http://localhost:8000",
+        aws_access_key_id="AKID",
+        aws_secret_access_key="SECRET",
+        aws_session_token="TOKEN",
+    )
+
+
+def test_create_client_storage_dynamodb_missing_table_name(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "dynamodb")
+    monkeypatch.delenv(ENV_DYNAMODB_TABLE_NAME, raising=False)
+
+    mock_store, modules = _mock_dynamodb_module()
+    with patch.dict("sys.modules", modules):
+        with pytest.raises(ValueError, match=ENV_DYNAMODB_TABLE_NAME):
+            create_client_storage()
+
+
+# ---------------------------------------------------------------------------
+# Redis backend
+# ---------------------------------------------------------------------------
+
+
+# Same sys.modules patching rationale as for DynamoDB above.
+def _mock_redis_module():
+    mock_store = MagicMock()
+    mock_module = MagicMock()
+    mock_module.RedisStore = mock_store
+    return mock_store, {"key_value.aio.stores.redis": mock_module}
+
+
+def test_create_client_storage_redis_url(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "redis")
+    monkeypatch.setenv(ENV_REDIS_URL, "redis://redis.example.com:6379/1")
+    for var in (ENV_REDIS_HOST, ENV_REDIS_PORT, ENV_REDIS_DB, ENV_REDIS_PASSWORD):
+        monkeypatch.delenv(var, raising=False)
+
+    mock_store, modules = _mock_redis_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(url="redis://redis.example.com:6379/1")
+
+
+def test_create_client_storage_redis_host_port(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "redis")
+    monkeypatch.delenv(ENV_REDIS_URL, raising=False)
+    monkeypatch.setenv(ENV_REDIS_HOST, "myredis.internal")
+    monkeypatch.setenv(ENV_REDIS_PORT, "6380")
+    monkeypatch.setenv(ENV_REDIS_DB, "2")
+    monkeypatch.setenv(ENV_REDIS_PASSWORD, "s3cr3t")
+
+    mock_store, modules = _mock_redis_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(
+        host="myredis.internal",
+        port=6380,
+        db=2,
+        password="s3cr3t",
+    )
+
+
+def test_create_client_storage_redis_defaults(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "redis")
+    for var in (
+        ENV_REDIS_URL,
+        ENV_REDIS_HOST,
+        ENV_REDIS_PORT,
+        ENV_REDIS_DB,
+        ENV_REDIS_PASSWORD,
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    mock_store, modules = _mock_redis_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(
+        host="localhost",
+        port=6379,
+        db=0,
+        password=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# MongoDB backend
+# ---------------------------------------------------------------------------
+
+
+# Same sys.modules patching rationale as for DynamoDB above.
+def _mock_mongodb_module():
+    mock_store = MagicMock()
+    mock_module = MagicMock()
+    mock_module.MongoDBStore = mock_store
+    return mock_store, {"key_value.aio.stores.mongodb": mock_module}
+
+
+def test_create_client_storage_mongodb_url_only(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "mongodb")
+    monkeypatch.setenv(ENV_MONGODB_URL, "mongodb://mongo.example.com:27017")
+    monkeypatch.delenv(ENV_MONGODB_DB_NAME, raising=False)
+
+    mock_store, modules = _mock_mongodb_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(url="mongodb://mongo.example.com:27017")
+
+
+def test_create_client_storage_mongodb_with_db_name(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "mongodb")
+    monkeypatch.setenv(ENV_MONGODB_URL, "mongodb://mongo.example.com:27017")
+    monkeypatch.setenv(ENV_MONGODB_DB_NAME, "oauth_db")
+
+    mock_store, modules = _mock_mongodb_module()
+    with patch.dict("sys.modules", modules):
+        create_client_storage()
+
+    mock_store.assert_called_once_with(
+        url="mongodb://mongo.example.com:27017",
+        db_name="oauth_db",
+    )
+
+
+def test_create_client_storage_mongodb_missing_url(monkeypatch) -> None:
+    monkeypatch.setenv(ENV_STORAGE_BACKEND, "mongodb")
+    monkeypatch.delenv(ENV_MONGODB_URL, raising=False)
+
+    mock_store, modules = _mock_mongodb_module()
+    with patch.dict("sys.modules", modules):
+        with pytest.raises(ValueError, match=ENV_MONGODB_URL):
+            create_client_storage()
 
 
 # ---------------------------------------------------------------------------

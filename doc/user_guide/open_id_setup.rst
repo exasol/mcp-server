@@ -310,14 +310,112 @@ environment variable:
 |                  | All OAuth sessions are lost when the server restarts.                        |
 |                  | Suitable for stateless or ephemeral deployments.                             |
 +------------------+------------------------------------------------------------------------------+
+| ``dynamodb``     | AWS DynamoDB table. Suitable for multi-instance deployments on AWS.          |
+|                  | Requires ``EXA_MCP_OAUTH_DYNAMODB_TABLE_NAME``.                              |
+|                  | Install the ``dynamodb`` extra: ``pip install exasol-mcp-server[dynamodb]``. |
++------------------+------------------------------------------------------------------------------+
+| ``redis``        | Redis store. Suitable for multi-instance deployments with a shared Redis.    |
+|                  | Configure via ``EXA_MCP_OAUTH_REDIS_URL`` or individual host/port vars.      |
+|                  | Install the ``redis`` extra: ``pip install exasol-mcp-server[redis]``.       |
++------------------+------------------------------------------------------------------------------+
+| ``mongodb``      | MongoDB store. Suitable for multi-instance deployments with a shared MongoDB.|
+|                  | Requires ``EXA_MCP_OAUTH_MONGODB_URL``.                                      |
+|                  | Install the ``mongodb`` extra: ``pip install exasol-mcp-server[mongodb]``.   |
++------------------+------------------------------------------------------------------------------+
 
 .. code-block:: shell
 
     # Use in-memory storage (e.g. for ephemeral containers):
     export EXA_MCP_OAUTH_STORAGE_BACKEND=memory
 
-For more information on storage backends and advanced options such as Redis or DynamoDB,
-see the `FastMCP storage backends documentation <https://gofastmcp.com/servers/storage-backends>`__.
+DynamoDB Backend
+++++++++++++++++
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 10 50
+
+   * - Variable
+     - Required
+     - Description
+   * - ``EXA_MCP_OAUTH_DYNAMODB_TABLE_NAME``
+     - Yes
+     - Name of the DynamoDB table (created automatically if it does not exist).
+   * - ``EXA_MCP_OAUTH_DYNAMODB_REGION_NAME``
+     - No
+     - AWS region (e.g. ``us-east-1``). Defaults to the ambient AWS region.
+   * - ``EXA_MCP_OAUTH_DYNAMODB_ENDPOINT_URL``
+     - No
+     - Custom endpoint URL — useful for local DynamoDB (e.g. ``http://localhost:8000``).
+   * - ``EXA_MCP_OAUTH_DYNAMODB_AWS_ACCESS_KEY_ID``
+     - No
+     - AWS access key ID. Omit to use the ambient IAM role or credential chain.
+   * - ``EXA_MCP_OAUTH_DYNAMODB_AWS_SECRET_ACCESS_KEY``
+     - No
+     - AWS secret access key.
+   * - ``EXA_MCP_OAUTH_DYNAMODB_AWS_SESSION_TOKEN``
+     - No
+     - AWS session token (required for temporary credentials).
+
+.. code-block:: shell
+
+    export EXA_MCP_OAUTH_STORAGE_BACKEND=dynamodb
+    export EXA_MCP_OAUTH_DYNAMODB_TABLE_NAME=mcp-oauth-state
+    export EXA_MCP_OAUTH_DYNAMODB_REGION_NAME=us-east-1
+
+Redis Backend
++++++++++++++
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 10 50
+
+   * - Variable
+     - Required
+     - Description
+   * - ``EXA_MCP_OAUTH_REDIS_URL``
+     - No
+     - Redis URL (e.g. ``redis://host:6379/0``). Takes precedence over the individual vars below.
+   * - ``EXA_MCP_OAUTH_REDIS_HOST``
+     - No
+     - Redis host. Default: ``localhost``.
+   * - ``EXA_MCP_OAUTH_REDIS_PORT``
+     - No
+     - Redis port. Default: ``6379``.
+   * - ``EXA_MCP_OAUTH_REDIS_DB``
+     - No
+     - Redis database number. Default: ``0``.
+   * - ``EXA_MCP_OAUTH_REDIS_PASSWORD``
+     - No
+     - Redis password.
+
+.. code-block:: shell
+
+    export EXA_MCP_OAUTH_STORAGE_BACKEND=redis
+    export EXA_MCP_OAUTH_REDIS_URL=redis://redis.internal:6379/0
+
+MongoDB Backend
++++++++++++++++
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 10 50
+
+   * - Variable
+     - Required
+     - Description
+   * - ``EXA_MCP_OAUTH_MONGODB_URL``
+     - Yes
+     - MongoDB connection URL (e.g. ``mongodb://host:27017``).
+   * - ``EXA_MCP_OAUTH_MONGODB_DB_NAME``
+     - No
+     - MongoDB database name. Defaults to the driver's default.
+
+.. code-block:: shell
+
+    export EXA_MCP_OAUTH_STORAGE_BACKEND=mongodb
+    export EXA_MCP_OAUTH_MONGODB_URL=mongodb://mongo.internal:27017
+    export EXA_MCP_OAUTH_MONGODB_DB_NAME=mcp_oauth
 
 OpenID with SaaS Backend
 ------------------------

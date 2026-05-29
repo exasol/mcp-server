@@ -34,6 +34,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           poetry-version: "2.3.0"
 
+      - name: Install optional test dependencies
+        id: install-optional-test-dependencies
+        run: poetry install --with dynamodb-tests
+
       - name: Run Integration Tests
         id: run-integration-tests
         run: |
