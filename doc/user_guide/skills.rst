@@ -36,6 +36,17 @@ The following skills are always available. They are discoverable via the MCP
      - System and statistics tables: the ``EXA_ALL_*`` / ``EXA_DBA_*`` / ``EXA_USER_*``
        prefix guide, key metadata and performance tables, example queries, and advice on
        when to query system tables directly vs using MCP tools.
+   * - ``skill://exasol-table-design/SKILL.md``
+     - Table design for performance: DISTRIBUTE BY and PARTITION BY selection rules,
+       data type choices, replication border, surrogate keys, and CREATE TABLE syntax
+       including LIKE, IDENTITY, and combined distribution/partitioning patterns.
+   * - ``skill://exasol-import-export/SKILL.md``
+     - IMPORT and EXPORT SQL statements: CSV/FBV/Parquet formats, cloud storage
+       connections (S3, Azure, GCS), wildcard file loading, error handling with REJECT
+       LIMIT, and ETL staging workflows.
+   * - ``skill://exasol-virtual-schemas/SKILL.md``
+     - Virtual Schemas: connecting external data sources, adapter scripts, supported
+       adapters, privilege requirements, and performance considerations.
 
 How Clients Discover Skills
 ----------------------------

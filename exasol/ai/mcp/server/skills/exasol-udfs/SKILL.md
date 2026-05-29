@@ -1,5 +1,5 @@
 ---
-description: "Exasol User-Defined Functions (UDFs) and Scripts: CREATE SCRIPT syntax, language options, ExaIterator API, BucketFS access, and Script Language Containers."
+description: "Exasol User-Defined Functions (UDFs) and Scripts: CREATE SCRIPT syntax, language options, SQL-to-language data type mappings, ExaIterator API, BucketFS access, and Script Language Containers."
 tags: ["exasol", "udf", "scripts", "bucketfs"]
 ---
 
@@ -19,11 +19,10 @@ The CREATE SCRIPT statement creates a UDF (also called "script").
 
 | Type | Input | Output | Typical use |
 |---|---|---|---|
-| `SCALAR` | One row per call | One row per call | Transform a single value |
-| `SET` | All rows of a group | One or more rows | Aggregate or reshape a group |
-| `AGGREGATE` | All rows (no grouping needed) | One row | Custom aggregation |
+| `SCALAR` | One row per call | One row (or multiple with `EMITS`) | Transform a single value |
+| `SET` | All rows of a group | One row (or multiple with `EMITS`) | Aggregate or reshape a group |
 
-**SET with EMITS** can return a different number of rows than it receives (e.g., splitting one row into many).
+**SET with EMITS** can return a different number of rows than it receives (e.g., splitting one row into many). A `SET` script with `RETURNS` (not `EMITS`) acts as a custom aggregate — it receives all rows of a group and returns a single value.
 
 ## CREATE SCRIPT Syntax
 
@@ -100,6 +99,55 @@ Call it in a `GROUP BY` context (group determines which rows form a set):
 SELECT my_schema.tokenize(description) FROM products GROUP BY product_id;
 ```
 
+## Variadic Scripts (Dynamic Parameters)
+
+Use `...` as the parameter list to accept any number of input columns, output columns, or both.
+
+### Dynamic Input
+
+```sql
+CREATE OR REPLACE PYTHON3 SCALAR SCRIPT my_schema.to_json(...) RETURNS VARCHAR(2000000) AS
+import json
+def run(ctx):
+    obj = {}
+    for i in range(0, exa.meta.input_column_count, 2):
+        obj[ctx[i]] = ctx[i + 1]   -- caller passes: name, value, name, value, ...
+    return json.dumps(obj)
+/
+
+SELECT my_schema.to_json('fruit', fruit, 'price', price) FROM products;
+```
+
+- Access columns by index: `ctx[i]` — **0-based in Python/Java, 1-based in Lua/R**
+- `exa.meta.input_column_count` — total number of input columns
+- `exa.meta.input_columns[i].name` / `.sql_type` — per-column metadata
+
+### Dynamic Output (`EMITS(...)`)
+
+Declare `EMITS(...)` in `CREATE SCRIPT`. At call time, columns must be specified one of two ways:
+
+| Method | Where specified | Use when |
+|---|---|---|
+| `EMITS` in `SELECT` | Caller's SQL query | Output structure depends on data values |
+| `default_output_columns()` | Script body | Output structure derivable from input column count/types |
+
+```sql
+-- EMITS in SELECT (required when output depends on data content)
+SELECT my_schema.split_csv(line) EMITS (a VARCHAR(100), b VARCHAR(100)) FROM t;
+```
+
+```python
+# default_output_columns() — called before run(); no ctx/data access available
+def default_output_columns():
+    parts = []
+    for i in range(exa.meta.input_column_count):
+        parts.append("c" + exa.meta.input_columns[i].name + " " + exa.meta.input_columns[i].sql_type)
+    return ", ".join(parts)
+```
+
+If neither is provided, the query fails with:
+> *The script has dynamic return arguments. Either specify the return arguments in the query via EMITS or implement the method default_output_columns in the UDF.*
+
 ## ExaIterator API (`ctx`)
 
 | Method / Attribute | Description |
@@ -109,8 +157,30 @@ SELECT my_schema.tokenize(description) FROM products GROUP BY product_id;
 | `ctx.emit(val1, val2, ...)` | Output a result row (SET/EMITS) |
 | `ctx.size()` | Number of rows in the current group (SET only) |
 | `ctx.reset()` | Reset iterator to the start of the group (SET only) |
+| `ctx.get_dataframe(num_rows)` | Read up to `num_rows` rows as a pandas DataFrame (SET only) |
+| `ctx.emit(dataframe)` | Emit all rows of a pandas DataFrame as output (SET/EMITS only) |
 
 For SCALAR scripts, `ctx` holds exactly one row; no `next()` or `emit()` needed unless you use EMITS.
+
+**Note:** There is no `emit_dataframe()` method — use `ctx.emit(dataframe)` to emit a DataFrame.
+
+**R difference:** In R, use `ctx$next_row(n)` instead of `ctx.next()` to advance the iterator; it reads up to `n` rows at a time.
+
+## `exa.meta` Object
+
+The `exa.meta` object is available in all script languages and provides metadata about the current script invocation:
+
+| Property | Description |
+|---|---|
+| `exa.meta.input_column_count` | Number of input columns passed to the script |
+| `exa.meta.input_columns[i].name` | Name of input column `i` (lowercase) |
+| `exa.meta.input_columns[i].sql_type` | SQL type of input column `i` (e.g. `VARCHAR(100)`, `DOUBLE`) |
+| `exa.meta.output_column_count` | Number of output columns declared |
+| `exa.meta.output_columns[i].name` | Name of output column `i` |
+| `exa.meta.script_name` | Fully qualified name of the current script |
+| `exa.meta.session_id` | Current session ID |
+
+`exa.meta.input_columns` is especially useful in variadic scripts to inspect what columns were passed at call time.
 
 ## Accessing BucketFS from Scripts
 
@@ -133,15 +203,9 @@ def run(ctx):
 
 The exact path depends on the BucketFS service name and bucket name configured in the database.
 
-## Importing Other Scripts
+## Sharing Code Between Scripts
 
-```python
-# In the script body, import another script in the same or different schema:
-import exa
-exa.import_script('my_schema.helper_script')
-```
-
-`exa.import_script` executes the referenced script's module-level code, making its definitions available. Use this instead of Python `import` for scripts stored in Exasol.
+Exasol does not provide a built-in `exa.import_script` mechanism in the default Python environment. The standard approach for sharing code is to bundle shared modules in a Script Language Container (SLC) — install them as regular Python packages accessible via normal `import` statements inside any script.
 
 ## Java Script Example
 
@@ -160,23 +224,62 @@ class JAVA_UPPER {
 
 In Java, the class name must match the script name (uppercase, underscores for hyphens).
 
-## Script Language Containers (SLCs)
+### Java with External JARs
 
-The built-in Python/Java/Lua/R environments have limited packages. To use additional packages (e.g., pandas, scikit-learn, torch), you need a **Script Language Container**.
-
-An SLC is a Docker-based archive (`.tar.gz`) that bundles a complete language runtime with the packages you need. It is:
-
-1. Built with [exaslct](https://github.com/exasol/script-languages-release).
-2. Uploaded to BucketFS.
-3. Activated in the session or database via `ALTER SESSION SET SCRIPT_LANGUAGES = '...'`.
+Use `%jar` to load a JAR from BucketFS and `%scriptclass` to specify the entry-point class:
 
 ```sql
--- Activate a custom SLC (example)
+CREATE OR REPLACE JAVA SCALAR SCRIPT my_schema.custom_transform(input VARCHAR(2000))
+RETURNS VARCHAR(2000) AS
+  %scriptclass com.mycompany.MyTransformer;
+  %jar /buckets/bfsdefault/default/jars/my-lib.jar;
+/
+```
+
+- `%jar` can appear multiple times to load several JARs.
+- `%scriptclass` is required when the class name differs from the script name.
+
+## Data Types
+
+SQL types are mapped to language types when passed into scripts:
+
+| SQL Type | Python 3 | Java | Lua |
+|---|---|---|---|
+| `DECIMAL(p,0)` | `int` | `Integer` / `Long` / `BigDecimal` | `decimal` |
+| `DECIMAL(p,s)` | `decimal.Decimal` | `BigDecimal` | `decimal` |
+| `DOUBLE` | `float` | `Double` | `number` |
+| `DATE` | `datetime.date` | `java.sql.Date` | `string` |
+| `TIMESTAMP` | `datetime.datetime` | `java.sql.Timestamp` | `string` |
+| `BOOLEAN` | `bool` | `Boolean` | `boolean` |
+| `VARCHAR` / `CHAR` | `str` | `String` | `string` |
+
+SQL `NULL` maps to `None` (Python), `null` (Java), or `NULL` (Lua).
+
+**Caveats:**
+- Python `datetime.datetime` supports only 6 fractional digits; `TIMESTAMP(7/8/9)` values are truncated.
+- Use `DOUBLE` instead of `DECIMAL` where precision allows — better performance.
+- For the return value, the Python/Java type must be compatible with the declared `RETURNS` type.
+
+## Script Language Containers (SLCs)
+
+The built-in environments have a fixed set of packages. If a script raises `module not found`, the package is not available and an SLC is required. An SLC bundles a complete language runtime with additional packages and is installed by a database administrator.
+
+Once an SLC is uploaded to BucketFS, activate it for the session:
+
+```sql
 ALTER SESSION SET SCRIPT_LANGUAGES =
     'PYTHON3=localzmq+protobuf:///bfsdefault/myslc/release/current/exasol_python3?lang=python';
 ```
 
-After activation, scripts using `PYTHON3` will use the custom container.
+After activation, scripts using `PYTHON3` will use the custom container. The `PYTHON3_SME` language token refers to a pre-built SLC provided by Exasol.
+
+## Performance Tips
+
+- **Load once, use many**: Load models, configuration, or large resources at module level (outside `run()`), not per-row. The module is initialized once per worker process.
+- **Batch with SET**: Collect rows into a list or DataFrame, process in bulk, then emit results. Avoids per-row Python/Java overhead.
+- **Use `get_dataframe()`**: For pandas-based batch processing, `ctx.get_dataframe(n)` is faster than looping with `ctx.next()`.
+- **Lua for low latency**: Lua starts in under 10 ms (no JVM/Python startup). Use it for row-level transforms where latency matters.
+- **Parallelism is automatic**: UDFs run on all cluster nodes simultaneously — no manual partitioning needed.
 
 ## Debugging Tips
 
@@ -184,7 +287,6 @@ After activation, scripts using `PYTHON3` will use the custom container.
 - **Exceptions**: unhandled exceptions abort the statement and show the traceback in the error message.
 - **Check registration**: use `list_exasol_scripts` MCP tool or query `EXA_ALL_SCRIPTS` to verify a script exists.
 - **View script source**: use `describe_exasol_script` MCP tool or query `EXA_ALL_SCRIPTS.SCRIPT_TEXT`.
-- **Test incrementally**: write a minimal script first, verify it works, then add complexity.
 
 ## Common Errors
 

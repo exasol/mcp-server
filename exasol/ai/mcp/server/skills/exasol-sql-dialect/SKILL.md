@@ -15,29 +15,29 @@ tags: ["exasol", "sql", "dialect"]
 
 | Type | Notes |
 |---|---|
-| `VARCHAR(n CHAR)` | Variable-length string; use `CHAR` suffix to count characters rather than bytes |
-| `CHAR(n)` | Fixed-length, blank-padded |
-| `DECIMAL(p, s)` | Exact numeric; also written `NUMERIC(p, s)` |
-| `DOUBLE PRECISION` | 64-bit floating point; also `FLOAT` or `DOUBLE` |
+| `VARCHAR(n)` | Variable-length string, up to 2,000,000 characters; `n` counts characters (not bytes); empty string is `NULL` |
+| `CHAR(n)` | Fixed-length, blank-padded; up to 2,000 characters |
+| `DECIMAL(p, s)` | Exact numeric; also written `NUMERIC(p, s)`; default `DECIMAL(18, 0)` |
+| `DOUBLE PRECISION` | 64-bit floating point; also `FLOAT` or `DOUBLE`; `NaN` is treated as `NULL`; `Infinity` is not supported |
 | `BOOLEAN` | `TRUE` / `FALSE` |
 | `DATE` | Calendar date only (no time component) |
-| `TIMESTAMP` | Date + time |
+| `TIMESTAMP(p)` | Date + time; precision `p` 0–9, default **3** (milliseconds) |
 | `TIMESTAMP WITH LOCAL TIME ZONE` | Stored in UTC, displayed in session time zone |
 | `INTERVAL YEAR TO MONTH` | Period expressed as years and months |
 | `INTERVAL DAY TO SECOND` | Period expressed as days through seconds |
+| `HASHTYPE(n BYTE)` | Fixed-length hash/binary; 1–1,024 bytes (default 16); accepts hex, UUID, base64 |
 | `GEOMETRY` | Spatial data type |
 
 ## Row Limiting
 
-Exasol does **not** support `LIMIT n`. Use standard SQL row limiting:
+Exasol uses `LIMIT`/`OFFSET`. `FETCH FIRST … ROWS ONLY` is **not** supported.
 
 ```sql
--- Fetch first N rows
-SELECT * FROM my_table FETCH FIRST 100 ROWS ONLY;
-
--- Offset + limit
-SELECT * FROM my_table OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY;
+SELECT * FROM my_table ORDER BY id LIMIT 100;
+SELECT * FROM my_table ORDER BY id LIMIT 20 OFFSET 10;
 ```
+
+`OFFSET` requires `ORDER BY`. `LIMIT` is not allowed in correlated subqueries.
 
 ## String Operations
 
@@ -52,14 +52,20 @@ SELECT * FROM my_table OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY;
 ## Regular Expressions
 
 ```sql
--- Boolean match
-WHERE REGEXP_LIKE(column, '^[A-Z]+$')
+-- Boolean match (REGEXP_LIKE is not supported; use REGEXP_INSTR or REGEXP_COUNT instead)
+WHERE REGEXP_INSTR(column, '^[A-Z]+$') > 0
+
+-- Count matches
+SELECT REGEXP_COUNT(column, '[0-9]+')
 
 -- Replace with regex
 SELECT REGEXP_REPLACE(column, '[0-9]+', '#')
 
 -- Extract a match
 SELECT REGEXP_SUBSTR(column, '[0-9]+', 1, 1)
+
+-- Find position of first match
+SELECT REGEXP_INSTR(column, '[0-9]+')
 ```
 
 ## Date and Time Functions
@@ -84,7 +90,7 @@ TRUNC(my_timestamp, 'DD')   -- midnight
 -- Current time
 CURRENT_DATE
 CURRENT_TIMESTAMP
-SYSTIMESTAMP    -- same as CURRENT_TIMESTAMP
+SYSTIMESTAMP    -- like CURRENT_TIMESTAMP but uses database time zone (not session time zone)
 ```
 
 ## NULL Handling
@@ -118,14 +124,15 @@ FROM my_table;
 
 ## Joins
 
-Standard `INNER JOIN`, `LEFT/RIGHT/FULL OUTER JOIN`, `CROSS JOIN`. Also supports:
+Standard `INNER JOIN`, `LEFT/RIGHT/FULL OUTER JOIN`, `CROSS JOIN`. `NATURAL JOIN` is **not** supported.
+
+## Set Operations
+
+`UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT` work as in standard SQL. `MINUS` is an Oracle-compatible alias for `EXCEPT`:
 
 ```sql
--- Natural join (match on same-named columns)
-FROM a NATURAL JOIN b
-
--- Partition outer join (Oracle/Exasol extension)
-FROM a LEFT OUTER JOIN b PARTITION BY (b.dim) ON a.key = b.key
+SELECT * FROM a EXCEPT SELECT * FROM b;  -- standard
+SELECT * FROM a MINUS SELECT * FROM b;   -- identical, Oracle-compatible
 ```
 
 ## MERGE
@@ -187,9 +194,7 @@ CAST('42' AS INTEGER)
 
 ## Common Pitfalls
 
-- **No `LIMIT`**: always use `FETCH FIRST n ROWS ONLY`.
 - **Case of stored names**: querying `EXA_ALL_COLUMNS` returns uppercase names unless the table was created with quoted identifiers.
-- **VARCHAR byte vs char**: `VARCHAR(10)` means 10 bytes in the default character set; use `VARCHAR(10 CHAR)` to measure in characters.
-- **Integer division**: `5 / 2` returns `2` (integer). Cast to `DECIMAL` for fractional result: `CAST(5 AS DECIMAL) / 2`.
-- **Empty string vs NULL**: Exasol treats `''` (empty string) as an empty string, not NULL (unlike Oracle).
-- **Timestamp precision**: default `TIMESTAMP` has microsecond precision.
+- **VARCHAR size is in characters**: `VARCHAR(10)` means 10 characters (not bytes), regardless of UTF-8 encoding.
+- **Empty string is NULL**: `''` is stored and returned as `NULL` in `VARCHAR` columns.
+- **Timestamp precision**: default `TIMESTAMP` (i.e. `TIMESTAMP(3)`) has millisecond precision; use `TIMESTAMP(6)` for microseconds.

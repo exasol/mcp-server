@@ -23,8 +23,11 @@
 * #225: Added `dynamodb`, `redis`, and `mongodb` storage backends for OAuth state persistence.
   Configure via `EXA_MCP_OAUTH_STORAGE_BACKEND` and backend-specific environment variables.
   Install the matching optional extra (`exasol-mcp-server[dynamodb]`, `[redis]`, or `[mongodb]`) for the required client library.
-* #227: Added four MCP skills served as resources via the FastMCP skills protocol:
+* #227: Added seven MCP skills served as resources via the FastMCP skills protocol:
   `exasol-sql-dialect` (SQL dialect specifics), `exasol-udfs` (UDF and scripting guide),
-  `exasol-mcp-server` (tool workflows and usage patterns), and `exasol-system-tables`
-  (system and statistics table reference). Skills are always available and require no
-  additional configuration.
+  `exasol-mcp-server` (tool workflows and usage patterns), `exasol-system-tables`
+  (system and statistics table reference), `exasol-table-design` (DISTRIBUTE BY,
+  PARTITION BY, data types, and CREATE TABLE best practices for performance),
+  `exasol-import-export` (IMPORT/EXPORT SQL for CSV, Parquet, and cloud storage),
+  and `exasol-virtual-schemas` (federated access to external data sources via adapter
+  scripts). Skills are always available and require no additional configuration.

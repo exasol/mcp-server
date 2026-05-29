@@ -13,6 +13,9 @@ EXPECTED_SKILLS = [
     "exasol-udfs",
     "exasol-mcp-server",
     "exasol-system-tables",
+    "exasol-table-design",
+    "exasol-import-export",
+    "exasol-virtual-schemas",
 ]
 
 
