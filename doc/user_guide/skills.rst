@@ -1,7 +1,7 @@
 .. _skills:
 
-:octicon:`lightbulb` Skills
-============================
+Skills
+======
 
 The Exasol MCP Server exposes domain knowledge as `FastMCP skills`_. Skills are MCP resources
 that LLM clients can discover and pull in on demand, providing background context without

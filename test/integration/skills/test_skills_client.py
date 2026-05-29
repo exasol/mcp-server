@@ -11,6 +11,8 @@ from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 
+pytestmark = pytest.mark.usefixtures("run_on_itde")
+
 EXPECTED_SKILL_URIS = {
     "skill://exasol-sql-dialect/SKILL.md",
     "skill://exasol-udfs/SKILL.md",
@@ -71,6 +73,9 @@ def test_system_tables_skill_mentions_exa_all(mcp_server):
         _read_resource(mcp_server, "skill://exasol-system-tables/SKILL.md")
     )
     assert "EXA_ALL_" in content
+    assert "EXA_ALL_OBJECT_SIZES" in content
+    assert "EXA_DBA_INDICES" in content
+    assert "EXA_SQL_LAST_DAY" in content
 
 
 def test_mcp_server_skill_mentions_workflows(mcp_server):
