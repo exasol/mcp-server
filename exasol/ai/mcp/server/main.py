@@ -3,11 +3,13 @@ import logging
 import os
 import re
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 import click
 import exasol.bucketfs as bfs
 from exasol.telemetry import client as telemetry
+from fastmcp.server.providers.skills import SkillsDirectoryProvider
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
@@ -26,6 +28,8 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
     list_builtin_functions,
 )
 from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
+
+_SKILLS_DIR = Path(__file__).parent / "skills"
 
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
@@ -405,6 +409,10 @@ def register_custom_routes(mcp_server: ExasolMCPServer) -> None:
         return mcp_server.health_check()
 
 
+def register_skills(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.add_provider(SkillsDirectoryProvider(roots=_SKILLS_DIR))
+
+
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """
     Configures the root logger using the info in the provided configuration dictionary.
@@ -499,6 +507,7 @@ def create_mcp_server(
         **kwargs,
     )
     register_tools(mcp_server_, config)
+    register_skills(mcp_server_)
     register_custom_routes(mcp_server_)
     return mcp_server_
 
