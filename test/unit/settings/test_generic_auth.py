@@ -724,6 +724,13 @@ def test_create_client_storage_unknown(monkeypatch) -> None:
 # DynamoDB backend
 # ---------------------------------------------------------------------------
 
+# aioboto3, redis, and pymongo are optional extras absent from the dev venv.
+# The production helpers (_create_dynamodb_storage etc.) use deferred imports
+# (`from key_value.aio.stores.X import XStore`) so the ImportError only fires
+# at call time, not at module load.  patch.dict("sys.modules", ...) intercepts
+# that import and returns a MagicMock, letting us assert on constructor args
+# without installing the real packages.
+
 
 def _mock_dynamodb_module():
     mock_store = MagicMock()
@@ -796,6 +803,7 @@ def test_create_client_storage_dynamodb_missing_table_name(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Same sys.modules patching rationale as for DynamoDB above.
 def _mock_redis_module():
     mock_store = MagicMock()
     mock_module = MagicMock()
@@ -864,6 +872,7 @@ def test_create_client_storage_redis_defaults(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Same sys.modules patching rationale as for DynamoDB above.
 def _mock_mongodb_module():
     mock_store = MagicMock()
     mock_module = MagicMock()
