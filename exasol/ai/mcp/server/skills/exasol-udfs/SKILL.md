@@ -10,7 +10,7 @@ tags: ["exasol", "udf", "scripts", "bucketfs"]
 Exasol lets you define custom functions and scripts in Python, Java, Lua, or R. These run inside the Exasol cluster nodes. Use them when:
 
 - A computation is too complex to express in SQL.
-- You need to call an external library or model.
+- You need to call an external library, model or service.
 - You want to process data in bulk without transferring it to the client.
 
 The CREATE SCRIPT statement creates a UDF (also called "script").
@@ -22,7 +22,9 @@ The CREATE SCRIPT statement creates a UDF (also called "script").
 | `SCALAR` | One row per call | One row (or multiple with `EMITS`) | Transform a single value |
 | `SET` | All rows of a group | One row (or multiple with `EMITS`) | Aggregate or reshape a group |
 
-**SET with EMITS** can return a different number of rows than it receives (e.g., splitting one row into many). A `SET` script with `RETURNS` (not `EMITS`) acts as a custom aggregate — it receives all rows of a group and returns a single value.
+**SET with EMITS** can return a different number of rows than it receives (e.g., a custom window function).
+A **SET script with RETURNS** (not `EMITS`) acts as a custom aggregate — it receives all rows of a group and returns a single value.
+A **SCALAR with EMITS** can be used for splitting one row into many.
 
 ## CREATE SCRIPT Syntax
 

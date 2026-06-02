@@ -25,7 +25,7 @@ Metadata (table names, column types) is retrieved via JDBC and **cached** in Exa
 /buckets/bfsdefault/default/drivers/jdbc/<database>/<driver>.jar
 ```
 
-Upload the JAR using the `exapump` CLI or the BucketFS web interface.
+Upload the JAR using the `download_file` BucketFS tool (downloads from a URL to BucketFS) or the BucketFS web interface. The `download_file` tool requires the JAR to be hosted at an accessible URL (e.g., a GitHub release or S3).
 
 ### Step 2 — Install the Adapter Script
 

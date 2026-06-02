@@ -1,6 +1,6 @@
 ---
-description: "Exasol table design for performance: DISTRIBUTE BY, PARTITION BY, data types, replication, surrogate keys, and CREATE TABLE syntax."
-tags: ["exasol", "table-design", "performance", "distribution", "partitioning"]
+description: "Exasol table design for performance: DISTRIBUTE BY, PARTITION BY, zone maps, data types, replication, surrogate keys, and CREATE TABLE syntax."
+tags: ["exasol", "table-design", "performance", "distribution", "partitioning", "zonemaps"]
 ---
 
 # Exasol Table Design
@@ -201,6 +201,67 @@ CREATE TABLE fact_sales (
 This enables:
 - Local joins on `customer_id` (distribution)
 - Partition pruning on `sale_date` range filters
+
+---
+
+## Zone Maps
+
+Zone maps are a metadata layer on data segments that store the **minimum and maximum values** for a column within each segment. When a query has a predicate on a zone-mapped column, Exasol checks the zone records first and skips any segment whose min/max range cannot satisfy the predicate — reducing I/O without scanning data.
+
+### Enablement
+
+Zone maps are **automatically enabled on partition columns**. For non-partitioned columns, use:
+
+```sql
+-- Enable zone map on a column
+ENFORCE ZONEMAP ON my_table (column_name);
+
+-- Remove zone map from a column
+DROP ZONEMAP ON my_table (column_name);
+```
+
+### When Zone Maps Help
+
+Zone maps are most effective when the column has **data locality** — values that are naturally clustered or sorted within segments:
+
+- Date/timestamp columns (inserts tend to be chronological)
+- Monotonically increasing surrogate keys (`IDENTITY` columns)
+- Columns already used as `PARTITION BY` keys
+- Any column frequently used in range or equality filters
+
+### Supported Predicates
+
+Zone maps are applied for: `=`, `<`, `>`, `<=`, `>=`, `BETWEEN`, `IN`, `IS NULL`, `IS NOT NULL`, and `AND` combinations.
+
+### Data Type Support
+
+| Support level | Types |
+|---|---|
+| Full | `BOOLEAN`, `DATE`, `DECIMAL`, `DOUBLE`, `INTERVAL YEAR TO MONTH`, `TIMESTAMP` |
+| Limited (equality only) | `INTERVAL DAY TO SECOND` |
+| Not supported | `CHAR`, `VARCHAR`, `GEOMETRY`, `HASHTYPE` |
+
+### Inspection
+
+```sql
+-- Check which columns have zone maps
+SELECT COLUMN_NAME, COLUMN_IS_ZONEMAPPED
+FROM EXA_ALL_COLUMNS
+WHERE COLUMN_TABLE = 'MY_TABLE' AND COLUMN_SCHEMA = 'MY_SCHEMA';
+
+-- DESCRIBE also shows zone-mapped columns
+DESCRIBE my_table;
+```
+
+Profiling output shows `WITH ZONEMAP` next to a scan step when zone records pruned segments during execution.
+
+### Anti-Patterns
+
+| Anti-pattern | Why it hurts |
+|---|---|
+| Zone map on a `VARCHAR` or `CHAR` column | Not supported — zone map has no effect |
+| Zone map on a randomly inserted column (no locality) | Min/max spans the full range in every segment — no segments are skipped |
+| Zone map instead of `PARTITION BY` for large tables | Partitioning prunes whole partitions; zone maps only skip segments within a partition — use both together on large tables |
 
 ---
 

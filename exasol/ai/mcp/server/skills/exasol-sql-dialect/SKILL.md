@@ -197,4 +197,4 @@ CAST('42' AS INTEGER)
 - **Case of stored names**: querying `EXA_ALL_COLUMNS` returns uppercase names unless the table was created with quoted identifiers.
 - **VARCHAR size is in characters**: `VARCHAR(10)` means 10 characters (not bytes), regardless of UTF-8 encoding.
 - **Empty string is NULL**: `''` is stored and returned as `NULL` in `VARCHAR` columns.
-- **Timestamp precision**: default `TIMESTAMP` (i.e. `TIMESTAMP(3)`) has millisecond precision; use `TIMESTAMP(6)` for microseconds.
+- **Timestamp precision**: default `TIMESTAMP` (i.e. `TIMESTAMP(3)`) has millisecond precision; use `TIMESTAMP(6)` for microseconds. Valid precision values are **0–9**; values outside this range cause an error.

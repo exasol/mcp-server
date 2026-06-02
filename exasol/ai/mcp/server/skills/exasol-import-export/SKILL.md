@@ -9,11 +9,11 @@ tags: ["exasol", "import", "export", "etl", "csv", "parquet", "cloud-storage"]
 
 | Scenario | Tool |
 |----------|------|
-| Files on your local machine | **exapump CLI** (`upload` / `export`) |
 | Remote or cloud files (S3, Azure, GCS, FTP, HTTP) | **SQL `IMPORT` / `EXPORT`** |
+| Files on a local machine (EXAplus/JDBC only) | **`FROM LOCAL CSV FILE` / `INTO LOCAL CSV FILE`** |
 | Federated queries without copying data | **Virtual Schemas** |
 
-Use `IMPORT`/`EXPORT` when the data source or destination is a remote location accessible from the Exasol cluster. Use exapump when files are on your local machine — it tunnels data through a local JDBC connection. `FROM LOCAL CSV FILE` and `INTO LOCAL CSV FILE` only work from EXAplus or JDBC clients; they do **not** work inside UDF scripts.
+Use `IMPORT`/`EXPORT` when the data source or destination is a remote location accessible from the Exasol cluster. Execute `IMPORT` and `EXPORT` statements via the `execute_exasol_write_query` MCP tool. `FROM LOCAL CSV FILE` and `INTO LOCAL CSV FILE` only work from EXAplus or JDBC clients; they do **not** work inside UDF scripts or through the MCP server.
 
 ---
 
