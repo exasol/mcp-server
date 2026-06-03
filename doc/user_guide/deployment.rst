@@ -185,3 +185,7 @@ through environment variables. The setup includes the standard definitions for t
 |                          | to the defined logging level) will be copied to the console.    |
 |                          | Defaults to false.                                              |
 +--------------------------+-----------------------------------------------------------------+
+| EXA_MCP_LOG_IGNORE       | Comma-separated list of logger names whose messages should be   |
+|                          | suppressed (e.g. "fastmcp,uvicorn"). Useful when a dependency   |
+|                          | floods the log with messages that are not relevant to users.    |
++--------------------------+-----------------------------------------------------------------+

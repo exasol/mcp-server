@@ -40,6 +40,7 @@ ENV_LOG_MAX_SIZE = "EXA_MCP_LOG_MAX_SIZE"
 ENV_LOG_BACKUP_COUNT = "EXA_MCP_LOG_BACKUP_COUNT"
 ENV_LOG_FORMATTER = "EXA_MCP_LOG_FORMATTER"
 ENV_LOG_TO_CONSOLE = "EXA_MCP_LOG_TO_CONSOLE"
+ENV_LOG_IGNORE = "EXA_MCP_LOG_IGNORE"
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 DEFAULT_LOG_MAX_SIZE = 1048576  # 1 MB
@@ -463,6 +464,12 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
         if formatter is not None:
             console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+
+    if ENV_LOG_IGNORE in env:
+        for name in env[ENV_LOG_IGNORE].split(","):
+            name = name.strip()
+            if name:
+                logging.getLogger(name).setLevel(logging.CRITICAL + 1)
 
     return logger
 
