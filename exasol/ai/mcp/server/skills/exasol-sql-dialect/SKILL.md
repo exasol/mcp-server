@@ -9,7 +9,12 @@ tags: ["exasol", "sql", "dialect"]
 
 - Identifiers (schema, table, column names) are **case-insensitive** by default and stored uppercase.
 - To preserve case or use reserved words as identifiers, wrap them in **double quotes**: `"myColumn"`.
-- String literals use **single quotes**: `'value'`.
+- Embed a literal double-quote inside a quoted identifier by doubling it: `"MY""COLUMN"`.
+
+## String Literals
+
+- Use **single quotes**: `'value'`.
+- Embed a literal single-quote by doubling it: `'it''s a value'`.
 
 ## Data Types
 
