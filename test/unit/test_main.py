@@ -21,6 +21,7 @@ from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
     ENV_LOG_FILE,
     ENV_LOG_FORMATTER,
+    ENV_LOG_IGNORE,
     ENV_LOG_LEVEL,
     ENV_LOG_TO_CONSOLE,
     ENV_SETTINGS,
@@ -126,6 +127,24 @@ def test_setup_logger_to_console(caplog) -> None:
     assert len(caplog.records) == 1
     assert caplog.records[0].message == "Test message"
     assert caplog.records[0].levelname == "INFO"
+
+
+def test_setup_logger_ignore(tmp_path) -> None:
+    log_file = tmp_path / "log_dir/log_file.log"
+    env = {
+        ENV_LOG_FILE: str(log_file),
+        ENV_LOG_LEVEL: "INFO",
+        ENV_LOG_IGNORE: "ignored_lib, another_lib",
+    }
+    setup_logger(env)
+    logging.getLogger("ignored_lib").info("should be suppressed")
+    logging.getLogger("another_lib").info("also suppressed")
+    logging.getLogger("normal_logger").info("should appear")
+    with open(log_file) as f:
+        content = f.read()
+    assert "should be suppressed" not in content
+    assert "also suppressed" not in content
+    assert "should appear" in content
 
 
 @patch("exasol.ai.mcp.server.main.create_mcp_server")
