@@ -1,4 +1,5 @@
 ---
+name: exasol-mcp-server
 description: "Exasol MCP Server usage guide: common workflows for database exploration, query debugging, BucketFS management, and working with UDFs and preprocessors."
 tags: ["exasol", "mcp", "workflows"]
 ---

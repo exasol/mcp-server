@@ -45,3 +45,10 @@ def test_register_skills_calls_add_provider():
     mcp_server = mock.create_autospec(ExasolMCPServer)
     register_skills(mcp_server)
     mcp_server.add_provider.assert_called_once()
+
+
+@pytest.mark.parametrize("skill_name", EXPECTED_SKILLS)
+def test_skill_file_has_name_in_frontmatter(skill_name):
+    skill_file = _SKILLS_DIR / skill_name / "SKILL.md"
+    content = skill_file.read_text()
+    assert f"name: {skill_name}" in content

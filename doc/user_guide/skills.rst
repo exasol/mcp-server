@@ -58,3 +58,6 @@ The client can then call ``resources/read`` with that URI to fetch the markdown 
 Claude Code discovers and syncs skills automatically when the MCP server is configured
 as a provider. Other clients may use ``fastmcp.utilities.skills.sync_skills()`` or the
 equivalent protocol calls.
+
+For clients that do not auto-discover skills (such as Open Code), see :ref:`integration`
+for installation instructions and automation examples.

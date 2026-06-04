@@ -1,4 +1,5 @@
 ---
+name: exasol-table-design
 description: "Exasol table design for performance: DISTRIBUTE BY, PARTITION BY, zone maps, data types, replication, surrogate keys, and CREATE TABLE syntax."
 tags: ["exasol", "table-design", "performance", "distribution", "partitioning", "zonemaps"]
 ---

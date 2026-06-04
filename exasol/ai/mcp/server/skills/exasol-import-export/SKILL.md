@@ -1,4 +1,5 @@
 ---
+name: exasol-import-export
 description: "Exasol IMPORT and EXPORT SQL statements: syntax, file formats (CSV, FBV, Parquet), cloud storage (S3, Azure, GCS), connection objects, error handling, and ETL staging patterns."
 tags: ["exasol", "import", "export", "etl", "csv", "parquet", "cloud-storage"]
 ---

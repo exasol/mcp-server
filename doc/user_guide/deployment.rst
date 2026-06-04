@@ -155,6 +155,30 @@ Let Nginx use the new configuration.
 
     nginx -s reload
 
+Skills Installation
+-------------------
+
+The Exasol MCP Server exposes domain knowledge as skills (see :ref:`skills`). Clients that
+support the FastMCP skills protocol — such as Claude Code — discover and download skills
+automatically. Other clients require a one-time installation step.
+
+After installing the package, run the following command to copy the bundled skills to a
+directory your client recognises:
+
+.. code-block:: shell
+
+    exasol-install-skills --target-dir <path/to/skills>
+
+To instead fetch the latest skills from a remote Exasol MCP server:
+
+.. code-block:: shell
+
+    exasol-install-skills \
+        --target-dir <path/to/skills> \
+        --server-url https://<your-exasol-mcp-server>/mcp
+
+For client-specific instructions and automatic installation options, see :ref:`integration`.
+
 Logging configuration
 ---------------------------
 

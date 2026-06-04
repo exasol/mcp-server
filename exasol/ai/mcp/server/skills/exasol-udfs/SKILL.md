@@ -1,4 +1,5 @@
 ---
+name: exasol-udfs
 description: "Exasol User-Defined Functions (UDFs) and Scripts: CREATE SCRIPT syntax, language options, SQL-to-language data type mappings, ExaIterator API, BucketFS access, and Script Language Containers."
 tags: ["exasol", "udf", "scripts", "bucketfs"]
 ---
@@ -282,6 +283,16 @@ After activation, scripts using `PYTHON3` will use the custom container. The `PY
 - **Use `get_dataframe()`**: For pandas-based batch processing, `ctx.get_dataframe(n)` is faster than looping with `ctx.next()`.
 - **Lua for low latency**: Lua starts in under 10 ms (no JVM/Python startup). Use it for row-level transforms where latency matters.
 - **Parallelism is automatic**: UDFs run on all cluster nodes simultaneously — no manual partitioning needed.
+- **Pre-filter before UDF calls**: SQL optimizations such as `LIMIT` are applied *after* the UDF runs — `LIMIT 5` on a UDF query still executes the UDF against the full (grouped) input. Restrict the dataset before the UDF sees it using a subquery or `WHERE` clause:
+  ```sql
+  -- Bad: UDF runs on all rows, LIMIT applied to results
+  SELECT my_schema.tokenize(description) FROM products GROUP BY product_id LIMIT 5;
+
+  -- Good: restrict input rows first
+  SELECT my_schema.tokenize(description)
+  FROM (SELECT product_id, description FROM products WHERE product_id <= 5)
+  GROUP BY product_id;
+  ```
 
 ## Debugging Tips
 

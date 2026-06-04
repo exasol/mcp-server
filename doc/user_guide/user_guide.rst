@@ -13,4 +13,5 @@
     open_id_setup
     tool_list
     skills
+    integration
     deployment

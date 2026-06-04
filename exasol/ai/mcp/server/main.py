@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -9,7 +10,10 @@ from typing import Any
 import click
 import exasol.bucketfs as bfs
 from exasol.telemetry import client as telemetry
+from fastmcp import FastMCP
+from fastmcp.client import Client
 from fastmcp.server.providers.skills import SkillsDirectoryProvider
+from fastmcp.utilities.skills import sync_skills
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
@@ -414,6 +418,17 @@ def register_skills(mcp_server: ExasolMCPServer) -> None:
     mcp_server.add_provider(SkillsDirectoryProvider(roots=_SKILLS_DIR))
 
 
+async def _install_skills_async(target_dir: Path, server_url: str | None) -> list[Path]:
+    if server_url:
+        async with Client(server_url) as client:
+            return await sync_skills(client, target_dir, overwrite=True)
+    else:
+        server = FastMCP("skills")
+        server.add_provider(SkillsDirectoryProvider(roots=_SKILLS_DIR))
+        async with Client(server) as client:
+            return await sync_skills(client, target_dir, overwrite=True)
+
+
 def setup_logger(env: dict[str, str]) -> logging.Logger:
     """
     Configures the root logger using the info in the provided configuration dictionary.
@@ -599,6 +614,33 @@ def main_http(transport, host, port, no_auth) -> None:
         else:
             raise RuntimeError(message)
     server.run(transport=transport, host=host, port=port)
+
+
+@click.command()
+@click.option(
+    "--target-dir",
+    required=True,
+    type=click.Path(),
+    help="Directory where skills will be installed.",
+)
+@click.option(
+    "--server-url",
+    default=None,
+    help="Remote MCP server URL to download skills from. If omitted, bundled skills are installed.",
+)
+def install_skills_cli(target_dir: str, server_url: str | None) -> None:
+    """Install Exasol skills into a local directory for use with MCP clients.
+
+    By default the skills bundled with this package are installed, requiring
+    no network access. Pass --server-url to instead download the latest skills
+    from a remote Exasol MCP server. Existing skill files are always overwritten,
+    so re-running the command updates skills in place.
+    """
+    paths = asyncio.run(_install_skills_async(Path(target_dir), server_url))
+    for path in paths:
+        click.echo(f"Installed: {path}")
+    if not paths:
+        click.echo("No skills installed.")
 
 
 if __name__ == "__main__":

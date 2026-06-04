@@ -14,6 +14,7 @@ dynamic = ["dependencies"]
 [project.scripts]
 exasol-mcp-server = "exasol.ai.mcp.server.main:main"
 exasol-mcp-server-http = "exasol.ai.mcp.server.main:main_http"
+exasol-install-skills = "exasol.ai.mcp.server.main:install_skills_cli"
 
 [tool.poetry]
 requires-poetry = ">=2.1.0"

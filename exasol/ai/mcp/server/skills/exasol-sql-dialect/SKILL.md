@@ -1,4 +1,5 @@
 ---
+name: exasol-sql-dialect
 description: "Exasol SQL dialect specifics: syntax, data types, functions, and common pitfalls for generating correct Exasol SQL."
 tags: ["exasol", "sql", "dialect"]
 ---
