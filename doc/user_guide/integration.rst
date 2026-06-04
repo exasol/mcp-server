@@ -44,9 +44,12 @@ Automatic Installation via an Open Code Plugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Open Code `plugins <https://opencode.ai/docs/plugins/>`_ are JavaScript files that hook into
-agent events. Place the following file at ``.opencode/plugins/install-exasol-skills.js``
-(project-level) or ``~/.config/opencode/plugins/install-exasol-skills.js`` (global) to install
-skills automatically at the start of every session:
+agent events. Place one of the plugin files below at
+``.opencode/plugins/install-exasol-skills.js`` (project-level) or
+``~/.config/opencode/plugins/install-exasol-skills.js`` (global) to install skills
+automatically at the start of every session.
+
+**Option A — via the CLI** (requires the ``exasol-mcp-server`` Python package):
 
 .. code-block:: javascript
 
@@ -61,12 +64,44 @@ skills automatically at the start of every session:
       };
     }
 
-To pull from a remote server instead, replace the command with:
+**Option B — fetch directly from GitHub** (no Python required):
+
+The skills are plain Markdown files hosted in the public GitHub repository.
+Open Code plugins run in a `Bun <https://bun.sh>`_ environment, so the plugin below
+can download them with a plain ``fetch`` call — no additional tools needed.
 
 .. code-block:: javascript
 
-    await ctx.shell(
-      "exasol-install-skills " +
-      "--target-dir ~/.config/opencode/skills/ " +
-      "--server-url https://<your-exasol-mcp-server>/mcp"
-    );
+    // .opencode/plugins/install-exasol-skills.js
+    import { mkdirSync, writeFileSync } from "node:fs";
+
+    const SKILLS = [
+      "exasol-sql-dialect",
+      "exasol-udfs",
+      "exasol-mcp-server",
+      "exasol-system-tables",
+      "exasol-table-design",
+      "exasol-import-export",
+      "exasol-virtual-schemas",
+    ];
+    const BASE_URL =
+      "https://raw.githubusercontent.com/exasol/mcp-server/main" +
+      "/exasol/ai/mcp/server/skills";
+    const TARGET = `${process.env.HOME}/.config/opencode/skills`;
+
+    export default function (_ctx) {
+      return {
+        "session:start": async () => {
+          for (const skill of SKILLS) {
+            const res = await fetch(`${BASE_URL}/${skill}/SKILL.md`);
+            if (res.ok) {
+              mkdirSync(`${TARGET}/${skill}`, { recursive: true });
+              writeFileSync(`${TARGET}/${skill}/SKILL.md`, await res.text());
+            }
+          }
+        },
+      };
+    }
+
+To pin to a specific release instead of ``main``, replace ``main`` in ``BASE_URL``
+with the desired tag, e.g. ``refs/tags/1.9.0``.
