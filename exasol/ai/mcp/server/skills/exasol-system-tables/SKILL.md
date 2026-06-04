@@ -1,4 +1,5 @@
 ---
+name: exasol-system-tables
 description: "Exasol system and statistics tables: what they contain, visibility prefixes (EXA_ALL_*, EXA_DBA_*, EXA_USER_*), and when to query them directly vs using MCP tools."
 tags: ["exasol", "system-tables", "statistics", "metadata"]
 ---

@@ -1,4 +1,5 @@
 ---
+name: exasol-virtual-schemas
 description: "Exasol Virtual Schemas: creating and managing read-only federated access to external data sources via adapter scripts, JDBC connections, and pushdown query optimization."
 tags: ["exasol", "virtual-schema", "federation", "jdbc", "adapter"]
 ---
