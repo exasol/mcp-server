@@ -68,7 +68,7 @@ automatically at the start of every session.
         });
       });
 
-    const InstallExasolPlugins = async () => {
+    const installExasolPlugins = async () => {
       console.log("[install-exasol-skills] Installing Exasol skills...");
       try {
         execSync(`exasol-install-skills --target-dir ${TARGET}`, {
@@ -86,7 +86,7 @@ automatically at the start of every session.
       return {};
     };
 
-    export default InstallExasolPlugins;
+    export default installExasolPlugins;
 
 **Option B — fetch directly from GitHub** (no Python required):
 
@@ -153,12 +153,12 @@ can download them with a plain ``fetch`` call — no additional tools needed.
       }
     };
 
-    const InstallExasolPlugins = async () => {
+    const installExasolPlugins = async () => {
       await downloadSkills();
       return {};
     };
 
-    export default InstallExasolPlugins;
+    export default installExasolPlugins;
 
 To pin to a specific release instead of ``main``, replace ``main`` in ``BASE_URL``
 with the desired tag, e.g. ``refs/tags/1.9.0``.
