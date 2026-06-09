@@ -53,16 +53,40 @@ automatically at the start of every session.
 
 .. code-block:: javascript
 
-    // .opencode/plugins/install-exasol-skills.js
-    export default function (ctx) {
-      return {
-        "session:start": async () => {
-          await ctx.shell(
-            "exasol-install-skills --target-dir ~/.config/opencode/skills/"
-          );
-        },
-      };
-    }
+    import { execSync } from "node:child_process";
+    import { createInterface } from "node:readline";
+
+    const TARGET = `${process.env.HOME}/.config/opencode/skills`;
+
+    const pressAnyKey = () =>
+      new Promise((resolve) => {
+        if (!process.stdin.isTTY) return resolve();
+        const rl = createInterface({ input: process.stdin });
+        rl.once("line", () => {
+          rl.close();
+          resolve();
+        });
+      });
+
+    const installExasolPlugins = async () => {
+      console.log("[install-exasol-skills] Installing Exasol skills...");
+      try {
+        execSync(`exasol-install-skills --target-dir ${TARGET}`, {
+          stdio: "inherit",
+        });
+      } catch {
+        console.log(
+          "[install-exasol-skills] Failed to install skills.",
+        );
+        console.log(
+          "[install-exasol-skills] Press any key to continue loading opencode...",
+        );
+        await pressAnyKey();
+      }
+      return {};
+    };
+
+    export default installExasolPlugins;
 
 **Option B — fetch directly from GitHub** (no Python required):
 
@@ -72,7 +96,7 @@ can download them with a plain ``fetch`` call — no additional tools needed.
 
 .. code-block:: javascript
 
-    // .opencode/plugins/install-exasol-skills.js
+    import { createInterface } from "node:readline";
     import { mkdirSync, writeFileSync } from "node:fs";
 
     const SKILLS = [
@@ -89,19 +113,52 @@ can download them with a plain ``fetch`` call — no additional tools needed.
       "/exasol/ai/mcp/server/skills";
     const TARGET = `${process.env.HOME}/.config/opencode/skills`;
 
-    export default function (_ctx) {
-      return {
-        "session:start": async () => {
-          for (const skill of SKILLS) {
-            const res = await fetch(`${BASE_URL}/${skill}/SKILL.md`);
-            if (res.ok) {
-              mkdirSync(`${TARGET}/${skill}`, { recursive: true });
-              writeFileSync(`${TARGET}/${skill}/SKILL.md`, await res.text());
-            }
+    const pressAnyKey = () =>
+      new Promise((resolve) => {
+        if (!process.stdin.isTTY) return resolve();
+        const rl = createInterface({ input: process.stdin });
+        rl.once("line", () => {
+          rl.close();
+          resolve();
+        });
+      });
+
+    const downloadSkills = async () => {
+      let failed = false;
+      console.log("[install-exasol-skills] Installing Exasol skills...");
+      mkdirSync(TARGET, { recursive: true });
+      for (const skill of SKILLS) {
+        try {
+          const url = `${BASE_URL}/${skill}/SKILL.md`;
+          console.log(`[install-exasol-skills]   fetching ${skill}...`);
+          const res = await fetch(url);
+          if (res.ok) {
+            const text = await res.text();
+            mkdirSync(`${TARGET}/${skill}`, { recursive: true });
+            writeFileSync(`${TARGET}/${skill}/SKILL.md`, text);
+            console.log(`[install-exasol-skills]   ✓ ${skill} installed`);
+          } else {
+            failed = true;
+            console.warn(`[install-exasol-skills]   ✗ ${skill} skipped (HTTP ${res.status})`);
           }
-        },
-      };
-    }
+        } catch (err) {
+          failed = true;
+          console.error(`[install-exasol-skills]   ✗ ${skill} failed:`, err);
+        }
+      }
+      if (failed) {
+        console.log("[install-exasol-skills] One or more skills failed to install.");
+        console.log("[install-exasol-skills] Press any key to continue loading opencode...");
+        await pressAnyKey();
+      }
+    };
+
+    const installExasolPlugins = async () => {
+      await downloadSkills();
+      return {};
+    };
+
+    export default installExasolPlugins;
 
 To pin to a specific release instead of ``main``, replace ``main`` in ``BASE_URL``
 with the desired tag, e.g. ``refs/tags/1.9.0``.
