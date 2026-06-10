@@ -1940,14 +1940,14 @@ urllib3 = ">=2.6.3,<3"
 
 [[package]]
 name = "exasol-toolbox"
-version = "6.4.0"
+version = "8.2.0"
 description = "Your one-stop solution for managing all standard tasks and core workflows of your Python project."
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "exasol_toolbox-6.4.0-py3-none-any.whl", hash = "sha256:8f23140155b1e2f3f42ce40951d1e9388b4c01ac7a28e789d964679315a162cb"},
-    {file = "exasol_toolbox-6.4.0.tar.gz", hash = "sha256:a9bc800adfdd1e32252f8f345aa9c308ec43edc04b1ea87bd547164c9301ce71"},
+    {file = "exasol_toolbox-8.2.0-py3-none-any.whl", hash = "sha256:27fb716e04c76d25d347904490b077bbf92d1f40192a6ebdbeed87ba8d19f1dd"},
+    {file = "exasol_toolbox-8.2.0.tar.gz", hash = "sha256:a15cba09b1390a92ad28ae22449a16e3f7cd4612830ef6f4261f858d47d73256"},
 ]
 
 [package.dependencies]
@@ -7888,4 +7888,4 @@ redis = ["redis"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "88ad6dd5ae209ff5800b4a00e752a1957bb3bdc92967af749faef2588b5c1bd8"
+content-hash = "2d2a1b77ed9b564cc490dc384c149b931b01edb1e3a2c84f7232033552a6d4e9"
