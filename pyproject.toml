@@ -61,6 +61,9 @@ dynamodb-tests = [
     "moto[dynamodb, server]>=5.2.1,<6",
 ]
 
+[tool.poetry.group.dynamodb-tests]
+optional = true
+
 
 [tool.poetry]
 requires-poetry = ">=2.3.0"
