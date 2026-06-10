@@ -120,6 +120,9 @@ extend-ignore = [
 extend-select = ["F401"]
 unfixable = []
 
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
 [tool.sonar]
 projectKey = "exasol.com:mcp-server"
 host.url = "https://sonarcloud.io"
