@@ -3,3 +3,5 @@
 # To preserve this from our automatic formatting tools, we ignore the F401
 # (unused import).
 from exasol.ai.mcp.server.main import mcp_server  # noqa: F401
+from importlib.metadata import version
+__version__ = version("exasol-mcp-server")

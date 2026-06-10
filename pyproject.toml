@@ -124,4 +124,3 @@ unfixable = []
 projectKey = "exasol.com:mcp-server"
 host.url = "https://sonarcloud.io"
 organization = "exasol"
-exclusions = "exasol/ai/mcp/server/version.py"
