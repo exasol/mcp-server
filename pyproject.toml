@@ -22,7 +22,7 @@ packages = [
     { include = "exasol" },
 ]
 
-[poetry.urls]
+[project.urls]
 repository = "https://github.com/exasol/mcp-server"
 homepage = "https://github.com/exasol/mcp-server"
 
