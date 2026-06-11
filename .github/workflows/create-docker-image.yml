@@ -55,3 +55,19 @@ jobs:
         push: true
         platforms: linux/amd64,linux/arm64
         tags: exasol/mcp-server:${{ inputs.image_name }}
+
+    - name: Determine image tag for scan
+      id: scan-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=exasol/mcp-server:${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "tag=exasol/mcp-server:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Scan image for vulnerabilities
+      uses: aquasecurity/trivy-action@0.30.0
+      with:
+        image-ref: ${{ steps.scan-tag.outputs.tag }}
+        severity: 'CRITICAL,HIGH'
+        exit-code: '1'
