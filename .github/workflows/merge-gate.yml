@@ -1,3 +1,5 @@
+# Generated and maintained by the exasol-toolbox.
+# Last generated with exasol-toolbox version 8.2.0.
 name: Merge-Gate
 
 on:
@@ -5,8 +7,25 @@ on:
 
 jobs:
   run-fast-checks:
-    name: Run Fast Checks
+    name: Fast Checks
     uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+
+  run-fast-tests:
+    name: Fast Tests
+    uses: ./.github/workflows/fast-tests.yml
+    permissions:
+      contents: read
+
+  fast-report:
+    name: Fast Report
+    needs:
+      - run-fast-checks
+      - run-fast-tests
+    uses: ./.github/workflows/report.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     permissions:
       contents: read
 
@@ -23,35 +42,35 @@ jobs:
       - name: Tests
         run: echo "Slow tests approved"
 
-  run-slow-checks-itde:
-    name: Run Slow Checks with ITDE
+  run-slow-checks:
+    name: Slow Checks
     needs:
       - approve-run-slow-tests
-    uses: ./.github/workflows/slow-checks-itde.yml
+    uses: ./.github/workflows/slow-checks.yml
     secrets: inherit
     permissions:
       contents: read
 
-  run-slow-checks-saas:
-    name: Run Slow Checks with SaaS
-    needs:
-      - approve-run-slow-tests
-    uses: ./.github/workflows/slow-checks-saas.yml
-    secrets: inherit
-    permissions:
-      contents: read
 
   # This job ensures inputs have been executed successfully.
   allow-merge:
     name: Allow Merge
+    if: ${{ !cancelled() }}
     runs-on: "ubuntu-24.04"
     permissions:
       contents: read
     # If you need additional jobs to be part of the merge gate, add them below
     needs:
       - run-fast-checks
-      - run-slow-checks-itde
-    # Each job requires a step, so we added this dummy step.
+      - run-fast-tests
+      - run-slow-checks
+    # To prevent accidentally merges, this step is required. For more details
+    # see: https://github.com/exasol/python-toolbox/issues/563
     steps:
-      - name: Approve
-        run: echo "Merge Approved"
+      - name: Branch Protection - failure if any ancestor failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo '${{ toJSON(needs) }}'
+          exit 1
+      - name: branch protection
+        run: echo "All required checks passed. Merge allowed."

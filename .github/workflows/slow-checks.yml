@@ -1,0 +1,19 @@
+name: Slow-Checks
+
+on:
+  workflow_call:
+
+jobs:
+  run-slow-checks-itde:
+    name: Run Slow Checks with ITDE
+    uses: ./.github/workflows/slow-checks-itde.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
+  run-slow-checks-saas:
+    name: Run Slow Checks with SaaS
+    uses: ./.github/workflows/slow-checks-saas.yml
+    secrets: inherit
+    permissions:
+      contents: read
