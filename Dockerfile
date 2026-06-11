@@ -19,7 +19,7 @@ FROM python:3.13-slim
 WORKDIR /app
 COPY --from=build app/dist dist
 
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get remove --purge -y perl perl-base && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 RUN WHEEL=$(ls dist/*.whl) && pip install "${WHEEL}[dynamodb,redis,mongodb]"
 

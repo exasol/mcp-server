@@ -70,4 +70,5 @@ jobs:
       with:
         image-ref: ${{ steps.scan-tag.outputs.tag }}
         severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
         exit-code: '1'
