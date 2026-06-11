@@ -23,9 +23,8 @@ from fastmcp.exceptions import ToolError
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaColumnSettings,
     MetaListSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     COLUMNS_FIELD,
@@ -630,7 +629,7 @@ def test_describe_table(
     Test the `describe_table` tool. The tool is tested on each table of every schema.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(
+        columns=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -653,7 +652,7 @@ def test_describe_sys_table(pyexasol_connection) -> None:
     """
     Test the `describe_table` tool, passing the name of a system table to it.
     """
-    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    config = McpServerSettings(columns=MetaSettings(enable=True))
     result = run_tool(
         pyexasol_connection,
         config,
@@ -675,7 +674,7 @@ def test_describe_view_comment(
     pyexasol_connection, setup_database, db_schemas, db_views, case_sensitive
 ) -> None:
     config = McpServerSettings(
-        columns=MetaColumnSettings(
+        columns=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -710,8 +709,8 @@ def test_describe_no_schema_name(
     is not provided.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
     )
     with pytest.raises(ToolError):
         run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
@@ -733,8 +732,8 @@ def test_describe_no_db_object_name(
     db object to be described is not provided.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
     )
     for schema in db_schemas:
         with pytest.raises(ToolError):
@@ -755,7 +754,7 @@ def test_describe_function(
     of every schema.
     """
     config = McpServerSettings(
-        parameters=MetaParameterSettings(
+        parameters=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -784,7 +783,7 @@ def test_describe_script(
     of every schema.
     """
     config = McpServerSettings(
-        parameters=MetaParameterSettings(
+        parameters=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -844,7 +843,7 @@ def test_summarize_table(
     """
     config = McpServerSettings(
         enable_summarize_table=True,
-        columns=MetaColumnSettings(enable=True),
+        columns=MetaSettings(enable=True),
     )
     ski_resort = next(t for t in db_tables if t.name == "ski_resort")
 

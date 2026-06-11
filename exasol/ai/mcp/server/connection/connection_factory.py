@@ -25,11 +25,11 @@ ENV_DSN = "EXA_DSN"
 """ Exasol DB server DSN """
 ENV_USER = "EXA_USER"
 """ The DB user name to be used by the MCP server """
-ENV_PASSWORD = "EXA_PASSWORD"
+ENV_PASSWORD = "EXA_PASSWORD"  # nosec
 """ The DB password for password authentication """
-ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"
+ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"  # nosec
 """ Bearer access token  """
-ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"
+ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"  # nosec
 """ Bearer refresh token  """
 ENV_USERNAME_CLAIM = "EXA_USERNAME_CLAIM"
 """The name of the claim in the access token containing the DB username"""
@@ -39,9 +39,9 @@ ENV_SAAS_HOST = "EXA_SAAS_HOST"
 """ SaaS host, defaults to https://cloud.exasol.com/ """
 ENV_SAAS_ACCOUNT_ID = "EXA_SAAS_ACCOUNT_ID"
 """ SaaS account id """
-ENV_SAAS_PAT = "EXA_SAAS_PAT"
+ENV_SAAS_PAT = "EXA_SAAS_PAT"  # nosec
 """ SaaS PAT in case the server's own credentials are used to connect to SaaS DB """
-ENV_SAAS_PAT_HEADER = "EXA_SAAS_PAT_HEADER"
+ENV_SAAS_PAT_HEADER = "EXA_SAAS_PAT_HEADER"  # nosec
 """ Name of the header where the SaaS user's PAT is passed, e.g. x-api-key """
 ENV_SAAS_DATABASE_ID = "EXA_SAAS_DATABASE_ID"
 """ Name of the SaaS database id, if known """
@@ -53,7 +53,7 @@ ENV_SSL_TRUSTED_CA = "EXA_SSL_TRUSTED_CA"
 """ Directory where Certification Authority (CA) certificates are stored, or a single CA file """
 ENV_SSL_CLIENT_CERT = "EXA_SSL_CLIENT_CERT"
 """ Own certificate file in PEM format """
-ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"
+ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"  # nosec
 """ Certificate's private key file """
 ENV_LOG_CLAIMS = "EXA_LOG_CLAIMS"
 """ Log OAuth claims if available (yes/no) """
@@ -67,11 +67,11 @@ ENV_BUCKETFS_BUCKET = "EXA_BUCKETFS_BUCKET"
 """ On-prem BucketFS bucket name ("default" if not specified) """
 ENV_BUCKETFS_USER = "EXA_BUCKETFS_USER"
 """ On-prem BucketFS user name """
-ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"
+ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"  # nosec
 """ On-prem BucketFS user password """
 ENV_BUCKETFS_PATH = "EXA_BUCKETFS_PATH"
 """ Optional root directory in the bucket (defaults to the bucket root) """
-ENV_NO_AUTH_PASSWORD = "EXA_NO_AUTH_PASSWORD"
+ENV_NO_AUTH_PASSWORD = "EXA_NO_AUTH_PASSWORD"  # nosec
 """ Password for unauthenticated clients (e.g. health checks) used when ENV_PASSWORD is absent """
 
 DEFAULT_CONN_POOL_SIZE = 5

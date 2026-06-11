@@ -6,9 +6,8 @@ from test.utils.result_utils import (
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaColumnSettings,
     MetaListSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 
 
@@ -23,8 +22,8 @@ def test_tool_hints(pyexasol_connection) -> None:
         views=enable_meta_list,
         functions=enable_meta_list,
         scripts=enable_meta_list,
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
         enable_read_query=True,
         enable_write_query=True,
         enable_query_profiling=True,

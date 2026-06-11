@@ -1,16 +1,32 @@
-from typing import Annotated
+import warnings
+from typing import Any
 
-from pydantic import BaseModel
-from pydantic.functional_validators import AfterValidator
+from pydantic import (
+    BaseModel,
+    model_validator,
+)
 
-
-def check_no_double_quotes(v: str) -> str:
-    if '"' in v:
-        raise ValueError("Double-quote characters are not allowed in a field name.")
-    return v
-
-
-NoDoubleQuotesStr = Annotated[str, AfterValidator(check_no_double_quotes)]
+_DEPRECATED_FIELD_SETTINGS = frozenset(
+    [
+        "schema_field",
+        "name_field",
+        "comment_field",
+        "type_field",
+        "constraint_name_field",
+        "constraint_type_field",
+        "constraint_columns_field",
+        "referenced_schema_field",
+        "referenced_table_field",
+        "referenced_columns_field",
+        "columns_field",
+        "constraints_field",
+        "table_comment_field",
+        "usage_field",
+        "input_field",
+        "return_field",
+        "emit_field",
+    ]
+)
 
 
 class MetaSettings(BaseModel):
@@ -23,20 +39,21 @@ class MetaSettings(BaseModel):
     Allows to disable the listing of a particular type of metadata.
     """
 
-    schema_field: NoDoubleQuotesStr = "schema"
-    """
-    The name of the output field that contains the object schema, e.g. "table_schema".
-    """
-
-    name_field: NoDoubleQuotesStr = "name"
-    """
-    The name of the output field that contains the object name, e.g. "table_name".
-    """
-
-    comment_field: NoDoubleQuotesStr = "comment"
-    """
-    The name of the output field that contains the comment, e.g. "table_comment".
-    """
+    @model_validator(mode="before")
+    @classmethod
+    def _warn_deprecated_field_settings(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            found = _DEPRECATED_FIELD_SETTINGS.intersection(data)
+            if found:
+                names = ", ".join(sorted(found))
+                warnings.warn(
+                    f"The following settings have no effect and will be removed in a "
+                    f"future version: {names}. Output field names are fixed and cannot "
+                    f"be configured.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+        return data
 
 
 class MetaListSettings(MetaSettings):
@@ -63,126 +80,18 @@ class MetaListSettings(MetaSettings):
     """
 
 
-class MetaColumnSettings(MetaSettings):
-    """
-    The settings for listing columns and constraints when describing a table.
-    """
-
-    type_field: NoDoubleQuotesStr = "type"
-    """
-    The name of the output field for the column SQL type.
-    """
-
-    constraint_name_field: NoDoubleQuotesStr = "name"
-    """
-    The name of the output field for the constraint name if it was specified.
-    """
-
-    constraint_type_field: NoDoubleQuotesStr = "type"
-    """
-    The name of the output field for the constraint type, e.g. PRIMARY KEY.
-    """
-
-    constraint_columns_field: NoDoubleQuotesStr = "columns"
-    """
-    The name of the output field for the list of columns the constraint is applied to.
-    """
-
-    referenced_schema_field: NoDoubleQuotesStr = "referenced_schema"
-    """
-    The name of the output field for the referenced schema in the FOREIGN KEY constraint.
-    """
-
-    referenced_table_field: NoDoubleQuotesStr = "referenced_table"
-    """
-    The name of the output field for the referenced table in the FOREIGN KEY constraint.
-    """
-
-    referenced_columns_field: NoDoubleQuotesStr = "referenced_columns"
-    """
-    The name of the output field for the list of columns in a referenced table in the
-    FOREIGN KEY constraint.
-    """
-
-    columns_field: NoDoubleQuotesStr = "columns"
-    """
-    The name of the output field for the list of columns in a table being described.
-    """
-
-    constraints_field: NoDoubleQuotesStr = "constraints"
-    """
-    The name of the output field for the list of constraints in a table being described.
-    """
-
-    table_comment_field: NoDoubleQuotesStr = "table_comment"
-    """
-    The name of the output field for the table/view comment.
-    """
-
-    usage_field: NoDoubleQuotesStr = "usage"
-    """
-    The name of the output field for general instructions on using a table.
-    """
-
-
-class MetaParameterSettings(MetaSettings):
-    """
-    The settings for listing input/output parameters when describing a function or a
-    UDF script.
-    """
-
-    type_field: NoDoubleQuotesStr = "parameter_type"
-    """
-    The name of the output field for the SQL type of a parameter or return value.
-    """
-
-    input_field: NoDoubleQuotesStr = "inputs"
-    """
-    The name of the output field for the list of input parameters.
-    """
-
-    return_field: NoDoubleQuotesStr = "returns"
-    """
-    The name of the output field for the return value.
-    """
-
-    emit_field: NoDoubleQuotesStr = "emits"
-    """
-    The name of the output field for the list of parameters emitted by a UDF.
-    """
-
-    usage_field: NoDoubleQuotesStr = "usage"
-    """
-    The name of the output field for a function or UDF usage, e.g. a call example.
-    """
-
-
 class McpServerSettings(BaseModel):
     """
     MCP server configuration.
     """
 
-    schemas: MetaListSettings = MetaListSettings(
-        name_field="schema_name", comment_field="schema_comment"
-    )
-    tables: MetaListSettings = MetaListSettings(
-        name_field="table_name", comment_field="table_comment"
-    )
-    views: MetaListSettings = MetaListSettings(
-        enable=False, name_field="table_name", comment_field="table_comment"
-    )
-    functions: MetaListSettings = MetaListSettings(
-        name_field="function_name", comment_field="function_comment"
-    )
-    scripts: MetaListSettings = MetaListSettings(
-        name_field="script_name", comment_field="script_comment"
-    )
-    columns: MetaColumnSettings = MetaColumnSettings(
-        name_field="column_name", comment_field="column_comment"
-    )
-    parameters: MetaParameterSettings = MetaParameterSettings(
-        name_field="parameter_name", comment_field="function_comment"
-    )
+    schemas: MetaListSettings = MetaListSettings()
+    tables: MetaListSettings = MetaListSettings()
+    views: MetaListSettings = MetaListSettings(enable=False)
+    functions: MetaListSettings = MetaListSettings()
+    scripts: MetaListSettings = MetaListSettings()
+    columns: MetaSettings = MetaSettings()
+    parameters: MetaSettings = MetaSettings()
 
     enable_read_query: bool = False
     enable_write_query: bool = False
