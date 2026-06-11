@@ -493,7 +493,7 @@ def oidc_env_run_once(oidc_env) -> None:
     these test to run multiple times unnecessarily.
     """
     if ENV_USERNAME_CLAIM in oidc_env:
-        pytest.skip()
+        pytest.skip("Same test already ran")
 
 
 @pytest.fixture(params=["D", "E"])
