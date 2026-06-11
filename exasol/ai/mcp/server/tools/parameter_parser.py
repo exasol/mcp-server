@@ -8,7 +8,7 @@ from typing import Any
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 from exasol.ai.mcp.server.tools.meta_query import (
     ExasolMetaQuery,
@@ -37,7 +37,7 @@ FUNCTION_EMITS = "FUNCTION_EMIT"
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: DbConnection, conf: MetaParameterSettings) -> None:
+    def __init__(self, connection: DbConnection, conf: MetaSettings) -> None:
         self.connection = connection
         self.conf = conf
         self._parameter_extract_pattern: re.Pattern | None = None
