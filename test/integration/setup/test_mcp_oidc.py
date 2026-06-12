@@ -73,6 +73,7 @@ import joserfc.jwk as jose
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from authlib.integrations.flask_oauth2 import AuthorizationServer
+from authlib.jose.rfc7518 import RSAKey as _AuthlibRSAKey
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
 from docker.models.containers import Container
 from fastmcp import Client
@@ -251,6 +252,11 @@ def start_oidc_server() -> Generator[None, None, str]:
     original_init_app = AuthorizationServer.init_app
     original_storage_init = Storage.__init__
     jwk = jose.RSAKey.generate_key(private=True)
+    # oidc-provider-mock calls .as_dict(is_private=True) (authlib API) on storage.jwk.
+    # joserfc 1.7.x renamed the parameter from private=None to private=False, so passing
+    # is_private=True as a kwarg silently defaults to public-only export. Use an authlib
+    # RSAKey wrapping the same private material so the authlib API is satisfied.
+    _authlib_jwk = _AuthlibRSAKey.import_key(jwk.as_dict(private=True))
 
     class MyJWTBearerTokenGenerator(JWTBearerTokenGenerator):
         def get_jwks(self):
@@ -270,7 +276,7 @@ def start_oidc_server() -> Generator[None, None, str]:
 
     def new_storage_init(self):
         original_storage_init(self)
-        self.jwk = jwk
+        self.jwk = _authlib_jwk
 
     def get_user_id(self) -> str:
         return OIDC_USER_SUB
@@ -487,7 +493,7 @@ def oidc_env_run_once(oidc_env) -> None:
     these test to run multiple times unnecessarily.
     """
     if ENV_USERNAME_CLAIM in oidc_env:
-        pytest.skip()
+        pytest.skip("Same test already ran")
 
 
 @pytest.fixture(params=["D", "E"])

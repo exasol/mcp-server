@@ -20,25 +20,25 @@ jobs:
 
     steps:
     - name: SCM Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         persist-credentials: false
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@v4
 
     - name: Set up Docker Build
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         username: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
         password: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
 
     - name: Build and push Release Docker Image
       if: ${{ github.event_name != 'workflow_dispatch' }}
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: .
         push: true
@@ -49,9 +49,26 @@ jobs:
 
     - name: Build and push Docker Image on request
       if: ${{ github.event_name == 'workflow_dispatch' }}
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: .
         push: true
         platforms: linux/amd64,linux/arm64
         tags: exasol/mcp-server:${{ inputs.image_name }}
+
+    - name: Determine image tag for scan
+      id: scan-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=exasol/mcp-server:${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "tag=exasol/mcp-server:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Scan image for vulnerabilities
+      uses: aquasecurity/trivy-action@v0.36.0
+      with:
+        image-ref: ${{ steps.scan-tag.outputs.tag }}
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+        exit-code: '1'

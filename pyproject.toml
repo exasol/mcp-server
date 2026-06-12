@@ -1,6 +1,6 @@
 [project]
 name = "exasol-mcp-server"
-version = "1.10.0"
+version = "1.10.1"
 description = "Exasol MCP Server"
 authors = [{ name = "Mikhail Beck", email = "mikhail.beck@exasol.com" }]
 requires-python = ">=3.10,<3.14" # Restriction is due to numpy
