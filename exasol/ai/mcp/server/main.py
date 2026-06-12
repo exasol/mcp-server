@@ -396,10 +396,8 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_execute_write_query(mcp_server)
     if config.enable_read_bucketfs:
         _register_list_directories(mcp_server)
-        if config.enable_list_tools:
-            _register_list_files(mcp_server)
-        if config.enable_find_tools:
-            _register_find_files(mcp_server)
+        _register_list_files(mcp_server)
+        _register_find_files(mcp_server)
         _register_read_file(mcp_server)
     if config.enable_write_bucketfs:
         _register_write_text_to_file(mcp_server)

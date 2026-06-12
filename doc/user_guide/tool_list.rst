@@ -331,7 +331,6 @@ list_bucketfs_files
 
 :Description:
     Lists files in the specified BucketFS directory.
-    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -344,7 +343,6 @@ find_bucketfs_files
 :Description:
     Finds files in the specified BucketFS directory by looking for the provided keywords in their paths.
     Files are searched in the given directory and all its descendant subdirectories.
-    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``

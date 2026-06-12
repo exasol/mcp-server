@@ -239,25 +239,6 @@ def test_main_http_error(mock_run, monkeypatch) -> None:
     assert result.exception is not None
 
 
-_LIST_REGISTER_FNS = [
-    "exasol.ai.mcp.server.main._register_list_schemas",
-    "exasol.ai.mcp.server.main._register_list_tables",
-    "exasol.ai.mcp.server.main._register_list_functions",
-    "exasol.ai.mcp.server.main._register_list_scripts",
-]
-_FIND_REGISTER_FNS = [
-    "exasol.ai.mcp.server.main._register_find_schemas",
-    "exasol.ai.mcp.server.main._register_find_tables",
-    "exasol.ai.mcp.server.main._register_find_functions",
-    "exasol.ai.mcp.server.main._register_find_scripts",
-]
-
-
-def _patch_all(names: list[str]):
-    patches = [patch(n) for n in names]
-    return patches
-
-
 def test_register_tools_list_disabled() -> None:
     config = McpServerSettings(enable_list_tools=False)
     with (
@@ -302,34 +283,6 @@ def test_register_tools_find_disabled() -> None:
         p_ft.assert_not_called()
         p_ff.assert_not_called()
         p_fsc.assert_not_called()
-
-
-def test_register_tools_bucketfs_list_disabled() -> None:
-    config = McpServerSettings(enable_read_bucketfs=True, enable_list_tools=False)
-    with (
-        patch("exasol.ai.mcp.server.main._register_list_directories") as p_ld,
-        patch("exasol.ai.mcp.server.main._register_list_files") as p_lf,
-        patch("exasol.ai.mcp.server.main._register_find_files") as p_ff,
-        patch("exasol.ai.mcp.server.main._register_read_file"),
-    ):
-        register_tools(MagicMock(), config)
-        p_ld.assert_called_once()
-        p_lf.assert_not_called()
-        p_ff.assert_called_once()
-
-
-def test_register_tools_bucketfs_find_disabled() -> None:
-    config = McpServerSettings(enable_read_bucketfs=True, enable_find_tools=False)
-    with (
-        patch("exasol.ai.mcp.server.main._register_list_directories") as p_ld,
-        patch("exasol.ai.mcp.server.main._register_list_files") as p_lf,
-        patch("exasol.ai.mcp.server.main._register_find_files") as p_ff,
-        patch("exasol.ai.mcp.server.main._register_read_file"),
-    ):
-        register_tools(MagicMock(), config)
-        p_ld.assert_called_once()
-        p_lf.assert_called_once()
-        p_ff.assert_not_called()
 
 
 @patch("fastmcp.FastMCP.run")

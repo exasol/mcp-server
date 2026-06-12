@@ -80,6 +80,9 @@ most useful when the number of database objects is small or the agent needs a co
 inventory. ``find_xxx`` tools perform a keyword search over names and comments; they
 are most useful when the database objects have rich documentation that can be searched.
 
+These flags apply to the database metadata tools (schemas, tables, functions, and UDFs).
+BucketFS tools are not affected.
+
 If the database is small and well-known, hide the find tools to keep the context lean:
 
 .. code-block:: json
