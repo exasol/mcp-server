@@ -13,6 +13,7 @@ list_exasol_schemas
 
 :Description:
     Lists database schemas. Visibility of schemas can be restricted in the settings.
+    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -26,6 +27,7 @@ find_exasol_schemas
 :Description:
     Finds database schemas by looking for the specified keywords in their names and comments.
     Visibility of schemas can be restricted in the settings.
+    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -39,6 +41,7 @@ list_exasol_tables_and_views
 :Description:
     Lists tables and views in the specified database schema.
     Visibility of tables and views can be restricted in the settings.
+    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -54,6 +57,7 @@ find_exasol_tables_and_views
     Finds tables and views by looking for the specified keywords in their names and comments.
     Optionally, limits the search to one specified schema.
     Visibility of tables and views can be restricted in the settings.
+    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -68,6 +72,7 @@ list_exasol_custom_functions
 :Description:
     Lists custom functions in the specified database schema.
     Visibility of functions can be restricted in the settings.
+    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -83,6 +88,7 @@ find_exasol_custom_functions
     Finds custom functions by looking for the specified keywords in their names and comments.
     Optionally, limits the search to one specified schema.
     Visibility of functions can be restricted in the settings.
+    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -97,6 +103,7 @@ list_exasol_user_defined_functions
 :Description:
     Lists User Defined Functions (UDF) in the specified database schema.
     Visibility of UDFs can be restricted in the settings.
+    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -112,6 +119,7 @@ find_exasol_user_defined_functions
     Finds User Defined Functions (UDF) by looking for the specified keywords in their names and comments.
     Optionally, limits the search to one specified schema.
     Visibility of UDFs can be restricted in the settings.
+    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -323,6 +331,7 @@ list_bucketfs_files
 
 :Description:
     Lists files in the specified BucketFS directory.
+    Can be hidden globally via ``enable_list_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -335,6 +344,7 @@ find_bucketfs_files
 :Description:
     Finds files in the specified BucketFS directory by looking for the provided keywords in their paths.
     Files are searched in the given directory and all its descendant subdirectories.
+    Can be hidden globally via ``enable_find_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``

@@ -70,6 +70,35 @@ To disable them, set ``enable_preprocessor_tools`` to false:
         "enable_preprocessor_tools": false
     }
 
+Hide list or find tools
+-----------------------
+
+For each metadata type the server exposes a paired ``list_xxx`` / ``find_xxx`` tool.
+Both serve a similar purpose, so keeping both registered wastes context window space.
+``list_xxx`` tools return everything that matches the filter in the settings; they are
+most useful when the number of database objects is small or the agent needs a complete
+inventory. ``find_xxx`` tools perform a keyword search over names and comments; they
+are most useful when the database objects have rich documentation that can be searched.
+
+If the database is small and well-known, hide the find tools to keep the context lean:
+
+.. code-block:: json
+
+    {
+        "enable_find_tools": false
+    }
+
+If the database is large or objects have descriptive names and comments, hide the list
+tools so the agent is guided toward keyword search instead:
+
+.. code-block:: json
+
+    {
+        "enable_list_tools": false
+    }
+
+Both settings default to ``true``.
+
 Enable BucketFS I/O
 --------------------
 
@@ -246,6 +275,8 @@ The following JSON shows the default settings.
             "like_pattern": "",
             "regexp_pattern": ""
         },
+        "enable_list_tools": true,
+        "enable_find_tools": true,
         "enable_read_query": false,
         "enable_write_query": false,
         "enable_summarize_table": false,
