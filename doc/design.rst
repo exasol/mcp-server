@@ -35,18 +35,17 @@ High-Level Architecture
     │                                                                 │
     │  ┌──────────────────┐   ┌───────────────────┐   ┌────────────┐  │
     │  │   DB Tools       │   │  BucketFS Tools   │   │ Dialect    │  │
-    │  │  (metadata +     │   │  (list/read/write │   │ Tools      │  │
-    │  │   query exec.)   │   │   files)          │   │ (built-in  │  │
-    │  └────────┬─────────┘   └────────┬──────────┘   │ functions, │  │
-    │           │                      │              │ SQL types, │  │
-    │  ┌────────▼─────────┐   ┌────────▼──────────┐   │ keywords)  │  │
-    │  │   DbConnection   │   │  BucketFS PathLike│   └────────────┘  │
-    │  └────────┬─────────┘   └───────────────────┘                   │
+    │  │  (metadata,      │   │  (list/read/write │   │ Tools      │  │
+    │  │   query exec.,   │   │   files)          │   │ (built-in  │  │
+    │  │   summarize,     │   └────────┬──────────┘   │ functions, │  │
+    │  │   profiling,     │   ┌────────▼──────────┐   │ SQL types, │  │
+    │  │   preprocessors) │   │  BucketFS PathLike│   │ keywords)  │  │
+    │  └────────┬─────────┘   └───────────────────┘   └────────────┘  │
     │           │                                                     │
-    │  ┌────────▼─────────────────────────────────┐                   │
-    │  │         Connection Factory               │                   │
-    │  │  (On-Prem / SaaS / OpenID / Impersonate) │                   │
-    │  └────────┬─────────────────────────────────┘                   │
+    │  ┌────────▼─────────────────────────────────┐   ┌────────────┐  │
+    │  │         Connection Factory               │   │  Skills    │  │
+    │  │  (On-Prem / SaaS / OpenID / Impersonate) │   │ (prompts)  │  │
+    │  └────────┬─────────────────────────────────┘   └────────────┘  │
     └───────────┼─────────────────────────────────────────────────────┘
                 │  pyexasol / exasol-saas-api
     ┌───────────▼─────────────────────────────────────────────────────┐
@@ -62,7 +61,9 @@ ExasolMCPServer
 ``ExasolMCPServer`` (``exasol.ai.mcp.server.tools.mcp_server``) is a
 subclass of ``FastMCP``. It owns a ``DbConnection`` and an optional
 ``BucketFsTools`` instance. Each MCP tool is implemented as a method on this
-class and registered via ``FastMCP.tool()`` at startup.
+class and registered via ``FastMCP.tool()`` at startup. The server also
+hosts a ``SkillsDirectoryProvider`` that exposes bundled prompt templates to
+MCP clients.
 
 Tool registration is conditional: each tool group can be enabled or disabled
 through ``McpServerSettings``. This lets operators expose only the
@@ -102,10 +103,16 @@ value may be an inline JSON string or a path to a JSON file.
 The settings control:
 
 * Which metadata categories are exposed (schemas, tables, views, functions,
-  scripts, columns).
+  scripts, columns, parameters).
 * SQL-style and regex name filters applied to metadata listings.
 * Whether read queries, write queries, BucketFS reads, and BucketFS writes
   are enabled (all off by default).
+* Whether table summarization is enabled (``enable_summarize_table``,
+  off by default).
+* Whether query profiling is enabled (``enable_query_profiling``,
+  off by default).
+* Whether SQL preprocessor tools are enabled (``enable_preprocessor_tools``,
+  on by default).
 * Whether MCP elicitation is used to confirm write queries.
 * The natural language used for keyword search.
 * Whether object name matching is case-sensitive.
@@ -141,6 +148,37 @@ static knowledge about the Exasol SQL dialect — built-in function categories,
 individual function descriptions, SQL data types, system/statistics tables,
 and reserved keywords. These tools take information from the database, as well
 as from the embedded metadata, and are idempotent.
+
+Preprocessor Tools
+~~~~~~~~~~~~~~~~~~
+
+Two tools manage Exasol SQL preprocessor scripts at the session level.
+``list_exasol_preprocessors`` returns all available preprocessor scripts
+together with the one that is currently active in the session.
+``set_exasol_preprocessor`` activates a named script. Both tools are enabled
+by default and controlled by ``McpServerSettings.enable_preprocessor_tools``.
+
+.. note::
+   The active preprocessor is a session-level setting and may be silently
+   reset if the server reconnects to the database. Clients should verify the
+   active preprocessor with ``list_exasol_preprocessors`` before running
+   queries that depend on it.
+
+Skills
+~~~~~~
+
+The server bundles a set of FastMCP *Skills* — prompt templates that guide
+an LLM through common Exasol workflows such as exploring a schema or writing
+a query. Skills are served via a ``SkillsDirectoryProvider`` mounted at
+server startup and are available to any MCP client that supports the Skills
+protocol.
+
+Skills can be installed into a local directory for clients that do not
+connect to the server at runtime (e.g. Claude Desktop in stdio mode) using
+the ``exasol-install-skills`` CLI entry point. Re-running the command
+overwrites existing skill files in place. Pass ``--server-url`` to download
+the latest skills from a live Exasol MCP server instead of using the bundled
+copies.
 
 Connection Modes
 ----------------
@@ -215,6 +253,26 @@ Read queries are validated with SQLGlot to ensure they are ``SELECT``
 statements before execution, preventing accidental data modification through
 the read-query tool.
 
+Table Summarization
+~~~~~~~~~~~~~~~~~~~
+
+The ``summarize_exasol_table`` tool (enabled via
+``McpServerSettings.enable_summarize_table``) gathers column statistics for a
+table in a small number of queries: row count, per-column distinct count,
+numeric min/max, null percentage, and the most frequent non-null values. It
+also returns a configurable sample of rows. This gives the LLM a compact data
+profile without requiring a separate full scan per column.
+
+Query Profiling
+~~~~~~~~~~~~~~~
+
+The ``profile_exasol_query`` tool (enabled via
+``McpServerSettings.enable_query_profiling``) runs a ``SELECT`` statement
+with Exasol's session-level profiling turned on, flushes statistics, then
+returns the relevant rows from ``EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY``.
+This lets the LLM understand execution plan details without any manual
+profiling setup.
+
 Deployment Modes
 ----------------
 
@@ -242,6 +300,17 @@ entry point is ``exasol-mcp-server-http``. In this mode:
 For production use, the server should be run behind an ASGI server (e.g.
 Uvicorn) or wrapped in a custom application that provides the desired
 lifecycle and observability controls.
+
+Skills Installation
+~~~~~~~~~~~~~~~~~~~
+
+The ``exasol-install-skills`` CLI entry point installs the server's bundled
+prompt templates into a local directory. This is intended for MCP clients
+that need the skills available locally and do not connect to a running MCP
+server at install time (e.g. Claude Desktop in stdio mode). Re-running the
+command overwrites existing skill files in place. Pass ``--server-url`` to
+download the latest skills from a live Exasol MCP server instead of using
+the bundled copies.
 
 Key Dependencies
 ----------------
