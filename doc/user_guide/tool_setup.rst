@@ -25,6 +25,51 @@ is :ref:`explicitly disabled <disable-elicitation>`.
         "enable_write_query": true
     }
 
+Enable table summarization
+--------------------------
+
+The ``summarize_exasol_table`` tool reads actual table data to compute column statistics
+and collect sample rows. Because it accesses user data rather than metadata, it is
+disabled by default. To enable it, set ``enable_summarize_table`` to true:
+
+.. code-block:: json
+
+    {
+        "enable_summarize_table": true
+    }
+
+Note that the column description feature must also be enabled (``columns.enable``, which is
+the default) because the tool needs column type information to build the statistics query.
+
+Enable query profiling
+----------------------
+
+The ``profile_exasol_query`` tool runs a query with Exasol's built-in profiling
+enabled and returns the execution plan breakdown from
+``EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY``. This lets the agent diagnose why a
+query is slow. The tool is disabled by default. To enable it, set
+``enable_query_profiling`` to true:
+
+.. code-block:: json
+
+    {
+        "enable_query_profiling": true
+    }
+
+Note that the connecting user must have access to the ``EXA_STATISTICS`` system schema.
+
+Disable preprocessor tools
+--------------------------
+
+The ``list_exasol_preprocessors`` and ``set_exasol_preprocessor`` tools are enabled by default.
+To disable them, set ``enable_preprocessor_tools`` to false:
+
+.. code-block:: json
+
+    {
+        "enable_preprocessor_tools": false
+    }
+
 Enable BucketFS I/O
 --------------------
 
@@ -203,6 +248,9 @@ The following JSON shows the default settings.
         },
         "enable_read_query": false,
         "enable_write_query": false,
+        "enable_summarize_table": false,
+        "enable_query_profiling": false,
+        "enable_preprocessor_tools": true,
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,

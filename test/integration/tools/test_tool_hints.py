@@ -6,9 +6,8 @@ from test.utils.result_utils import (
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaColumnSettings,
     MetaListSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 
 
@@ -23,10 +22,11 @@ def test_tool_hints(pyexasol_connection) -> None:
         views=enable_meta_list,
         functions=enable_meta_list,
         scripts=enable_meta_list,
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
         enable_read_query=True,
         enable_write_query=True,
+        enable_query_profiling=True,
     )
     result = list_tools(pyexasol_connection, config)
 
@@ -44,6 +44,7 @@ def test_tool_hints(pyexasol_connection) -> None:
         ToolHints(tool_name="describe_exasol_custom_function", read_only=True),
         ToolHints(tool_name="describe_exasol_user_defined_function", read_only=True),
         ToolHints(tool_name="execute_exasol_query", read_only=True),
+        ToolHints(tool_name="profile_exasol_query", read_only=True),
         ToolHints(tool_name="execute_exasol_write_query", destructive=True),
         ToolHints(tool_name="list_exasol_sql_types", read_only=True, idempotent=True),
         ToolHints(
@@ -74,5 +75,7 @@ def test_tool_hints(pyexasol_connection) -> None:
             read_only=True,
             idempotent=True,
         ),
+        ToolHints(tool_name="list_exasol_preprocessors", read_only=True),
+        ToolHints(tool_name="set_exasol_preprocessor"),
     }
     assert tool_list == expected_tool_list

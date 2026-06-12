@@ -14,7 +14,9 @@ async def _run_tool_async(
     connection: ExaConnection, config: McpServerSettings, tool_name: str, **kwargs
 ):
     @contextmanager
-    def connection_factory() -> Generator[ExaConnection, None, None]:
+    def connection_factory(
+        no_auth: bool = False,
+    ) -> Generator[ExaConnection, None, None]:
         yield connection
 
     db_connection = DbConnection(connection_factory, num_retries=1)

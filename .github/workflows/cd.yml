@@ -34,7 +34,8 @@ jobs:
       id-token: write
 
   create-docker-image:
-    needs: [ check-tag-version-job ]
+    needs:
+      - check-release-tag
     name: Docker Deployment
     uses: ./.github/workflows/create-docker-image.yml
     permissions:

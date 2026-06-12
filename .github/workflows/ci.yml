@@ -1,23 +1,30 @@
+# Generated and maintained by the exasol-toolbox.
+# Last generated with exasol-toolbox version 8.2.0.
 name: CI
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  schedule:
-    # At 00:00 on every 7th day-of-month from 1 through 31. (https://crontab.guru)
-    - cron: "0 0 1/7 * *"
 
 jobs:
   merge-gate:
+    name: Merge Gate
     uses: ./.github/workflows/merge-gate.yml
     secrets: inherit
     permissions:
       contents: read
 
   report:
+    name: Report
     needs:
       - merge-gate
+    # This condition ensures the job runs if merge-gate finished (success or failure)
+    if: |
+      always() &&
+      needs.merge-gate.result != 'skipped' &&
+      needs.merge-gate.result != 'cancelled'
     uses: ./.github/workflows/report.yml
-    secrets: inherit
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     permissions:
       contents: read

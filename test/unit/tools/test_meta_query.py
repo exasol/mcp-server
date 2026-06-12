@@ -159,16 +159,14 @@ def test_get_metadata(meta_params):
     query = collapse_spaces(
         meta_query.get_metadata(MetaType.TABLE, meta_params.schema_name)
     )
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "TABLE_NAME" AS "{NAME_FIELD}",
             "TABLE_COMMENT" AS "{COMMENT_FIELD}",
             "TABLE_SCHEMA" AS "{SCHEMA_FIELD}"
         FROM SYS.EXA_ALL_TABLES
         {meta_params.expected_where_clause}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -225,16 +223,14 @@ def test_get_script_metadata(meta_params):
     query = collapse_spaces(
         meta_query.get_metadata(MetaType.SCRIPT, meta_params.schema_name)
     )
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "SCRIPT_NAME" AS "{NAME_FIELD}",
             "SCRIPT_COMMENT" AS "{COMMENT_FIELD}",
             "SCRIPT_SCHEMA" AS "{SCHEMA_FIELD}"
         FROM SYS.EXA_ALL_SCRIPTS
         {meta_params.expected_where_clause}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -251,15 +247,13 @@ def test_get_schema_metadata(meta_params):
     config = McpServerSettings(schemas=meta_params.schema_settings)
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.get_metadata(MetaType.SCHEMA, "to be ignored"))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "SCHEMA_NAME" AS "{NAME_FIELD}",
             "SCHEMA_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_SCHEMAS
         {meta_params.schema_based_where_clause}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -270,14 +264,12 @@ def test_get_object_metadata(case_sensitive) -> None:
     query = collapse_spaces(
         meta_query.get_object_metadata(MetaType.FUNCTION, "my_schema", "my_table")
     )
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
         WHERE
             {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
             {_column_predicate("FUNCTION_NAME", 'my_table', case_sensitive)}
-        """
-    )
+        """)
     assert query == expected_query
 
 
@@ -300,8 +292,7 @@ def test_find_schemas(meta_params) -> None:
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_schemas())
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "S"."SCHEMA_NAME" AS "{NAME_FIELD}",
             "S"."SCHEMA_COMMENT" AS "{COMMENT_FIELD}",
@@ -352,8 +343,7 @@ def test_find_schemas(meta_params) -> None:
         GROUP BY "SCHEMA"
         AS "O" ON "S"."SCHEMA_NAME" = "O"."SCHEMA"
         {meta_params.schema_based_where_clause}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -394,8 +384,7 @@ def test_find_tables(meta_params) -> None:
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         WITH "C" AS (
             SELECT
                 "SCHEMA",
@@ -424,8 +413,7 @@ def test_find_tables(meta_params) -> None:
             "T"."TABLE_SCHEMA" = "C"."SCHEMA" AND
             "T"."TABLE_NAME" = "C"."TABLE"
         {meta_params.db_obj_based_where_clause('TABLE')}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -468,8 +456,7 @@ def test_find_tables_and_views(meta_params) -> None:
     )
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.find_tables(meta_params.schema_name))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         WITH "C" AS (
             SELECT
                 "SCHEMA",
@@ -509,8 +496,7 @@ def test_find_tables_and_views(meta_params) -> None:
             "T"."VIEW_SCHEMA" = "C"."SCHEMA" AND
             "T"."VIEW_NAME" = "C"."TABLE"
         {meta_params.db_obj2_based_where_clause('VIEW')}
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -518,8 +504,7 @@ def test_find_tables_and_views(meta_params) -> None:
 def test_describe_columns(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_columns("my'_schema", "my'_table"))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "COLUMN_NAME" AS "{NAME_FIELD}",
             "COLUMN_TYPE" AS "{SQL_TYPE_FIELD}",
@@ -528,8 +513,7 @@ def test_describe_columns(case_sensitive) -> None:
         WHERE
             {_column_predicate("COLUMN_SCHEMA", "my''_schema", case_sensitive)} AND
             {_column_predicate("COLUMN_TABLE", "my''_table", case_sensitive)}
-        """
-    )
+        """)
     assert query == expected_query
 
 
@@ -537,8 +521,7 @@ def test_describe_columns(case_sensitive) -> None:
 def test_describe_constraints(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
     query = collapse_spaces(meta_query.describe_constraints("my_schema", "my_table"))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             FIRST_VALUE("CONSTRAINT_TYPE") AS "{CONSTRAINT_TYPE_FIELD}",
             CASE LEFT("CONSTRAINT_NAME", 4) WHEN 'SYS_' THEN NULL
@@ -554,8 +537,7 @@ def test_describe_constraints(case_sensitive) -> None:
             {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
             {_column_predicate("CONSTRAINT_TABLE", "my_table", case_sensitive)}
         GROUP BY "CONSTRAINT_NAME"
-        """
-    )
+        """)
     assert query == expected_query
 
 
@@ -563,8 +545,7 @@ def test_describe_constraints(case_sensitive) -> None:
 def test_describe_table(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
     query = collapse_spaces(meta_query.describe_table("my_schema", "my_table"))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "TABLE_SCHEMA" AS "{SCHEMA_FIELD}",
             "TABLE_NAME" AS "{NAME_FIELD}",
@@ -583,8 +564,7 @@ def test_describe_table(case_sensitive) -> None:
             {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
             {_column_predicate("VIEW_NAME", "my_table", case_sensitive)}
         LIMIT 1
-        """
-    )
+        """)
     assert query == expected_query
 
 
@@ -605,16 +585,14 @@ def test_get_system_table_list(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.get_system_tables(info_type.value))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
             "OBJECT_NAME" AS "{NAME_FIELD}",
             "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
         WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
-    """
-    )
+    """)
     assert query == expected_query
 
 
@@ -623,8 +601,7 @@ def test_get_system_table_details(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(meta_query.get_system_tables(info_type.value, "the_table"))
-    expected_query = collapse_spaces(
-        f"""
+    expected_query = collapse_spaces(f"""
         SELECT
             "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
             "OBJECT_NAME" AS "{NAME_FIELD}",
@@ -632,8 +609,7 @@ def test_get_system_table_details(info_type) -> None:
         FROM SYS.EXA_SYSCAT
         WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
         AND UPPER("OBJECT_NAME") = 'THE_TABLE'
-    """
-    )
+    """)
     assert query == expected_query
 
 

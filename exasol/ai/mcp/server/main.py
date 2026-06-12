@@ -1,12 +1,19 @@
+import asyncio
 import json
 import logging
 import os
 import re
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 import click
 import exasol.bucketfs as bfs
+from exasol.telemetry import client as telemetry
+from fastmcp import FastMCP
+from fastmcp.client import Client
+from fastmcp.server.providers.skills import SkillsDirectoryProvider
+from fastmcp.utilities.skills import sync_skills
 from mcp.types import ToolAnnotations
 from pydantic import ValidationError
 
@@ -26,6 +33,8 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
 )
 from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
 
+_SKILLS_DIR = Path(__file__).parent / "skills"
+
 ENV_SETTINGS = "EXA_MCP_SETTINGS"
 """ MCP server settings json or a name of a json file with the settings """
 
@@ -35,6 +44,7 @@ ENV_LOG_MAX_SIZE = "EXA_MCP_LOG_MAX_SIZE"
 ENV_LOG_BACKUP_COUNT = "EXA_MCP_LOG_BACKUP_COUNT"
 ENV_LOG_FORMATTER = "EXA_MCP_LOG_FORMATTER"
 ENV_LOG_TO_CONSOLE = "EXA_MCP_LOG_TO_CONSOLE"
+ENV_LOG_IGNORE = "EXA_MCP_LOG_IGNORE"
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 DEFAULT_LOG_MAX_SIZE = 1048576  # 1 MB
@@ -113,6 +123,15 @@ def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
     )
 
 
+def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.summarize_table,
+        name="summarize_exasol_table",
+        description="Column statistics (distinct count, numeric min/max) and a row sample.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
 def _register_describe_function(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_function,
@@ -135,6 +154,18 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
         name="execute_exasol_query",
         description=(
             "The query must be a SELECT statement. Returns data selected by the query."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
+def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.profile_query,
+        name="profile_exasol_query",
+        description=(
+            "Runs the query with profiling enabled and returns a breakdown of the "
+            "execution plan. Use this to understand why a query is slow."
         ),
         annotations=ToolAnnotations(readOnlyHint=True),
     )
@@ -234,6 +265,26 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
         )
 
 
+def _register_list_preprocessors(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.list_preprocessors,
+        name="list_exasol_preprocessors",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+
+
+def _register_set_preprocessor(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.tool(
+        mcp_server.set_preprocessor,
+        name="set_exasol_preprocessor",
+        description=(
+            "Activates the specified SQL preprocessor script at the session level. "
+            "This setting may be silently reset if the server reconnects to the database. "
+            "Verify with list_exasol_preprocessors before running queries that depend on it."
+        ),
+    )
+
+
 def _register_list_sql_types(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_sql_types,
@@ -319,13 +370,20 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
     if config.scripts.enable:
         _register_list_scripts(mcp_server)
         _register_find_scripts(mcp_server)
+    if config.enable_preprocessor_tools:
+        _register_list_preprocessors(mcp_server)
+        _register_set_preprocessor(mcp_server)
     if config.columns.enable:
         _register_describe_table(mcp_server)
+    if config.enable_summarize_table and config.columns.enable:
+        _register_summarize_table(mcp_server)
     if config.parameters.enable:
         _register_describe_function(mcp_server)
         _register_describe_script(mcp_server)
     if config.enable_read_query:
         _register_execute_query(mcp_server)
+    if config.enable_query_profiling:
+        _register_profile_query(mcp_server)
     if config.enable_write_query:
         _register_execute_write_query(mcp_server)
     if config.enable_read_bucketfs:
@@ -354,6 +412,21 @@ def register_custom_routes(mcp_server: ExasolMCPServer) -> None:
     @mcp_server.custom_route(path="/health", methods=["GET"])
     def _health_check(request):
         return mcp_server.health_check()
+
+
+def register_skills(mcp_server: ExasolMCPServer) -> None:
+    mcp_server.add_provider(SkillsDirectoryProvider(roots=_SKILLS_DIR))
+
+
+async def _install_skills_async(target_dir: Path, server_url: str | None) -> list[Path]:
+    if server_url:
+        async with Client(server_url) as client:
+            return await sync_skills(client, target_dir, overwrite=True)
+    else:
+        server = FastMCP("skills")
+        server.add_provider(SkillsDirectoryProvider(roots=_SKILLS_DIR))
+        async with Client(server) as client:
+            return await sync_skills(client, target_dir, overwrite=True)
 
 
 def setup_logger(env: dict[str, str]) -> logging.Logger:
@@ -407,6 +480,12 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
             console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
+    if ENV_LOG_IGNORE in env:
+        for name in env[ENV_LOG_IGNORE].split(","):
+            name = name.strip()
+            if name:
+                logging.getLogger(name).setLevel(logging.CRITICAL + 1)
+
     return logger
 
 
@@ -450,6 +529,7 @@ def create_mcp_server(
         **kwargs,
     )
     register_tools(mcp_server_, config)
+    register_skills(mcp_server_)
     register_custom_routes(mcp_server_)
     return mcp_server_
 
@@ -458,30 +538,44 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
+def setup_telemetry(logger: logging.Logger):
+    # register telemetry library and shutdown hook, send "started" event
+    try:
+        if not telemetry.was_setup():
+            telemetry.setup()
+            telemetry.track("mcp-server.started")
+    except telemetry.TelemetryError as e:
+        logger.warning("Telemetry init error: %s", str(e))
+
+
 def mcp_server() -> ExasolMCPServer:
     """
     Builds the Exasol MCP server and all its components.
     """
     env = get_env()
     logger = setup_logger(env)
-    mcp_settings = get_mcp_settings(env)
-    auth_kwargs = get_auth_kwargs()
-    connection_factory = cf.get_connection_factory(env)
+    setup_telemetry(logger)
+    try:
+        mcp_settings = get_mcp_settings(env)
+        auth_kwargs = get_auth_kwargs()
+        connection_factory = cf.get_connection_factory(env)
 
-    connection = DbConnection(connection_factory=connection_factory)
-    # Try to get the BucketFS location only if the bucketfs tools are enabled.
-    if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
-        bucketfs_location = cf.get_bucketfs_location(env)
-    else:
-        bucketfs_location = None
+        connection = DbConnection(connection_factory=connection_factory)
+        # Try to get the BucketFS location only if the bucketfs tools are enabled.
+        if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
+            bucketfs_location = cf.get_bucketfs_location(env)
+        else:
+            bucketfs_location = None
 
-    server = create_mcp_server(
-        connection=connection,
-        config=mcp_settings,
-        bucketfs_location=bucketfs_location,
-        **auth_kwargs,
-    )
-    logger.info("Exasol MCP Server created.")
+        server = create_mcp_server(
+            connection=connection,
+            config=mcp_settings,
+            bucketfs_location=bucketfs_location,
+            **auth_kwargs,
+        )
+        logger.info("Exasol MCP Server created.")
+    finally:
+        telemetry.shutdown()
     return server
 
 
@@ -520,6 +614,33 @@ def main_http(transport, host, port, no_auth) -> None:
         else:
             raise RuntimeError(message)
     server.run(transport=transport, host=host, port=port)
+
+
+@click.command()
+@click.option(
+    "--target-dir",
+    required=True,
+    type=click.Path(),
+    help="Directory where skills will be installed.",
+)
+@click.option(
+    "--server-url",
+    default=None,
+    help="Remote MCP server URL to download skills from. If omitted, bundled skills are installed.",
+)
+def install_skills_cli(target_dir: str, server_url: str | None) -> None:
+    """Install Exasol skills into a local directory for use with MCP clients.
+
+    By default the skills bundled with this package are installed, requiring
+    no network access. Pass --server-url to instead download the latest skills
+    from a remote Exasol MCP server. Existing skill files are always overwritten,
+    so re-running the command updates skills in place.
+    """
+    paths = asyncio.run(_install_skills_async(Path(target_dir), server_url))
+    for path in paths:
+        click.echo(f"Installed: {path}")
+    if not paths:
+        click.echo("No skills installed.")
 
 
 if __name__ == "__main__":

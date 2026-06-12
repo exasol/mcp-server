@@ -62,8 +62,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 "FUNCTION_SCHEMA": "MySchema",
                 "FUNCTION_NAME": "SPAN_DISTANCE",
                 "FUNCTION_COMMENT": "Function comment",
-                "FUNCTION_TEXT": dedent(
-                    """
+                "FUNCTION_TEXT": dedent("""
                     FUNCTION SPAN_DISTANCE(begin1 INTEGER, end1 INTEGER, begin2 INTEGER, end2 INTEGER)
                     RETURN INTEGER
                     res INTEGER;
@@ -76,8 +75,7 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                         RETURN res;
                     END;
                     /
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -97,13 +95,11 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 "FUNCTION_SCHEMA": "MySchema",
                 "FUNCTION_NAME": "ValidateCredentials",
                 "FUNCTION_COMMENT": "Function comment",
-                "FUNCTION_TEXT": dedent(
-                    """
+                "FUNCTION_TEXT": dedent("""
                     FUNCTION "ValidateCredentials" (user_name VARCHAR(100), password VARCHAR(100))
                     RETURN BOOL
                     BEGIN ... END;
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -121,13 +117,11 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 "FUNCTION_SCHEMA": "MySchema",
                 "FUNCTION_NAME": "CIRCLE_AREA",
                 "FUNCTION_COMMENT": "Function comment",
-                "FUNCTION_TEXT": dedent(
-                    """
+                "FUNCTION_TEXT": dedent("""
                     FUNCTION "MySchema"."CIRCLE_AREA"(radius DOUBLE)
                     RETURN DOUBLE
                     BEGIN ... END;
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -142,13 +136,11 @@ def test_parse_parameter_list(func_parameter_parser, params, expected_result):
                 "FUNCTION_SCHEMA": "MySchema",
                 "FUNCTION_NAME": "GetTimestamp",
                 "FUNCTION_COMMENT": "Function comment",
-                "FUNCTION_TEXT": dedent(
-                    """
+                "FUNCTION_TEXT": dedent("""
                     function MySchema.GetTimestamp()
                     return TIMESTAMP(8) WITH LOCAL TIME ZONE
                     begin ... end;
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -174,20 +166,16 @@ def test_func_extract_parameters(func_parameter_parser, info, expected_result):
 @pytest.mark.parametrize(
     "invalid_text",
     [
-        dedent(
-            """
+        dedent("""
             function MySchema.GetSkyHooks
             return VARCHAR(1000)
             begin ... end;
-        """
-        ),
-        dedent(
-            """
+        """),
+        dedent("""
             function MySchema.GetSkyHooks()
             return COMPLEX
             begin ... end;
-    """
-        ),
+    """),
     ],
     ids=["ino-inputs", "invalid-return-type"],
 )
@@ -212,8 +200,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "PYTHON3",
                 "SCRIPT_INPUT_TYPE": "SET",
                 "SCRIPT_RESULT_TYPE": "RETURNS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE PYTHON3 SET SCRIPT "TOTAL_LENGTH" ("text" VARCHAR(100000) UTF8)
                     RETURNS INTEGER AS
                     def run(ctx):
@@ -223,8 +210,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                             result += len(ctx.text)
                             more_data = ctx.next()
                         return result
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -242,8 +228,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "LUA",
                 "SCRIPT_INPUT_TYPE": "SCALAR",
                 "SCRIPT_RESULT_TYPE": "EMITS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE LUA SCALAR SCRIPT COMBINED_SPAN(
                         "begin1" DECIMAL(18,0), "end1" DECIMAL(18,0),
                         "begin2" DECIMAL(18,0), "end2" DECIMAL(18,0)
@@ -251,8 +236,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                     function run(ctx)
                         ctx.emit(math.min(ctx.begin1, ctx.begin2), math.max(ctx.end1, ctx.end2))
                     end
-                """
-                ),
+                """),
             },
             DBEmitFunction(
                 schema="MySchema",
@@ -278,8 +262,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "PYTHON3",
                 "SCRIPT_INPUT_TYPE": "SET",
                 "SCRIPT_RESULT_TYPE": "EMITS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE PYTHON3 SET SCRIPT "MySchema"."Extract_Product_Names"(
                         "text" VARCHAR(100000)
                     ) EMITS (
@@ -289,8 +272,7 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                     ) AS
                     def run(ctx):
                         ...
-                """
-                ),
+                """),
             },
             DBEmitFunction(
                 schema="MySchema",
@@ -312,15 +294,13 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "LUA",
                 "SCRIPT_INPUT_TYPE": "SCALAR",
                 "SCRIPT_RESULT_TYPE": "RETURNS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     create lua scalar script MySchema.Bessel(n int, x double)
                     returns double as
                     function run(ctx)
                         ...
                     end
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -341,14 +321,12 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "PYTHON3",
                 "SCRIPT_INPUT_TYPE": "SCALAR",
                 "SCRIPT_RESULT_TYPE": "RETURNS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE PYTHON3 SCALAR SCRIPT RANDOM_DAY_OF_WEEK ()
                     RETURNS VARCHAR(10) AS
                     def run(ctx):
                         ...
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -366,14 +344,12 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "PYTHON3",
                 "SCRIPT_INPUT_TYPE": "SET",
                 "SCRIPT_RESULT_TYPE": "RETURNS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE PYTHON3 SET SCRIPT COUNT_SHEEP(...)
                     RETURNS INTEGER AS
                     def run(ctx):
                         ...
-                """
-                ),
+                """),
             },
             DBReturnFunction(
                 schema="MySchema",
@@ -392,14 +368,12 @@ def test_func_extract_parameters_error(func_parameter_parser, invalid_text):
                 "SCRIPT_LANGUAGE": "PYTHON3",
                 "SCRIPT_INPUT_TYPE": "SCALAR",
                 "SCRIPT_RESULT_TYPE": "EMITS",
-                "SCRIPT_TEXT": dedent(
-                    """
+                "SCRIPT_TEXT": dedent("""
                     CREATE PYTHON3 SCALAR SCRIPT Greetings(name VARCHAR(100))
                     EMITS (...) AS
                     def run(ctx):
                         ...
-                """
-                ),
+                """),
             },
             DBEmitFunction(
                 schema="MySchema",
@@ -436,36 +410,30 @@ def test_script_extract_parameters(script_parameter_parser, info, expected_resul
     [
         (
             "RETURNS",
-            dedent(
-                """
+            dedent("""
                 CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks
                 RETURNS VARCHAR(1000) AS
                 def run(ctx):
                     ...
-            """
-            ),
+            """),
         ),
         (
             "RETURNS",
-            dedent(
-                """
+            dedent("""
                 CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
                 RETURNS AS
                 def run(ctx):
                     ...
-            """
-            ),
+            """),
         ),
         (
             "EMITS",
-            dedent(
-                """
+            dedent("""
                 CREATE PYTHON3 SCALAR SCRIPT MySchema.GetSkyHooks()
                 EMITS AS
                 def run(ctx):
                     ...
-        """
-            ),
+        """),
         ),
     ],
     ids=["no-input", "no-return", "no-emit"],
@@ -494,13 +462,11 @@ def test_describe(mock_execute_query, func_parameter_parser):
             "FUNCTION_SCHEMA": "MySchema",
             "FUNCTION_NAME": "Validate",
             "FUNCTION_COMMENT": "Credentials validation function",
-            "FUNCTION_TEXT": dedent(
-                """
+            "FUNCTION_TEXT": dedent("""
                 FUNCTION "Validate"(user_name VARCHAR(100), password VARCHAR(100))
                 RETURN BOOL
                 BEGIN ... END;
-            """
-            ),
+            """),
         },
     ]
     result = func_parameter_parser.describe(

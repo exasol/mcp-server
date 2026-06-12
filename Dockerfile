@@ -19,7 +19,9 @@ FROM python:3.13-slim
 WORKDIR /app
 COPY --from=build app/dist dist
 
-RUN pip install dist/*.whl
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+RUN WHEEL=$(ls dist/*.whl) && pip install "${WHEEL}[dynamodb,redis,mongodb]"
 
 
 # Set entrypoint

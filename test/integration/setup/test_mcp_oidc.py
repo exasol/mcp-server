@@ -69,10 +69,11 @@ from urllib.parse import quote
 
 import docker
 import httpx
+import joserfc.jwk as jose
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
-from authlib import jose
 from authlib.integrations.flask_oauth2 import AuthorizationServer
+from authlib.jose.rfc7518 import RSAKey as _AuthlibRSAKey
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
 from docker.models.containers import Container
 from fastmcp import Client
@@ -126,6 +127,8 @@ from exasol.ai.mcp.server.setup.server_settings import (
     MetaListSettings,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
+
+AUTH_SCOPE = "openid"
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
@@ -248,7 +251,12 @@ def start_oidc_server() -> Generator[None, None, str]:
     """
     original_init_app = AuthorizationServer.init_app
     original_storage_init = Storage.__init__
-    jwk = jose.RSAKey.generate_key(is_private=True)
+    jwk = jose.RSAKey.generate_key(private=True)
+    # oidc-provider-mock calls .as_dict(is_private=True) (authlib API) on storage.jwk.
+    # joserfc 1.7.x renamed the parameter from private=None to private=False, so passing
+    # is_private=True as a kwarg silently defaults to public-only export. Use an authlib
+    # RSAKey wrapping the same private material so the authlib API is satisfied.
+    _authlib_jwk = _AuthlibRSAKey.import_key(jwk.as_dict(private=True))
 
     class MyJWTBearerTokenGenerator(JWTBearerTokenGenerator):
         def get_jwks(self):
@@ -268,7 +276,7 @@ def start_oidc_server() -> Generator[None, None, str]:
 
     def new_storage_init(self):
         original_storage_init(self)
-        self.jwk = jwk
+        self.jwk = _authlib_jwk
 
     def get_user_id(self) -> str:
         return OIDC_USER_SUB
@@ -485,7 +493,7 @@ def oidc_env_run_once(oidc_env) -> None:
     these test to run multiple times unnecessarily.
     """
     if ENV_USERNAME_CLAIM in oidc_env:
-        pytest.skip()
+        pytest.skip("Same test already ran")
 
 
 @pytest.fixture(params=["D", "E"])
@@ -523,6 +531,7 @@ def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     _set_auth_type(monkeypatch, RemoteAuthProvider)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(monkeypatch, "authorization_servers", oidc_server)
+    _set_auth_param(monkeypatch, "scopes_supported", AUTH_SCOPE)
 
     for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with Remote OAuth started at {url}")
@@ -603,9 +612,9 @@ async def _run_tool_async(
     elif headers:
         oauth = None
     elif auto_auth:
-        oauth = OAuthHeadless(mcp_url=http_server_url)
+        oauth = OAuthHeadless(mcp_url=http_server_url, scopes=AUTH_SCOPE)
     else:
-        oauth = OAuth(mcp_url=http_server_url)
+        oauth = OAuth(mcp_url=http_server_url, scopes=AUTH_SCOPE)
     async with Client(
         transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:

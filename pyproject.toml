@@ -1,51 +1,75 @@
 [project]
 name = "exasol-mcp-server"
-version = "1.5.0"
-requires-python = ">=3.10,<3.14"   # Restriction is due to numpy
+version = "1.10.1"
 description = "Exasol MCP Server"
-authors = [
-    {name = "Mikhail Beck", email = "mikhail.beck@exasol.com"},
-]
+authors = [{ name = "Mikhail Beck", email = "mikhail.beck@exasol.com" }]
+requires-python = ">=3.10,<3.14" # Restriction is due to numpy
 readme = "README.rst"
 license = "MIT"
-keywords = ['exasol', 'MCP server']
-dynamic = ["dependencies"]
+keywords = [
+    "exasol",
+    "MCP server",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "fastmcp>=3.2.4,<4",
+    "pyexasol>=1.0.0,<2",
+    "sqlglot>=27.2.0,<28",
+    "numpy>=2,<=2.2.0",
+    "stopwords>=1.0.1,<2",
+    "rank-bm25>=0.2.2,<0.3",
+    "click>=8.2.0,<9",
+    "exasol-saas-api>=2.4.0,<3",
+    "exasol-bucketfs>=2.1.0,<3",
+    "aiofile>=3.9.0,<4",
+    "pathvalidate>=3.3.1,<4",
+    "exasol-telemetry-client>=0.1.5,<0.2",
+]
+
+[project.optional-dependencies]
+dynamodb = ["aioboto3>=13.3.0"]
+redis = ["redis>=4.3.0"]
+mongodb = ["pymongo>=4.0.0"]
+
+[project.urls]
+repository = "https://github.com/exasol/mcp-server"
+homepage = "https://github.com/exasol/mcp-server"
 
 [project.scripts]
 exasol-mcp-server = "exasol.ai.mcp.server.main:main"
 exasol-mcp-server-http = "exasol.ai.mcp.server.main:main_http"
+exasol-install-skills = "exasol.ai.mcp.server.main:install_skills_cli"
+
+[dependency-groups]
+dev = [
+    "exasol-toolbox>=8.2.0,<9",
+    "pytest-exasol-backend>=1.2.1,<2",
+    "pytest-exasol-extension>=1.0.1,<2",
+    "exasol-integration-test-docker-environment>=5.0.0,<6",
+    "oidc-provider-mock>=0.2.9,<0.3",
+    "flask-oidc>=2.4.0,<3",
+    "pytest-httpserver>=1.1.3,<2",
+]
+dynamodb-tests = [
+    "aioboto3>=13.3.0",
+    "moto[dynamodb, server]>=5.2.1,<6",
+]
+
+[tool.poetry.group.dynamodb-tests]
+optional = true
+
 
 [tool.poetry]
-requires-poetry = ">=2.1.0"
+requires-poetry = ">=2.3.0"
 packages = [
     { include = "exasol" },
 ]
-
-[poetry.urls]
-repository = "https://github.com/exasol/mcp-server"
-homepage = "https://github.com/exasol/mcp-server"
-
-[tool.poetry.dependencies]
-fastmcp = "^2.13.0"
-pyexasol = "^1.0.0"
-sqlglot = "^27.2.0"
-numpy = ">=2,<=2.2.0"
-stopwords = "^1.0.1"
-rank-bm25 = "^0.2.2"
-click = "^8.2.0"
-exasol-saas-api = "^2.4.0"
-exasol-bucketfs = "^2.1.0"
-aiofile = "^3.9.0"
-pathvalidate = "^3.3.1"
-
-[tool.poetry.group.dev.dependencies]
-exasol-toolbox = "^6.0.0"
-pytest-exasol-backend = "^1.2.1"
-pytest-exasol-extension = "^0.2.4"
-exasol-integration-test-docker-environment = "^5.0.0"
-oidc-provider-mock = "^0.2.9"
-flask-oidc = "^2.4.0"
-pytest-httpserver = "^1.1.3"
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
@@ -99,8 +123,10 @@ extend-ignore = [
 extend-select = ["F401"]
 unfixable = []
 
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
 [tool.sonar]
 projectKey = "exasol.com:mcp-server"
 host.url = "https://sonarcloud.io"
 organization = "exasol"
-exclusions = "exasol/ai/mcp/server/version.py"

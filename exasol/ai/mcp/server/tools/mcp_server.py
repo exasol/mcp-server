@@ -42,12 +42,18 @@ from exasol.ai.mcp.server.tools.parameter_pattern import (
     regex_flags,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
+    COMMENT_FIELD,
+    NAME_FIELD,
+    SCHEMA_FIELD,
     DBColumn,
+    DBColumnSummary,
     DBConstraint,
     DBEmitFunction,
     DBObject,
+    DBPreprocessorList,
     DBReturnFunction,
     DBTable,
+    DBTableSummary,
     QualifiedDBObject,
     SQLTypeInfo,
 )
@@ -82,7 +88,9 @@ TableNameArg = Annotated[str, Field(description="Name of the table or view")]
 
 FunctionNameArg = Annotated[str, Field(description="Name of the function")]
 
-ScriptNameArg = Annotated[str, Field(description="Name of the script")]
+PreprocessorScriptNameArg = Annotated[
+    str, Field(description="Name of the preprocessor script")
+]
 
 QueryArg = Annotated[
     str,
@@ -94,6 +102,18 @@ QueryArg = Annotated[
             "A reference to a table or function should include a reference to its schema. "
             "The SELECT column list cannot have both the * and explicit column names."
         )
+    ),
+]
+
+RowLimitArg = Annotated[
+    int | None,
+    Field(
+        description=(
+            "If specified, wraps the query in SELECT * FROM (<query>) LIMIT <row_limit> "
+            "to preview a sample of results without fetching all rows."
+        ),
+        default=None,
+        ge=1,
     ),
 ]
 
@@ -134,6 +154,224 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if INFO_COLUMN in row:
             row.pop(INFO_COLUMN)
     return result
+
+
+_NUMERIC_TYPE_PREFIXES = frozenset(
+    [
+        "DECIMAL",
+        "NUMERIC",
+        "DOUBLE",
+        "DOUBLE PRECISION",
+        "FLOAT",
+        "REAL",
+        "INTEGER",
+        "INT",
+        "BIGINT",
+        "SMALLINT",
+        "SHORTINT",
+        "BYTEINT",
+        "TINYINT",
+        "NUMBER",
+    ]
+)
+
+
+def _is_numeric_type(sql_type: str) -> bool:
+    return sql_type.split("(")[0].strip().upper() in _NUMERIC_TYPE_PREFIXES
+
+
+def _build_stats_query(table_ref: exp.Table, columns: list[DBColumn]) -> str:
+    """
+    Builds a single-row SELECT that computes:
+    - ROW_COUNT: total row count
+    - DISTINCT_i: COUNT(DISTINCT col) for every column
+    - MIN_i / MAX_i: min and max for numeric columns
+    - NULL_COUNT_i: COUNT(*) - COUNT(col) — number of NULLs per column
+    Positional aliases avoid collisions with arbitrary column names.
+    """
+    select_exprs: list[exp.Expression] = [
+        exp.alias_(exp.Count(this=exp.Star()), "ROW_COUNT"),
+    ]
+    for i, col in enumerate(columns):
+        col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+        select_exprs.append(
+            exp.alias_(
+                exp.Count(this=exp.Distinct(expressions=[col_ref])),
+                f"DISTINCT_{i}",
+            )
+        )
+        if _is_numeric_type(col.type):
+            select_exprs.append(exp.alias_(exp.Min(this=col_ref), f"MIN_{i}"))
+            select_exprs.append(exp.alias_(exp.Max(this=col_ref), f"MAX_{i}"))
+        null_col_ref = exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+        select_exprs.append(
+            exp.alias_(
+                exp.Sub(
+                    this=exp.Count(this=exp.Star()),
+                    expression=exp.Count(this=null_col_ref),
+                ),
+                f"NULL_COUNT_{i}",
+            )
+        )
+    return exp.Select().from_(table_ref).select(*select_exprs).sql(dialect="exasol")
+
+
+def _build_top_values_query(table_ref: exp.Table, col: DBColumn, top_n: int) -> str:
+    """
+    Builds a query that returns the top_n most frequent non-NULL values of a column,
+    ordered by descending frequency.
+    """
+
+    def col_ref() -> exp.Column:
+        return exp.Column(this=exp.Identifier(this=col.name, quoted=True))
+
+    return (
+        exp.Select()
+        .from_(table_ref)
+        .select(col_ref())
+        .where(exp.Not(this=exp.Is(this=col_ref(), expression=exp.Null())))
+        .group_by(col_ref())
+        .order_by(exp.Ordered(this=exp.Count(this=exp.Star()), desc=True))
+        .limit(top_n)
+        .sql(dialect="exasol")
+    )
+
+
+def _build_sample_query(table_ref: exp.Table, sample_size: int) -> str:
+    return (
+        exp.Select()
+        .from_(table_ref)
+        .select(exp.Star())
+        .limit(sample_size)
+        .sql(dialect="exasol")
+    )
+
+
+def _build_column_summaries(
+    columns: list[DBColumn],
+    stats_row: dict[str, Any] | None,
+    column_top_values: list[list[Any]],
+) -> list[DBColumnSummary]:
+    summaries = []
+    row_count = int(stats_row.get("ROW_COUNT", 0) or 0) if stats_row else 0
+    for i, col in enumerate(columns):
+        is_numeric = _is_numeric_type(col.type)
+        raw_min = stats_row.get(f"MIN_{i}") if is_numeric and stats_row else None
+        raw_max = stats_row.get(f"MAX_{i}") if is_numeric and stats_row else None
+        null_count = int(stats_row.get(f"NULL_COUNT_{i}", 0) or 0) if stats_row else 0
+        summaries.append(
+            DBColumnSummary(
+                name=col.name,
+                type=col.type,
+                comment=col.comment,
+                distinct_count=stats_row.get(f"DISTINCT_{i}", 0) if stats_row else 0,
+                min=str(raw_min) if raw_min is not None else None,
+                max=str(raw_max) if raw_max is not None else None,
+                top_values=column_top_values[i],
+                has_nulls=null_count > 0,
+                null_percentage=(
+                    round(null_count / row_count * 100) if row_count > 0 else 0
+                ),
+            )
+        )
+    return summaries
+
+
+def _build_preview_query(query: str, row_limit: int) -> str:
+    return (
+        exp.select(exp.Star())
+        .from_(parse_one(query, read="exasol").subquery())
+        .limit(row_limit)
+        .sql(dialect="exasol")
+    )
+
+
+_PROFILE_TABLE = exp.Table(
+    this=exp.Identifier(this="EXA_USER_PROFILE_LAST_DAY"),
+    db=exp.Identifier(this="EXA_STATISTICS"),
+)
+
+_PROFILE_COLUMNS = (
+    "PART_NAME",
+    "PART_INFO",
+    "OBJECT_SCHEMA",
+    "OBJECT_NAME",
+    "OBJECT_ROWS",
+    "DURATION",
+    "CPU",
+)
+
+
+def _build_profile_select(_query: str) -> str:
+    """
+    Builds a SELECT against EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY that returns
+    the execution plan rows for the most recent DQL statement in the current session.
+    """
+    current_session = exp.column("CURRENT_SESSION")
+    subquery = (
+        exp.Select()
+        .from_(_PROFILE_TABLE)
+        .select(exp.Max(this=exp.column("STMT_ID")))
+        .where(
+            exp.column("SESSION_ID").eq(current_session),
+            exp.LT(
+                this=exp.column("STMT_ID"), expression=exp.column("CURRENT_STATEMENT")
+            ),
+            exp.column("COMMAND_CLASS").eq(exp.Literal.string("DQL")),
+        )
+    )
+    return (
+        exp.Select()
+        .from_(_PROFILE_TABLE)
+        .select(*_PROFILE_COLUMNS)
+        .where(
+            exp.column("SESSION_ID").eq(current_session),
+            exp.column("STMT_ID").eq(subquery.subquery()),
+        )
+        .order_by(exp.column("PART_ID"))
+        .sql(dialect="exasol")
+    )
+
+
+_SYS = exp.Identifier(this="SYS")
+
+
+def _build_list_preprocessors_query() -> str:
+    return (
+        exp.select(
+            exp.column("SCRIPT_SCHEMA").as_(SCHEMA_FIELD),
+            exp.column("SCRIPT_NAME").as_(NAME_FIELD),
+            exp.column("SCRIPT_COMMENT").as_(COMMENT_FIELD),
+        )
+        .from_(exp.Table(this=exp.Identifier(this="EXA_ALL_SCRIPTS"), db=_SYS))
+        .where(exp.column("SCRIPT_TYPE").eq("PREPROCESSOR"))
+        .order_by("SCRIPT_SCHEMA", "SCRIPT_NAME")
+        .sql(dialect="exasol", identify=True)
+    )
+
+
+def _build_profile_status_query() -> str:
+    return (
+        exp.select(exp.column("SESSION_VALUE"))
+        .from_(exp.Table(this=exp.Identifier(this="EXA_PARAMETERS"), db=_SYS))
+        .where(exp.column("PARAMETER_NAME").eq("PROFILE"))
+        .sql(dialect="exasol", identify=True)
+    )
+
+
+def _build_current_preprocessor_query() -> str:
+    return (
+        exp.select(exp.column("SESSION_VALUE"))
+        .from_(exp.Table(this=exp.Identifier(this="EXA_PARAMETERS"), db=_SYS))
+        .where(exp.column("PARAMETER_NAME").eq("SQL_PREPROCESSOR_SCRIPT"))
+        .sql(dialect="exasol", identify=True)
+    )
+
+
+def _build_set_preprocessor_query(schema_name: str, script_name: str) -> str:
+    return (
+        f'ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = "{schema_name}"."{script_name}"'
+    )
 
 
 class ExasolMCPServer(FastMCP):
@@ -308,6 +546,77 @@ class ExasolMCPServer(FastMCP):
             ),
         )
 
+    def _get_table_comment(self, schema_name: str, table_name: str) -> str | None:
+        if is_system_schema(schema_name):
+            query = self.meta_query.get_system_tables(schema_name, table_name)
+        else:
+            query = self.meta_query.describe_table(schema_name, table_name)
+        table_meta = self._execute_meta_query(query, QualifiedDBObject)
+        if not table_meta:
+            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
+        return table_meta[0].comment
+
+    def _fetch_column_top_values(
+        self, table_ref: exp.Table, columns: list[DBColumn], top_n: int
+    ) -> list[list[Any]]:
+        result = []
+        for col in columns:
+            result.append(
+                self.connection.execute_query(
+                    _build_top_values_query(table_ref, col, top_n), snapshot=False
+                ).fetchcol()
+            )
+        return result
+
+    def summarize_table(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: Annotated[
+            int,
+            Field(
+                description="Number of sample rows to include in the result",
+                default=10,
+                ge=1,
+                le=100,
+            ),
+        ] = 10,
+        top_values: Annotated[
+            int,
+            Field(
+                description="Number of most common distinct values to return per column",
+                default=5,
+                ge=1,
+                le=100,
+            ),
+        ] = 5,
+    ) -> DBTableSummary:
+        if not self.config.enable_summarize_table:
+            raise RuntimeError("The table summarization is disabled.")
+        columns = self.describe_columns(schema_name, table_name)
+        comment = self._get_table_comment(schema_name, table_name)
+        table_ref = exp.Table(
+            this=exp.Identifier(this=table_name, quoted=True),
+            db=exp.Identifier(this=schema_name, quoted=True),
+        )
+        stats_row = self.connection.execute_query(
+            _build_stats_query(table_ref, columns), snapshot=False
+        ).fetchone()
+        column_top_values = self._fetch_column_top_values(
+            table_ref, columns, top_values
+        )
+        sample_data = self.connection.execute_query(
+            _build_sample_query(table_ref, sample_size), snapshot=False
+        ).fetchall()
+        return DBTableSummary(
+            schema=schema_name,
+            name=table_name,
+            comment=comment,
+            row_count=stats_row.get("ROW_COUNT", 0) if stats_row else 0,
+            columns=_build_column_summaries(columns, stats_row, column_top_values),
+            sample=sample_data,
+        )
+
     def describe_function(
         self, schema_name: SchemaNameArg, func_name: FunctionNameArg
     ) -> DBReturnFunction:
@@ -315,19 +624,42 @@ class ExasolMCPServer(FastMCP):
         return cast(DBReturnFunction, parser.describe(schema_name, func_name))
 
     def describe_script(
-        self, schema_name: SchemaNameArg, script_name: ScriptNameArg
+        self, schema_name: SchemaNameArg, func_name: FunctionNameArg
     ) -> DBReturnFunction | DBEmitFunction:
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
         return cast(
-            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, script_name)
+            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
-    def execute_query(self, query: QueryArg) -> list[dict[str, Any]]:
+    def execute_query(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> list[dict[str, Any]]:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
-        if verify_query(query):
-            return self.connection.execute_query(query, snapshot=False).fetchall()
-        raise ValueError("The query is invalid or not a SELECT statement.")
+        if not verify_query(query):
+            raise ValueError("The query is invalid or not a SELECT statement.")
+        effective_query = (
+            _build_preview_query(query, row_limit) if row_limit is not None else query
+        )
+        return self.connection.execute_query(effective_query, snapshot=False).fetchall()
+
+    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+        if not self.config.enable_query_profiling:
+            raise RuntimeError("Query profiling is disabled.")
+        if not verify_query(query):
+            raise ValueError("The query is invalid or not a SELECT statement.")
+        profile_already_on = (
+            self.connection.execute_query(_build_profile_status_query()).fetchval()
+            == "ON"
+        )
+        statements: list[str] = []
+        if not profile_already_on:
+            statements.append("ALTER SESSION SET PROFILE = 'ON'")
+        statements.extend([query, "FLUSH STATISTICS"])
+        if not profile_already_on:
+            statements.append("ALTER SESSION SET PROFILE = 'OFF'")
+        statements.append(_build_profile_select(query))
+        return self.connection.execute_query(statements, snapshot=False).fetchall()
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:
@@ -403,12 +735,34 @@ class ExasolMCPServer(FastMCP):
         query = ExasolMetaQuery.get_keywords(reserved, letter)
         return self.connection.execute_query(query).fetchcol()
 
+    def list_preprocessors(self) -> DBPreprocessorList:
+        preprocessors = self._execute_meta_query(
+            _build_list_preprocessors_query(), QualifiedDBObject
+        )
+        current = self.connection.execute_query(
+            _build_current_preprocessor_query()
+        ).fetchval()
+        return DBPreprocessorList(
+            preprocessors=preprocessors, current_preprocessor=current
+        )
+
+    def set_preprocessor(
+        self,
+        schema_name: SchemaNameArg,
+        script_name: PreprocessorScriptNameArg,
+    ) -> str:
+        self.connection.execute_query(
+            _build_set_preprocessor_query(schema_name, script_name),
+            snapshot=False,
+        )
+        return f"{schema_name}.{script_name}"
+
     def health_check(self) -> JSONResponse:
         """
         A simple health check, runs a trivial query to verify that the DB is accessible.
         """
         try:
-            result = self.connection.execute_query("SELECT 1").fetchval()
+            result = self.connection.execute_query("SELECT 1", no_auth=True).fetchval()
             if result == 1:
                 return JSONResponse(
                     {"status": "healthy", "service": "exasol-mcp-server"}

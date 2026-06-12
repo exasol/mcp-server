@@ -25,11 +25,11 @@ ENV_DSN = "EXA_DSN"
 """ Exasol DB server DSN """
 ENV_USER = "EXA_USER"
 """ The DB user name to be used by the MCP server """
-ENV_PASSWORD = "EXA_PASSWORD"
+ENV_PASSWORD = "EXA_PASSWORD"  # nosec
 """ The DB password for password authentication """
-ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"
+ENV_ACCESS_TOKEN = "EXA_ACCESS_TOKEN"  # nosec
 """ Bearer access token  """
-ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"
+ENV_REFRESH_TOKEN = "EXA_REFRESH_TOKEN"  # nosec
 """ Bearer refresh token  """
 ENV_USERNAME_CLAIM = "EXA_USERNAME_CLAIM"
 """The name of the claim in the access token containing the DB username"""
@@ -39,9 +39,9 @@ ENV_SAAS_HOST = "EXA_SAAS_HOST"
 """ SaaS host, defaults to https://cloud.exasol.com/ """
 ENV_SAAS_ACCOUNT_ID = "EXA_SAAS_ACCOUNT_ID"
 """ SaaS account id """
-ENV_SAAS_PAT = "EXA_SAAS_PAT"
+ENV_SAAS_PAT = "EXA_SAAS_PAT"  # nosec
 """ SaaS PAT in case the server's own credentials are used to connect to SaaS DB """
-ENV_SAAS_PAT_HEADER = "EXA_SAAS_PAT_HEADER"
+ENV_SAAS_PAT_HEADER = "EXA_SAAS_PAT_HEADER"  # nosec
 """ Name of the header where the SaaS user's PAT is passed, e.g. x-api-key """
 ENV_SAAS_DATABASE_ID = "EXA_SAAS_DATABASE_ID"
 """ Name of the SaaS database id, if known """
@@ -53,7 +53,7 @@ ENV_SSL_TRUSTED_CA = "EXA_SSL_TRUSTED_CA"
 """ Directory where Certification Authority (CA) certificates are stored, or a single CA file """
 ENV_SSL_CLIENT_CERT = "EXA_SSL_CLIENT_CERT"
 """ Own certificate file in PEM format """
-ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"
+ENV_SSL_PRIVATE_KEY = "EXA_SSL_PRIVATE_KEY"  # nosec
 """ Certificate's private key file """
 ENV_LOG_CLAIMS = "EXA_LOG_CLAIMS"
 """ Log OAuth claims if available (yes/no) """
@@ -67,10 +67,12 @@ ENV_BUCKETFS_BUCKET = "EXA_BUCKETFS_BUCKET"
 """ On-prem BucketFS bucket name ("default" if not specified) """
 ENV_BUCKETFS_USER = "EXA_BUCKETFS_USER"
 """ On-prem BucketFS user name """
-ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"
+ENV_BUCKETFS_PASSWORD = "EXA_BUCKETFS_PASSWORD"  # nosec
 """ On-prem BucketFS user password """
 ENV_BUCKETFS_PATH = "EXA_BUCKETFS_PATH"
 """ Optional root directory in the bucket (defaults to the bucket root) """
+ENV_NO_AUTH_PASSWORD = "EXA_NO_AUTH_PASSWORD"  # nosec
+""" Password for unauthenticated clients (e.g. health checks) used when ENV_PASSWORD is absent """
 
 DEFAULT_CONN_POOL_SIZE = 5
 DEFAULT_SAAS_HOST = "https://cloud.exasol.com"
@@ -93,9 +95,12 @@ env_to_bucketfs = {
 }
 
 
-def local_env_complete(env: dict[str, Any]) -> bool:
+def local_env_complete(env: dict[str, Any], no_auth: bool = False) -> bool:
+    auth_vars = [ENV_PASSWORD, ENV_ACCESS_TOKEN, ENV_REFRESH_TOKEN]
+    if no_auth:
+        auth_vars.append(ENV_NO_AUTH_PASSWORD)
     return all(v in env for v in [ENV_DSN, ENV_USER]) and any(
-        v in env for v in [ENV_PASSWORD, ENV_ACCESS_TOKEN, ENV_REFRESH_TOKEN]
+        v in env for v in auth_vars
     )
 
 
@@ -115,12 +120,13 @@ def _copy_kwargs(env: dict[str, Any], name_map: dict[str, str]) -> dict[str, Any
     return {val: env[key] for key, val in name_map.items() if key in env}
 
 
-def get_local_kwargs(env: dict[str, Any]) -> dict[str, Any]:
+def get_local_kwargs(env: dict[str, Any], no_auth: bool = False) -> dict[str, Any]:
     """
     Returns pyexasol.connect(...) arguments in case of On-Prem pre-configured
-    server's credentials.
+    server's credentials. When no_auth is True, ENV_NO_AUTH_PASSWORD is used as
+    a fallback password source when ENV_PASSWORD is absent.
     """
-    return _copy_kwargs(
+    kwargs = _copy_kwargs(
         env,
         {
             ENV_DSN: "dsn",
@@ -130,6 +136,9 @@ def get_local_kwargs(env: dict[str, Any]) -> dict[str, Any]:
             ENV_REFRESH_TOKEN: "refresh_token",
         },
     )
+    if no_auth and "password" not in kwargs and ENV_NO_AUTH_PASSWORD in env:
+        kwargs["password"] = env[ENV_NO_AUTH_PASSWORD]
+    return kwargs
 
 
 def get_saas_kwargs(env: dict[str, Any]) -> dict[str, Any]:
@@ -279,7 +288,7 @@ def log_connection(conn_kwargs: dict[str, Any], user: str, env: dict[str, Any]) 
 
 def get_connection_factory(
     env: dict[str, Any], **extra_kwargs
-) -> Callable[[], ContextManager[pyexasol.ExaConnection]]:
+) -> Callable[..., ContextManager[pyexasol.ExaConnection]]:
     """
     Returns the pyexasol connection factory required by a DBConnection object.
     Authentication method will be inferred from the provided configuration
@@ -364,18 +373,20 @@ def get_connection_factory(
     connection_pool = _create_connection_pool(env)
 
     @contextmanager
-    def connection_factory() -> Generator[pyexasol.ExaConnection, None, None]:
+    def connection_factory(
+        no_auth: bool = False,
+    ) -> Generator[pyexasol.ExaConnection, None, None]:
         if saas_env_complete(env):
             conn_kwargs = get_saas_kwargs(env)
             user: str | None = None
         else:
-            conn_kwargs = get_local_kwargs(env)
+            conn_kwargs = get_local_kwargs(env, no_auth=no_auth)
             user, token = get_oidc_user(env.get(ENV_USERNAME_CLAIM))
-            if (ENV_USERNAME_CLAIM in env) and (not user):
+            if (not no_auth) and (ENV_USERNAME_CLAIM in env) and (not user):
                 raise RuntimeError(
                     f"Username not found in the OAuth claim {ENV_USERNAME_CLAIM}"
                 )
-            if not local_env_complete(env):
+            if not local_env_complete(env, no_auth=no_auth):
                 # If not using pre-configured server credentials then
                 # authenticate with the token extracted from the MCP context.
                 if user and token:

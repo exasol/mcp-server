@@ -28,13 +28,15 @@ class DbConnection:
 
     def __init__(
         self,
-        connection_factory: Callable[[], ContextManager[ExaConnection]],
+        connection_factory: Callable[..., ContextManager[ExaConnection]],
         num_retries: int = 2,
     ) -> None:
         self._conn_factory = connection_factory
         self._num_retries = num_retries
 
-    def execute_query(self, query: str, snapshot: bool = True) -> ExaStatement:
+    def execute_query(
+        self, query: str | list[str], snapshot: bool = True, no_auth: bool = False
+    ) -> ExaStatement:
         """
         Will make the set number of attempts to execute the provided query. A repeated
         attempt may follow a CommunicationError, ExaRuntimeError or ExaAuthError. All
@@ -44,15 +46,28 @@ class DbConnection:
         If snapshot is True, which should be the mode of choice for querying metadata,
         the `meta.execute_snapshot` method will be called. Otherwise, it will use the
         normal `execute` method.
+
+        If a list of queries is provided, all statements are executed in a single
+        session and the result of the last one is returned.
+
+        If no_auth is True, the connection factory will skip the OAuth username claim
+        check. This is intended for unauthenticated internal callers such as the health
+        check endpoint.
         """
+        queries = [query] if isinstance(query, str) else query
         attempt = 1
         while True:
-            with self._conn_factory() as connection:
+            with self._conn_factory(no_auth=no_auth) as connection:
                 connection.options["fetch_dict"] = True
                 try:
-                    if snapshot:
-                        return connection.meta.execute_snapshot(query=query)
-                    return connection.execute(query=query)
+                    result = None
+                    for q in queries:
+                        result = (
+                            connection.meta.execute_snapshot(query=q)
+                            if snapshot
+                            else connection.execute(query=q)
+                        )
+                    return result
 
                 except (ExaCommunicationError, ExaRuntimeError, ExaAuthError):
                     connection.close()

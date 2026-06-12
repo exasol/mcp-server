@@ -1,4 +1,7 @@
-from typing import Annotated
+from typing import (
+    Annotated,
+    Any,
+)
 
 from pydantic import (
     BaseModel,
@@ -14,6 +17,8 @@ currently there is no easy way of doing this.
 SCHEMA_FIELD = "schema"
 NAME_FIELD = "name"
 COMMENT_FIELD = "comment"
+PREPROCESSORS_FIELD = "preprocessors"
+CURRENT_PREPROCESSOR_FIELD = "current_preprocessor"
 SQL_TYPE_FIELD = "type"
 COLUMNS_FIELD = "columns"
 CONSTRAINTS_FIELD = "constraints"
@@ -181,6 +186,67 @@ class BuiltInFunction(BaseModel):
     ]
     example: Annotated[
         str | None, Field(description="One or more call examples", default=None)
+    ]
+
+
+class DBColumnSummary(DBColumn):
+    distinct_count: Annotated[
+        int, Field(description="Number of distinct non-NULL values in this column")
+    ]
+    min: Annotated[
+        str | None,
+        Field(description="Minimum value for numeric columns", default=None),
+    ]
+    max: Annotated[
+        str | None,
+        Field(description="Maximum value for numeric columns", default=None),
+    ]
+    top_values: Annotated[
+        list[Any],
+        Field(
+            description=(
+                "Most common distinct values in descending frequency order. "
+                "Empty if all values in the column are NULL."
+            )
+        ),
+    ]
+    has_nulls: Annotated[
+        bool, Field(description="True if the column contains at least one NULL value")
+    ]
+    null_percentage: Annotated[
+        int,
+        Field(
+            description="Percentage of NULL values in the column, rounded to whole percent"
+        ),
+    ]
+
+
+class DBTableSummary(QualifiedDBObject):
+    row_count: Annotated[int, Field(description="Total number of rows in the table")]
+    columns: Annotated[
+        list[DBColumnSummary],
+        Field(description="Per-column statistics"),
+    ]
+    sample: Annotated[
+        list[dict[str, Any]],
+        Field(description="Sample rows from the table"),
+    ]
+
+
+class DBPreprocessorList(BaseModel):
+    preprocessors: Annotated[
+        list[QualifiedDBObject],
+        Field(description="Available preprocessor scripts"),
+    ]
+    current_preprocessor: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Fully-qualified name of the preprocessor currently set in this session "
+                "(e.g. 'MY_SCHEMA.MY_PREPROCESSOR'), or null if none is set."
+            ),
+            default=None,
+        ),
     ]
 
 

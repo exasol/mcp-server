@@ -5,7 +5,7 @@ from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 from exasol.ai.mcp.server.tools.parameter_parser import (
     FuncParameterParser,
@@ -16,7 +16,7 @@ from exasol.ai.mcp.server.tools.parameter_parser import (
 @pytest.fixture
 def parameter_config() -> McpServerSettings:
     return McpServerSettings(
-        parameters=MetaParameterSettings(
+        parameters=MetaSettings(
             enable=True,
         ),
         case_sensitive=False,

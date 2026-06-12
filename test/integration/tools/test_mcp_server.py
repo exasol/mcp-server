@@ -23,9 +23,8 @@ from fastmcp.exceptions import ToolError
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
-    MetaColumnSettings,
     MetaListSettings,
-    MetaParameterSettings,
+    MetaSettings,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     COLUMNS_FIELD,
@@ -34,11 +33,13 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     CONSTRAINT_NAME_FIELD,
     CONSTRAINT_TYPE_FIELD,
     CONSTRAINTS_FIELD,
+    CURRENT_PREPROCESSOR_FIELD,
     DYNAMIC_INPUT_FIELD,
     DYNAMIC_OUTPUT_FIELD,
     EMITS_FIELD,
     INPUT_FIELD,
     NAME_FIELD,
+    PREPROCESSORS_FIELD,
     REFERENCED_COLUMNS_FIELD,
     REFERENCED_SCHEMA_FIELD,
     REFERENCED_TABLE_FIELD,
@@ -628,7 +629,7 @@ def test_describe_table(
     Test the `describe_table` tool. The tool is tested on each table of every schema.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(
+        columns=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -651,7 +652,7 @@ def test_describe_sys_table(pyexasol_connection) -> None:
     """
     Test the `describe_table` tool, passing the name of a system table to it.
     """
-    config = McpServerSettings(columns=MetaColumnSettings(enable=True))
+    config = McpServerSettings(columns=MetaSettings(enable=True))
     result = run_tool(
         pyexasol_connection,
         config,
@@ -673,7 +674,7 @@ def test_describe_view_comment(
     pyexasol_connection, setup_database, db_schemas, db_views, case_sensitive
 ) -> None:
     config = McpServerSettings(
-        columns=MetaColumnSettings(
+        columns=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -696,7 +697,7 @@ def test_describe_view_comment(
     [
         ("describe_exasol_table_or_view", {"table_name": "ski_resort"}),
         ("describe_exasol_custom_function", {"func_name": "factorial"}),
-        ("describe_exasol_user_defined_function", {"script_name": "fibonacci"}),
+        ("describe_exasol_user_defined_function", {"func_name": "fibonacci"}),
     ],
     ids=["describe_table", "describe_function", "describe_script"],
 )
@@ -708,8 +709,8 @@ def test_describe_no_schema_name(
     is not provided.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
     )
     with pytest.raises(ToolError):
         run_tool(pyexasol_connection, config, tool_name=tool_name, **other_kwargs)
@@ -731,8 +732,8 @@ def test_describe_no_db_object_name(
     db object to be described is not provided.
     """
     config = McpServerSettings(
-        columns=MetaColumnSettings(enable=True),
-        parameters=MetaParameterSettings(enable=True),
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
     )
     for schema in db_schemas:
         with pytest.raises(ToolError):
@@ -753,7 +754,7 @@ def test_describe_function(
     of every schema.
     """
     config = McpServerSettings(
-        parameters=MetaParameterSettings(
+        parameters=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -782,7 +783,7 @@ def test_describe_script(
     of every schema.
     """
     config = McpServerSettings(
-        parameters=MetaParameterSettings(
+        parameters=MetaSettings(
             enable=True,
         ),
         case_sensitive=case_sensitive,
@@ -794,7 +795,7 @@ def test_describe_script(
                 config,
                 "describe_exasol_user_defined_function",
                 schema_name=_get_db_name_param(schema, case_sensitive),
-                script_name=_get_db_name_param(script, case_sensitive),
+                func_name=_get_db_name_param(script, case_sensitive),
             )
             result_json = get_result_json(result)
             # The call example message is properly tested in the unit tests.
@@ -803,6 +804,121 @@ def test_describe_script(
             result_json.pop(USAGE_FIELD)
             expected_json = _get_expected_param_json(script, schema.name)
             assert result_json == expected_json
+
+
+def test_list_preprocessors(
+    pyexasol_connection, setup_database, db_preprocessor
+) -> None:
+    config = McpServerSettings()
+    result = run_tool(pyexasol_connection, config, "list_exasol_preprocessors")
+    data = get_result_json(result)
+    names = [p[NAME_FIELD].upper() for p in data[PREPROCESSORS_FIELD]]
+    assert db_preprocessor.name.upper() in names
+    assert CURRENT_PREPROCESSOR_FIELD in data
+
+
+def test_set_preprocessor(
+    pyexasol_connection, setup_database, db_schema_name, db_preprocessor
+) -> None:
+    config = McpServerSettings()
+    run_tool(
+        pyexasol_connection,
+        config,
+        "set_exasol_preprocessor",
+        schema_name=db_schema_name,
+        script_name=db_preprocessor.name,
+    )
+    list_result = run_tool(pyexasol_connection, config, "list_exasol_preprocessors")
+    data = get_result_json(list_result)
+    assert data[CURRENT_PREPROCESSOR_FIELD] is not None
+    assert db_preprocessor.name.upper() in data[CURRENT_PREPROCESSOR_FIELD].upper()
+
+
+def test_summarize_table(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+) -> None:
+    """
+    Test the `summarize_exasol_table` tool. Verifies column statistics and sample data
+    for the `ski_resort` table (which has known rows).
+    """
+    config = McpServerSettings(
+        enable_summarize_table=True,
+        columns=MetaSettings(enable=True),
+    )
+    ski_resort = next(t for t in db_tables if t.name == "ski_resort")
+
+    for schema in db_schemas:
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "summarize_exasol_table",
+            schema_name=schema.name,
+            table_name=ski_resort.name,
+        )
+        result_json = get_result_json(result)
+
+        assert result_json[SCHEMA_FIELD] == schema.name
+        assert result_json[NAME_FIELD] == ski_resort.name
+        assert result_json[COMMENT_FIELD] == ski_resort.comment
+
+        columns_json = result_json[COLUMNS_FIELD]
+        assert len(columns_json) == len(ski_resort.columns)
+
+        col_by_name = {c["name"]: c for c in columns_json}
+
+        # Total row count
+        assert result_json["row_count"] == 3
+
+        # resort_id is DECIMAL(18,0) — numeric
+        resort_id = col_by_name["resort_id"]
+        assert resort_id["distinct_count"] == 3
+        assert resort_id["min"] is not None
+        assert resort_id["max"] is not None
+        assert len(resort_id["top_values"]) == 3
+        assert resort_id["has_nulls"] is False
+        assert resort_id["null_percentage"] == 0
+
+        # resort_name is VARCHAR — not numeric
+        resort_name = col_by_name["resort_name"]
+        assert resort_name["distinct_count"] == 3
+        assert resort_name["min"] is None
+        assert resort_name["max"] is None
+        assert len(resort_name["top_values"]) == 3
+        assert resort_name["has_nulls"] is False
+        assert resort_name["null_percentage"] == 0
+
+        # country is VARCHAR — not numeric; France appears twice, Austria once
+        country = col_by_name["country"]
+        assert country["distinct_count"] == 2
+        assert country["min"] is None
+        assert len(country["top_values"]) == 2
+        assert country["top_values"][0] == "France"  # highest frequency first
+        assert country["has_nulls"] is False
+        assert country["null_percentage"] == 0
+
+        # altitude is DECIMAL(18,0) — numeric
+        altitude = col_by_name["altitude"]
+        assert altitude["distinct_count"] == 3
+        assert altitude["min"] is not None
+        assert altitude["max"] is not None
+        assert len(altitude["top_values"]) == 3
+        assert altitude["has_nulls"] is False
+        assert altitude["null_percentage"] == 0
+
+        # Sample
+        sample = result_json["sample"]
+        assert len(sample) > 0
+        assert len(sample) <= 10
+
+
+def test_summarize_table_disabled(pyexasol_connection) -> None:
+    """
+    Test that `summarize_exasol_table` is not registered when disabled.
+    """
+    config = McpServerSettings()  # enable_summarize_table defaults to False
+    result = list_tools(pyexasol_connection, config)
+    tool_list = [tool.name for tool in result]
+    assert "summarize_exasol_table" not in tool_list
 
 
 def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
@@ -854,3 +970,69 @@ def test_execute_query_error(
                     tool_name="execute_exasol_query",
                     query=query,
                 )
+
+
+def test_execute_query_with_row_limit(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    Test that the row_limit parameter caps the number of returned rows.
+    """
+    config = McpServerSettings(enable_read_query=True)
+    row_limit = 1
+    for schema in db_schemas:
+        for table in db_tables:
+            if not table.rows:
+                continue
+            query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+            result = run_tool(
+                pyexasol_connection,
+                config,
+                tool_name="execute_exasol_query",
+                query=query,
+                row_limit=row_limit,
+            )
+            result_json = get_list_result_json(result) if result.content else []
+            assert len(result_json) <= row_limit
+
+
+def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+    """
+    Test that profile_exasol_query returns a non-empty execution plan for a valid query.
+    """
+    config = McpServerSettings(enable_query_profiling=True)
+    schema = db_schemas[0]
+    table = db_tables[0]
+    query = f'SELECT * FROM "{schema.name}"."{table.name}"'
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name="profile_exasol_query",
+        query=query,
+    )
+    result_json = get_list_result_json(result)
+    assert len(result_json) > 0
+    assert "PART_NAME" in result_json[0]
+    assert "DURATION" in result_json[0]
+
+
+def test_profile_query_error(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    Test that profile_exasol_query rejects non-SELECT queries.
+    """
+    config = McpServerSettings(enable_query_profiling=True)
+    schema = db_schemas[0]
+    table = db_tables[0]
+    query = (
+        f'SELECT * INTO TABLE "{schema.name}"."ANOTHER_TABLE" '
+        f'FROM "{schema.name}"."{table.name}"'
+    )
+    with pytest.raises(ToolError):
+        run_tool(
+            pyexasol_connection,
+            config,
+            tool_name="profile_exasol_query",
+            query=query,
+        )
