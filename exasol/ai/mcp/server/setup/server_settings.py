@@ -93,6 +93,9 @@ class McpServerSettings(BaseModel):
     columns: MetaSettings = MetaSettings()
     parameters: MetaSettings = MetaSettings()
 
+    enable_list_tools: bool = True
+    enable_find_tools: bool = True
+
     enable_read_query: bool = False
     enable_write_query: bool = False
     enable_summarize_table: bool = False

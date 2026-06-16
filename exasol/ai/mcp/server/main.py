@@ -359,17 +359,25 @@ def _register_describe_builtin_function(mcp_server: ExasolMCPServer) -> None:
 
 def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> None:
     if config.schemas.enable:
-        _register_list_schemas(mcp_server)
-        _register_find_schemas(mcp_server)
+        if config.enable_list_tools:
+            _register_list_schemas(mcp_server)
+        if config.enable_find_tools:
+            _register_find_schemas(mcp_server)
     if config.tables.enable or config.views.enable:
-        _register_list_tables(mcp_server)
-        _register_find_tables(mcp_server)
+        if config.enable_list_tools:
+            _register_list_tables(mcp_server)
+        if config.enable_find_tools:
+            _register_find_tables(mcp_server)
     if config.functions.enable:
-        _register_list_functions(mcp_server)
-        _register_find_functions(mcp_server)
+        if config.enable_list_tools:
+            _register_list_functions(mcp_server)
+        if config.enable_find_tools:
+            _register_find_functions(mcp_server)
     if config.scripts.enable:
-        _register_list_scripts(mcp_server)
-        _register_find_scripts(mcp_server)
+        if config.enable_list_tools:
+            _register_list_scripts(mcp_server)
+        if config.enable_find_tools:
+            _register_find_scripts(mcp_server)
     if config.enable_preprocessor_tools:
         _register_list_preprocessors(mcp_server)
         _register_set_preprocessor(mcp_server)

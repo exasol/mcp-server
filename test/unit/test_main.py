@@ -3,6 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from typing import Any
 from unittest.mock import (
+    MagicMock,
     create_autospec,
     patch,
 )
@@ -28,6 +29,7 @@ from exasol.ai.mcp.server.main import (
     get_mcp_settings,
     main_http,
     mcp_server,
+    register_tools,
     setup_logger,
 )
 from exasol.ai.mcp.server.setup.generic_auth import (
@@ -235,6 +237,52 @@ def test_main_http_error(mock_run, monkeypatch) -> None:
     result = runner.invoke(main_http)
     assert result.exit_code > 0
     assert result.exception is not None
+
+
+def test_register_tools_list_disabled() -> None:
+    config = McpServerSettings(enable_list_tools=False)
+    with (
+        patch("exasol.ai.mcp.server.main._register_list_schemas") as p_ls,
+        patch("exasol.ai.mcp.server.main._register_find_schemas") as p_fs,
+        patch("exasol.ai.mcp.server.main._register_list_tables") as p_lt,
+        patch("exasol.ai.mcp.server.main._register_find_tables") as p_ft,
+        patch("exasol.ai.mcp.server.main._register_list_functions") as p_lf,
+        patch("exasol.ai.mcp.server.main._register_find_functions") as p_ff,
+        patch("exasol.ai.mcp.server.main._register_list_scripts") as p_lsc,
+        patch("exasol.ai.mcp.server.main._register_find_scripts") as p_fsc,
+    ):
+        register_tools(MagicMock(), config)
+        p_ls.assert_not_called()
+        p_lt.assert_not_called()
+        p_lf.assert_not_called()
+        p_lsc.assert_not_called()
+        p_fs.assert_called_once()
+        p_ft.assert_called_once()
+        p_ff.assert_called_once()
+        p_fsc.assert_called_once()
+
+
+def test_register_tools_find_disabled() -> None:
+    config = McpServerSettings(enable_find_tools=False)
+    with (
+        patch("exasol.ai.mcp.server.main._register_list_schemas") as p_ls,
+        patch("exasol.ai.mcp.server.main._register_find_schemas") as p_fs,
+        patch("exasol.ai.mcp.server.main._register_list_tables") as p_lt,
+        patch("exasol.ai.mcp.server.main._register_find_tables") as p_ft,
+        patch("exasol.ai.mcp.server.main._register_list_functions") as p_lf,
+        patch("exasol.ai.mcp.server.main._register_find_functions") as p_ff,
+        patch("exasol.ai.mcp.server.main._register_list_scripts") as p_lsc,
+        patch("exasol.ai.mcp.server.main._register_find_scripts") as p_fsc,
+    ):
+        register_tools(MagicMock(), config)
+        p_ls.assert_called_once()
+        p_lt.assert_called_once()
+        p_lf.assert_called_once()
+        p_lsc.assert_called_once()
+        p_fs.assert_not_called()
+        p_ft.assert_not_called()
+        p_ff.assert_not_called()
+        p_fsc.assert_not_called()
 
 
 @patch("fastmcp.FastMCP.run")
