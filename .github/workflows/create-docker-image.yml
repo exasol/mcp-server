@@ -17,7 +17,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-24.04
-
+    permissions:
+      contents: read
     steps:
     - name: SCM Checkout
       uses: actions/checkout@v6
@@ -25,20 +26,20 @@ jobs:
         persist-credentials: false
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v4
+      uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
     - name: Set up Docker Build
-      uses: docker/setup-buildx-action@v4
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v4
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
       with:
         username: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
         password: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
 
     - name: Build and push Release Docker Image
       if: ${{ github.event_name != 'workflow_dispatch' }}
-      uses: docker/build-push-action@v7
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
       with:
         context: .
         push: true
@@ -49,7 +50,7 @@ jobs:
 
     - name: Build and push Docker Image on request
       if: ${{ github.event_name == 'workflow_dispatch' }}
-      uses: docker/build-push-action@v7
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
       with:
         context: .
         push: true
@@ -60,13 +61,15 @@ jobs:
       id: scan-tag
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "tag=exasol/mcp-server:${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
+          echo "tag=exasol/mcp-server:${INPUTS_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
         else
-          echo "tag=exasol/mcp-server:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "tag=exasol/mcp-server:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
         fi
+      env:
+        INPUTS_IMAGE_NAME: ${{ inputs.image_name }}
 
     - name: Scan image for vulnerabilities
-      uses: aquasecurity/trivy-action@v0.36.0
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         image-ref: ${{ steps.scan-tag.outputs.tag }}
         severity: 'CRITICAL,HIGH'
