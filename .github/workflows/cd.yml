@@ -1,3 +1,5 @@
+# Generated and maintained by the exasol-toolbox.
+# Last generated with exasol-toolbox version 10.0.0.
 name: CD
 
 on:
@@ -23,6 +25,17 @@ jobs:
     secrets:
       PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
+  cd-extension:
+    name: Extension
+    uses: ./.github/workflows/cd-extension.yml
+    needs:
+      - check-release-tag
+    secrets:
+      CI4_DOCKERHUB_TOKEN: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
+      CI4_DOCKERHUB_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
+    permissions:
+      contents: write
+
   publish-docs:
     needs:
       - build-and-publish
@@ -32,14 +45,3 @@ jobs:
       contents: read
       pages: write
       id-token: write
-
-  create-docker-image:
-    needs:
-      - check-release-tag
-    name: Docker Deployment
-    uses: ./.github/workflows/create-docker-image.yml
-    permissions:
-      contents: write
-    secrets:
-      CI4_DOCKERHUB_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
-      CI4_DOCKERHUB_TOKEN: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
