@@ -48,7 +48,7 @@ exasol-install-skills = "exasol.ai.mcp.server.main:install_skills_cli"
 
 [dependency-groups]
 dev = [
-    "exasol-toolbox>=8.2.0,<9",
+    "exasol-toolbox>=10.0.0,<11",
     "pytest-exasol-backend>=1.2.1,<2",
     "pytest-exasol-extension>=1.0.1,<2",
     "exasol-integration-test-docker-environment>=5.0.0,<6",
