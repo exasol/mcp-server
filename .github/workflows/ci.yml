@@ -11,6 +11,9 @@ jobs:
     name: Merge Gate
     uses: ./.github/workflows/merge-gate.yml
     secrets:
+      INTEGRATION_TEAM_SAAS_STAGING_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
+      INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
+      INTEGRATION_TEAM_SAAS_STAGING_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     permissions:
       contents: read

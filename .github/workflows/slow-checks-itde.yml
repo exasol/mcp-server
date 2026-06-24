@@ -6,12 +6,14 @@ on:
 jobs:
   build-matrix:
     name: Build Matrix
-    uses: ./.github/workflows/matrix-all.yml
+    uses: ./.github/workflows/matrix.yml
+    with:
+      matrix_keys_json: '["exasol_versions", "python_versions"]'
     permissions:
       contents: read
 
   run-integration-tests:
-    name: Run Integration Tests with ITDE (Python-${{ matrix.python-version }}, Exasol-${{ matrix.exasol-version}})
+    name: Run Integration Tests with ITDE (Python-${{ matrix.python_versions }}, Exasol-${{ matrix.exasol_versions}})
     needs:
       - build-matrix
     runs-on: "ubuntu-24.04"
@@ -29,9 +31,9 @@ jobs:
 
       - name: Set up Python & Poetry Environment
         id: set-up-python-and-poetry-environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v8
+        uses: exasol/python-toolbox/.github/actions/python-environment@v10
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python_versions }}
           poetry-version: "2.3.0"
 
       - name: Install optional test dependencies
@@ -44,13 +46,13 @@ jobs:
           JWK_URL=$(python -c "from test.utils.mcp_oidc_constants import DOCKER_JWK_URL; print(f'-oidcProviderJKU={DOCKER_JWK_URL}');")
           TOK_AUD=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_AUDIENCE; print(f'-oidcProviderAUD={TOKEN_AUDIENCE}');")
           TOK_ISS=$(python -c "from test.utils.mcp_oidc_constants import TOKEN_ISSUER; print(f'-oidcProviderISS={TOKEN_ISSUER}');")
-          poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol-version }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
+          poetry run -- nox -s test:integration -- -s --coverage --db-version ${{ matrix.exasol_versions }} --backend=onprem --itde-additional-db-parameter="$JWK_URL" --itde-additional-db-parameter="$TOK_AUD" --itde-additional-db-parameter="$TOK_ISS"
 
       - name: Upload Artifacts
         id: upload-artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-python${{ matrix.python-version }}-exasol${{ matrix.exasol-version}}-slow-itde
+          name: coverage-python${{ matrix.python_versions }}-exasol${{ matrix.exasol_versions}}-slow-itde
           path: .coverage
           include-hidden-files: true
           overwrite: false

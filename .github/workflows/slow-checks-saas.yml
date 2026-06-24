@@ -2,14 +2,33 @@ name: Slow-Checks-SaaS
 
 on:
   workflow_call:
+    secrets:
+      INTEGRATION_TEAM_SAAS_STAGING_HOST:
+        required: true
+      INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID:
+        required: true
+      INTEGRATION_TEAM_SAAS_STAGING_PAT:
+        required: true
 
 jobs:
-  run-integration-tests:
-    name: Run Integration Tests with SaaS (Python-3.12)
-    runs-on: ubuntu-24.04
+  build-matrix:
+    name: Build Matrix
+    uses: ./.github/workflows/matrix.yml
+    with:
+      matrix_keys_json: '["minimum_python_version"]'
     permissions:
       contents: read
 
+  run-integration-tests:
+    name: Run Integration Tests with SaaS (Python-${{ matrix.minimum_python_version }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs:
+     - build-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
     steps:
       - name: Check out Repository
         id: check-out-repository
@@ -19,9 +38,9 @@ jobs:
 
       - name: Set up Python & Poetry Environment
         id: set-up-python-and-poetry-environment
-        uses: exasol/python-toolbox/.github/actions/python-environment@v8
+        uses: exasol/python-toolbox/.github/actions/python-environment@v10
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.minimum_python_version }}
           poetry-version: "2.3.0"
 
       - name: Run Integration Tests
@@ -36,7 +55,7 @@ jobs:
         id: upload-artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-python3.12-slow-saas
+          name: coverage-python${{ matrix.minimum_python_version }}-slow-saas
           path: .coverage
           include-hidden-files: true
           overwrite: false
