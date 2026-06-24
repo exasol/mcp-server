@@ -1,7 +1,0 @@
-workflows:
-  - name: checks
-    # This is needed because the `cd.yml` has a minor manual modification.
-    # This job will be re-activated in:
-    #   https://github.com/exasol/mcp-server/issues/243
-    remove_jobs:
-      - check-workflows

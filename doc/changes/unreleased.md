@@ -10,3 +10,7 @@
 ## Documentation
 
 * #176: Added design document.
+
+## Refactoring
+
+* #243: Re-enabled check-workflows in `checks.yml` and updated to exasol-toolbox 10.0.0

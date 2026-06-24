@@ -2,18 +2,27 @@ name: Slow-Checks
 
 on:
   workflow_call:
+    secrets:
+      INTEGRATION_TEAM_SAAS_STAGING_HOST:
+        required: true
+      INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID:
+        required: true
+      INTEGRATION_TEAM_SAAS_STAGING_PAT:
+        required: true
 
 jobs:
   run-slow-checks-itde:
     name: Run Slow Checks with ITDE
     uses: ./.github/workflows/slow-checks-itde.yml
-    secrets: inherit
     permissions:
       contents: read
 
   run-slow-checks-saas:
     name: Run Slow Checks with SaaS
     uses: ./.github/workflows/slow-checks-saas.yml
-    secrets: inherit
+    secrets:
+        INTEGRATION_TEAM_SAAS_STAGING_HOST: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_HOST }}
+        INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID }}
+        INTEGRATION_TEAM_SAAS_STAGING_PAT: ${{ secrets.INTEGRATION_TEAM_SAAS_STAGING_PAT }}
     permissions:
       contents: read

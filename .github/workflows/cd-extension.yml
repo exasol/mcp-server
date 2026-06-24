@@ -1,0 +1,19 @@
+name: CD-Extension
+
+on:
+  workflow_call:
+    secrets:
+      CI4_DOCKERHUB_TOKEN:
+        required: true
+      CI4_DOCKERHUB_USERNAME:
+        required: true
+
+jobs:
+  create-docker-image:
+    name: Docker Deployment
+    uses: ./.github/workflows/create-docker-image.yml
+    permissions:
+      contents: write
+    secrets:
+      CI4_DOCKERHUB_USERNAME: ${{ secrets.CI4_DOCKERHUB_USERNAME }}
+      CI4_DOCKERHUB_TOKEN: ${{ secrets.CI4_DOCKERHUB_TOKEN }}
