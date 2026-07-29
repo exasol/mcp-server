@@ -485,7 +485,7 @@ description = "Timeout context manager for asyncio programs"
 optional = true
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "python_version == \"3.11\" and extra == \"redis\" and python_full_version < \"3.11.3\""
+markers = "extra == \"redis\" and python_full_version < \"3.11.3\" and python_version == \"3.11\""
 files = [
     {file = "async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"},
     {file = "async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"},
@@ -1736,39 +1736,19 @@ idna = ">=2.0.0"
 
 [[package]]
 name = "exasol-bucketfs"
-version = "2.1.0"
+version = "2.3.0"
 description = "BucketFS utilities for the Python programming language"
 optional = false
-python-versions = "<4.0,>=3.10"
+python-versions = "<3.15,>=3.10"
 groups = ["main", "dev"]
-markers = "python_version == \"3.14\""
 files = [
-    {file = "exasol_bucketfs-2.1.0-py3-none-any.whl", hash = "sha256:82d0f87d756921846ce60b7af112a71a491019aa46976693046399805c303a12"},
-    {file = "exasol_bucketfs-2.1.0.tar.gz", hash = "sha256:55583af02e8a65b40bb15bc462e8bcdf1c0195e00f8c1e70148724869fb6da29"},
+    {file = "exasol_bucketfs-2.3.0-py3-none-any.whl", hash = "sha256:a3b05501563049266d1a8ec718df9a802bfb55ec9d1646fb4ef22e352ba63045"},
+    {file = "exasol_bucketfs-2.3.0.tar.gz", hash = "sha256:2c17d6a46c4169a3f07fe1339fe0d851ce290f010eee432db197e86386380daa"},
 ]
 
 [package.dependencies]
-attrs = ">=23.2.0"
-exasol-saas-api = ">2.0.0,<3.0"
-httpx = ">=0.27.0"
-requests = ">=2.32.4"
-
-[[package]]
-name = "exasol-bucketfs"
-version = "2.2.0"
-description = "BucketFS utilities for the Python programming language"
-optional = false
-python-versions = "<3.14,>=3.10"
-groups = ["main", "dev"]
-markers = "python_version < \"3.14\""
-files = [
-    {file = "exasol_bucketfs-2.2.0-py3-none-any.whl", hash = "sha256:cc1e1331467f64b951ee484fa0e51ba40d1e28bd7963cd09a021b793ba66531c"},
-    {file = "exasol_bucketfs-2.2.0.tar.gz", hash = "sha256:a66fe0e80756e034adc665dc1bc7f9c2115ecbb4d83ffd214099c35c6c62e539"},
-]
-
-[package.dependencies]
-exasol-saas-api = ">2.0.0,<3.0"
-requests = ">=2.32.4"
+exasol-saas-api = ">=2.10.0,<3.0"
+requests = ">=2.33.1"
 
 [[package]]
 name = "exasol-error-reporting"
@@ -5082,7 +5062,7 @@ description = "C parser in Python"
 optional = false
 python-versions = ">=3.10"
 groups = ["main", "dev", "dynamodb-tests"]
-markers = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
+markers = "implementation_name != \"PyPy\" and platform_python_implementation != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -5672,7 +5652,7 @@ description = "Library to implement a well-behaved Unix daemon process."
 optional = false
 python-versions = "*"
 groups = ["dev"]
-markers = "sys_platform == \"win32\" and python_version == \"3.11\""
+markers = "python_version == \"3.11\" and sys_platform == \"win32\""
 files = [
     {file = "python-daemon-2.1.2.tar.gz", hash = "sha256:261c859be5c12ae7d4286dc6951e87e9e1a70a882a8b41fd926efc1ec4214f73"},
     {file = "python_daemon-2.1.2-py2.py3-none-any.whl", hash = "sha256:53da55aec3bb67b576e13a8091a2181f99b395c2eec32a5a0d91d347a5c420a7"},
@@ -5690,7 +5670,7 @@ description = "Library to implement a well-behaved Unix daemon process."
 optional = false
 python-versions = ">=3.7"
 groups = ["dev"]
-markers = "sys_platform != \"win32\" or python_version >= \"3.12\""
+markers = "python_version >= \"3.12\" or sys_platform != \"win32\""
 files = [
     {file = "python_daemon-3.1.2-py3-none-any.whl", hash = "sha256:b906833cef63502994ad48e2eab213259ed9bb18d54fa8774dcba2ff7864cec6"},
     {file = "python_daemon-3.1.2.tar.gz", hash = "sha256:f7b04335adc473de877f5117e26d5f1142f4c9f7cd765408f0877757be5afbf4"},
@@ -5877,7 +5857,7 @@ files = [
     {file = "pywin32-ctypes-0.2.3.tar.gz", hash = "sha256:d162dc04946d704503b2edc4d55f3dba5c1d539ead017afa00142c38b9885755"},
     {file = "pywin32_ctypes-0.2.3-py3-none-any.whl", hash = "sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8"},
 ]
-markers = {main = "sys_platform == \"win32\"", dev = "platform_machine != \"ppc64le\" and platform_machine != \"s390x\" and sys_platform == \"win32\""}
+markers = {main = "sys_platform == \"win32\"", dev = "sys_platform == \"win32\" and platform_machine != \"ppc64le\" and platform_machine != \"s390x\""}
 
 [[package]]
 name = "pyyaml"
@@ -6501,7 +6481,7 @@ description = "C version of reader, parser and emitter for ruamel.yaml derived f
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
-markers = "platform_python_implementation == \"CPython\" and python_version < \"3.14\""
+markers = "python_version < \"3.14\" and platform_python_implementation == \"CPython\""
 files = [
     {file = "ruamel_yaml_clib-0.2.15-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:88eea8baf72f0ccf232c22124d122a7f26e8a24110a0273d9bcddcb0f7e1fa03"},
     {file = "ruamel_yaml_clib-0.2.15-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:9b6f7d74d094d1f3a4e157278da97752f16ee230080ae331fcc219056ca54f77"},
@@ -6672,7 +6652,7 @@ files = [
     {file = "setuptools-83.0.0-py3-none-any.whl", hash = "sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"},
     {file = "setuptools-83.0.0.tar.gz", hash = "sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef"},
 ]
-markers = {dev = "sys_platform == \"win32\" and python_version == \"3.11\""}
+markers = {dev = "python_version == \"3.11\" and sys_platform == \"win32\""}
 
 [package.extras]
 check = ["pytest-checkdocs (>=2.14)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\"", "ruff (>=0.13.0) ; sys_platform != \"cygwin\""]
