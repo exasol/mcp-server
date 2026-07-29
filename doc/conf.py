@@ -91,5 +91,6 @@ linkcheck_ignore: list[str] = [
 linkcheck_allowed_redirects = {
     # All HTTP redirections from the source URI to
     # the canonical URI will be treated as "working".
-    r"https://github\.com/.*": r"https://github\.com/login*"
+    r"https://github\.com/.*": r"https://github\.com/login*",
+    r"https://modelcontextprotocol\.io/docs/getting-started/intro": r"https://modelcontextprotocol\.io/docs/[^/]+/getting-started/intro",
 }
