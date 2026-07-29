@@ -1,23 +1,29 @@
 name: Slow-Checks-SaaS
 
 on:
-  workflow_call:
-    secrets:
-      INTEGRATION_TEAM_SAAS_STAGING_HOST:
-        required: true
-      INTEGRATION_TEAM_SAAS_STAGING_ACCOUNT_ID:
-        required: true
-      INTEGRATION_TEAM_SAAS_STAGING_PAT:
-        required: true
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
+  approve-run-slow-tests-saas:
+    name: Approve Running Slow Tests for SaaS?
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: read
+    environment: manual-approval
+    steps:
+      - name: Tests
+        run: echo "Slow tests for SaaS approved"
+
   build-matrix:
     name: Build Matrix
     uses: ./.github/workflows/matrix.yml
-    with:
-      matrix_keys_json: '["minimum_python_version"]'
+    needs:
+      - approve-run-slow-tests-saas
     permissions:
       contents: read
+    with:
+      matrix_keys_json: '["minimum_python_version"]'
 
   run-integration-tests:
     name: Run Integration Tests with SaaS (Python-${{ matrix.minimum_python_version }})
@@ -32,7 +38,7 @@ jobs:
     steps:
       - name: Check out Repository
         id: check-out-repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
