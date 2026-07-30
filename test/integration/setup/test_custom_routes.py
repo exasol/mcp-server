@@ -1,5 +1,5 @@
-import multiprocessing
 import ssl
+from test.utils.multiprocessing_utils import use_fork_start_method
 
 import httpx
 import pytest
@@ -22,17 +22,11 @@ from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 @pytest.fixture(autouse=True)
 def _use_fork_start_method(monkeypatch):
     """
-    Since Python 3.14 the default multiprocessing start method on POSIX is
-    "forkserver", which requires the ``multiprocessing.Process`` target and its
-    arguments to be picklable. ``run_server_in_process`` below relies on "fork"
-    semantics (shared memory, no pickling) to run the nested closure returned
-    by ``_mcp_server_factory``. Rather than changing the start method for the
-    whole test session, scope "fork" to just the process started by the test
-    in this module.
+    ``run_server_in_process`` below relies on "fork" semantics (shared memory,
+    no pickling) to run the nested closure returned by ``_mcp_server_factory``.
+    See ``use_fork_start_method`` for why this is needed since Python 3.14.
     """
-    monkeypatch.setattr(
-        multiprocessing, "Process", multiprocessing.get_context("fork").Process
-    )
+    use_fork_start_method(monkeypatch)
 
 
 def _mcp_server_factory(env: dict[str, str]):

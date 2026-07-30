@@ -64,6 +64,7 @@ from contextlib import (
 )
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
+from test.utils.multiprocessing_utils import use_fork_start_method
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -134,18 +135,12 @@ AUTH_SCOPE = "openid"
 @pytest.fixture(autouse=True)
 def _use_fork_start_method(monkeypatch):
     """
-    Since Python 3.14 the default multiprocessing start method on POSIX is
-    "forkserver", which requires the ``multiprocessing.Process`` target and its
-    arguments to be picklable. The MCP server launcher and the OAuth redirect
-    handler in this module rely on "fork" semantics (shared memory, no
-    pickling) to run local closures - and a live ``monkeypatch`` fixture - in a
-    child process. Rather than changing the start method for the whole test
-    session, scope "fork" to just the processes started by the tests in this
-    module.
+    The MCP server launcher and the OAuth redirect handler in this module rely
+    on "fork" semantics (shared memory, no pickling) to run local closures -
+    and a live ``monkeypatch`` fixture - in a child process. See
+    ``use_fork_start_method`` for why this is needed since Python 3.14.
     """
-    monkeypatch.setattr(
-        multiprocessing, "Process", multiprocessing.get_context("fork").Process
-    )
+    use_fork_start_method(monkeypatch)
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
