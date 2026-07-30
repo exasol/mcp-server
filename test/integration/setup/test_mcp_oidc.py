@@ -455,9 +455,13 @@ def _run_oidc_mcp_server(
         config=McpServerSettings(schemas=MetaListSettings(enable=True)),
         auth=auth,
     )
-    mcp_server.tool(_say_hello, description="The tool just says Hello")
     mcp_server.tool(
-        _get_access_token_string, description="The tool returns the access token"
+        _say_hello, name="say_hello", description="The tool just says Hello"
+    )
+    mcp_server.tool(
+        _get_access_token_string,
+        name="get_access_token_string",
+        description="The tool returns the access token",
     )
     mcp_server.run(transport="http", host=host, port=port)
 
