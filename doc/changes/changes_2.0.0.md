@@ -19,7 +19,7 @@ New range of supported Python versions.
 
 ## Dependencies
 
-* #252: Added support for Python3.14 and dropped Python3.10
+* #252: Added support for Python 3.14 and dropped Python 3.10
 
 ## Dependency Updates
 
