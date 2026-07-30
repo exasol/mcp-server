@@ -64,6 +64,7 @@ from contextlib import (
 )
 from test.utils.db_objects import ExaSchema
 from test.utils.mcp_oidc_constants import *
+from test.utils.multiprocessing_utils import use_fork_start_method
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -129,6 +130,17 @@ from exasol.ai.mcp.server.setup.server_settings import (
 from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
 
 AUTH_SCOPE = "openid"
+
+
+@pytest.fixture(autouse=True)
+def _use_fork_start_method(monkeypatch):
+    """
+    The MCP server launcher and the OAuth redirect handler in this module rely
+    on "fork" semantics (shared memory, no pickling) to run local closures -
+    and a live ``monkeypatch`` fixture - in a child process. See
+    ``use_fork_start_method`` for why this is needed since Python 3.14.
+    """
+    use_fork_start_method(monkeypatch)
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:

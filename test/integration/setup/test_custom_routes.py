@@ -1,4 +1,5 @@
 import ssl
+from test.utils.multiprocessing_utils import use_fork_start_method
 
 import httpx
 import pytest
@@ -16,6 +17,16 @@ from exasol.ai.mcp.server.connection.connection_factory import (
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+
+
+@pytest.fixture(autouse=True)
+def _use_fork_start_method(monkeypatch):
+    """
+    ``run_server_in_process`` below relies on "fork" semantics (shared memory,
+    no pickling) to run the nested closure returned by ``_mcp_server_factory``.
+    See ``use_fork_start_method`` for why this is needed since Python 3.14.
+    """
+    use_fork_start_method(monkeypatch)
 
 
 def _mcp_server_factory(env: dict[str, str]):

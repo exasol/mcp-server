@@ -37,7 +37,7 @@ The complete list of tools is formally described in the `Tool List <https://exas
 🔌️ Prerequisites
 -----------------
 
-* `Python <https://www.python.org/>`__ >= 3.10
+* `Python <https://www.python.org/>`__ >= 3.11
 * MCP Client application, e.g. `Claude Desktop <https://claude.ai/download>`__
 
 💾 Installation
