@@ -55,7 +55,6 @@ the url passed to the OAuth.redirect_handler.
 import asyncio
 import json
 import multiprocessing
-import os
 import ssl
 import time
 from collections.abc import Generator
@@ -72,6 +71,7 @@ import docker
 import httpx
 import joserfc.jwk as jose
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from authlib.integrations.flask_oauth2 import AuthorizationServer
 from authlib.jose.rfc7518 import RSAKey as _AuthlibRSAKey
 from authlib.oauth2.rfc9068 import JWTBearerTokenGenerator
@@ -129,6 +129,23 @@ from exasol.ai.mcp.server.setup.server_settings import (
 from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
 
 AUTH_SCOPE = "openid"
+
+
+@pytest.fixture(autouse=True)
+def _use_fork_start_method(monkeypatch):
+    """
+    Since Python 3.14 the default multiprocessing start method on POSIX is
+    "forkserver", which requires the ``multiprocessing.Process`` target and its
+    arguments to be picklable. The MCP server launcher and the OAuth redirect
+    handler in this module rely on "fork" semantics (shared memory, no
+    pickling) to run local closures - and a live ``monkeypatch`` fixture - in a
+    child process. Rather than changing the start method for the whole test
+    session, scope "fork" to just the processes started by the tests in this
+    module.
+    """
+    monkeypatch.setattr(
+        multiprocessing, "Process", multiprocessing.get_context("fork").Process
+    )
 
 
 def _validate_db_oidc_setup(pyexasol_connection: ExaConnection) -> None:
@@ -407,76 +424,62 @@ def setup_docker_network(run_on_itde, oidc_server):
     print(f"✓ Deleted network: {network_name}")
 
 
-def _set_auth_type(auth_env: dict[str, str], provider_type: type[AuthProvider]) -> None:
-    auth_env[ENV_PROVIDER_TYPE] = exa_provider_name(provider_type)
+def _set_auth_type(monkeypatch: MonkeyPatch, provider_type: type[AuthProvider]):
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, exa_provider_name(provider_type))
 
 
-def _set_auth_param(auth_env: dict[str, str], name: str, value: str) -> None:
-    auth_env[exa_parameter_env_name(AuthParameter(name))] = value
+def _set_auth_param(monkeypatch: MonkeyPatch, name: str, value: str):
+    monkeypatch.setenv(exa_parameter_env_name(AuthParameter(name)), value)
 
 
-def _say_hello() -> str:
-    user, _ = get_oidc_user(TOKEN_USERNAME)
-    return f"Hello {user}"
-
-
-def _get_access_token_string() -> str:
-    _, token = get_oidc_user(None)
-    return token
-
-
-def _run_oidc_mcp_server(
-    env: dict[str, str],
-    auth_env: dict[str, str] | None,
-    needs_base_url: bool,
-    host: str,
-    port: int,
-) -> None:
+def _mcp_server_factory(env: dict[str, str], monkeypatch: MonkeyPatch | None = None):
     """
-    Creates the MCP server and runs it as an http server at the provided host and
-    port. Also adds one more tool - say_hello - for testing the MCP OpenID
+    Returns an MCP server factory that creates the MCP server and runs it as an http
+    server at the provided host and port.
+    The factory also adds one more tool - say_hello - for testing the MCP OpenID
     infrastructure without the database.
     """
-    if auth_env is not None:
-        os.environ.update(auth_env)
-    if needs_base_url:
-        os.environ[exa_parameter_env_name(AuthParameter("base_url"))] = (
-            f"http://{host}:{port}"
-        )
-    auth = get_auth_provider()
-    connection_factory = get_connection_factory(
-        env,
-        websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
-    )
-    connection = DbConnection(connection_factory=connection_factory)
 
-    mcp_server = create_mcp_server(
-        connection=connection,
-        config=McpServerSettings(schemas=MetaListSettings(enable=True)),
-        auth=auth,
-    )
-    mcp_server.tool(
-        _say_hello, name="say_hello", description="The tool just says Hello"
-    )
-    mcp_server.tool(
-        _get_access_token_string,
-        name="get_access_token_string",
-        description="The tool returns the access token",
-    )
-    mcp_server.run(transport="http", host=host, port=port)
+    def say_hello() -> str:
+        user, _ = get_oidc_user(TOKEN_USERNAME)
+        return f"Hello {user}"
+
+    def get_access_token_string() -> str:
+        _, token = get_oidc_user(None)
+        return token
+
+    def run_server(host: str, port: int) -> None:
+
+        if monkeypatch is not None:
+            _set_auth_param(monkeypatch, "base_url", f"http://{host}:{port}")
+        auth = get_auth_provider()
+        connection_factory = get_connection_factory(
+            env,
+            websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
+        )
+        connection = DbConnection(connection_factory=connection_factory)
+
+        mcp_server = create_mcp_server(
+            connection=connection,
+            config=McpServerSettings(schemas=MetaListSettings(enable=True)),
+            auth=auth,
+        )
+        mcp_server.tool(say_hello, description="The tool just says Hello")
+        mcp_server.tool(
+            get_access_token_string, description="The tool returns the access token"
+        )
+        mcp_server.run(transport="http", host=host, port=port)
+
+    return run_server
 
 
 def _start_mcp_server(
-    env: dict[str, str],
-    auth_env: dict[str, str] | None = None,
-    needs_base_url: bool = False,
+    env: dict[str, str], monkeypatch: MonkeyPatch | None = None
 ) -> Generator[None, None, str]:
     """
     Starts the MCP server in a separate process and returns its url.
     """
-    with run_server_in_process(
-        _run_oidc_mcp_server, env, auth_env, needs_base_url
-    ) as url:
+    with run_server_in_process(_mcp_server_factory(env, monkeypatch)) as url:
         yield f"{url}/mcp"
 
 
@@ -537,24 +540,23 @@ def saas_env(
 
 
 @pytest.fixture
-def mcp_server_with_remote_oauth(oidc_server, oidc_env):
+def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that supports DCR.
     https://gofastmcp.com/servers/auth/remote-oauth
     """
-    auth_env: dict[str, str] = {}
-    _set_auth_type(auth_env, RemoteAuthProvider)
-    _set_auth_param(auth_env, "jwks_uri", f"{oidc_server}/jwks")
-    _set_auth_param(auth_env, "authorization_servers", oidc_server)
-    _set_auth_param(auth_env, "scopes_supported", AUTH_SCOPE)
+    _set_auth_type(monkeypatch, RemoteAuthProvider)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
+    _set_auth_param(monkeypatch, "authorization_servers", oidc_server)
+    _set_auth_param(monkeypatch, "scopes_supported", AUTH_SCOPE)
 
-    for url in _start_mcp_server(oidc_env, auth_env, needs_base_url=True):
+    for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with Remote OAuth started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env):
+def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that doesn't support DCR.
     https://gofastmcp.com/servers/auth/oauth-proxy
@@ -565,43 +567,43 @@ def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env):
     if not started_manually:
         pytest.skip("OAuth Proxy tests can only be run manually")
 
-    auth_env: dict[str, str] = {}
-    _set_auth_type(auth_env, OAuthProxy)
-    _set_auth_param(auth_env, "jwks_uri", f"{oidc_server}/jwks")
+    _set_auth_type(monkeypatch, OAuthProxy)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
     _set_auth_param(
-        auth_env,
+        monkeypatch,
         "upstream_authorization_endpoint",
         f"{oidc_server}/oauth2/authorize",
     )
-    _set_auth_param(auth_env, "upstream_token_endpoint", f"{oidc_server}/oauth2/token")
-    _set_auth_param(auth_env, "upstream_client_id", "MY_CLIENT_ID")
-    _set_auth_param(auth_env, "upstream_client_secret", "MY_CLIENT_SECRET")
+    _set_auth_param(
+        monkeypatch, "upstream_token_endpoint", f"{oidc_server}/oauth2/token"
+    )
+    _set_auth_param(monkeypatch, "upstream_client_id", "MY_CLIENT_ID")
+    _set_auth_param(monkeypatch, "upstream_client_secret", "MY_CLIENT_SECRET")
 
-    for url in _start_mcp_server(oidc_env, auth_env, needs_base_url=True):
+    for url in _start_mcp_server(oidc_env, monkeypatch):
         print(f"✓ MCP server with OAuth Proxy started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_token_verifier(oidc_server, oidc_env):
+def mcp_server_with_token_verifier(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server that only verifies externally provided tokens
     https://gofastmcp.com/servers/auth/token-verification
     """
-    auth_env: dict[str, str] = {}
-    _set_auth_type(auth_env, JWTVerifier)
-    _set_auth_param(auth_env, "jwks_uri", f"{oidc_server}/jwks")
-    for url in _start_mcp_server(oidc_env, auth_env):
+    _set_auth_type(monkeypatch, JWTVerifier)
+    _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
+    for url in _start_mcp_server(oidc_env):
         print(f"✓ MCP server with Token Verification started at {url}")
         yield url
 
 
 @pytest.fixture
-def mcp_server_with_saas(saas_env):
+def mcp_server_with_saas(saas_env, monkeypatch):
     """
     Starts the MCP server with no authorization.
     """
-    for url in _start_mcp_server(saas_env):
+    for url in _start_mcp_server(saas_env, monkeypatch):
         print(f"✓ MCP server with No OAuth started at {url}")
         yield url
 

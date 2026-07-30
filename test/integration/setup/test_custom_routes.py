@@ -1,3 +1,4 @@
+import multiprocessing
 import ssl
 
 import httpx
@@ -18,15 +19,38 @@ from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 
 
-def _run_mcp_server(env: dict[str, str], host: str, port: int) -> None:
-    connection_factory = get_connection_factory(
-        env,
-        websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
+@pytest.fixture(autouse=True)
+def _use_fork_start_method(monkeypatch):
+    """
+    Since Python 3.14 the default multiprocessing start method on POSIX is
+    "forkserver", which requires the ``multiprocessing.Process`` target and its
+    arguments to be picklable. ``run_server_in_process`` below relies on "fork"
+    semantics (shared memory, no pickling) to run the nested closure returned
+    by ``_mcp_server_factory``. Rather than changing the start method for the
+    whole test session, scope "fork" to just the process started by the test
+    in this module.
+    """
+    monkeypatch.setattr(
+        multiprocessing, "Process", multiprocessing.get_context("fork").Process
     )
-    connection = DbConnection(connection_factory=connection_factory)
 
-    mcp_server = create_mcp_server(connection=connection, config=McpServerSettings())
-    mcp_server.run(transport="http", host=host, port=port)
+
+def _mcp_server_factory(env: dict[str, str]):
+
+    def server_factory(host: str, port: int) -> None:
+
+        connection_factory = get_connection_factory(
+            env,
+            websocket_sslopt={"cert_reqs": ssl.CERT_NONE},
+        )
+        connection = DbConnection(connection_factory=connection_factory)
+
+        mcp_server = create_mcp_server(
+            connection=connection, config=McpServerSettings()
+        )
+        mcp_server.run(transport="http", host=host, port=port)
+
+    return server_factory
 
 
 @pytest.mark.parametrize(
@@ -43,7 +67,7 @@ def test_health_check(
     if not valid_password:
         env[ENV_PASSWORD] += "^^^"
     port = find_available_port()
-    with run_server_in_process(_run_mcp_server, env, port=port):
+    with run_server_in_process(_mcp_server_factory(env), port=port):
         url = f"http://localhost:{port}/health"
         response = httpx.request("GET", url)
         response.raise_for_status()
