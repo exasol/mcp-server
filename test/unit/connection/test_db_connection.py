@@ -96,7 +96,7 @@ def test_db_connection_execute_failure(snapshot):
     factory = FakeConnectionFactory(results=results, snapshot=snapshot)
     db_connection = DbConnection(factory, num_retries=2)
     with pytest.raises(RuntimeError) as exc_info:
-        db_connection.execute_query("SELECT 1", snapshot=snapshot).fetchval()
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
     assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaRequestError)
 
