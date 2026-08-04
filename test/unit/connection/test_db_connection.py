@@ -1,4 +1,5 @@
 import logging
+import traceback
 from contextlib import contextmanager
 from typing import (
     Any,
@@ -177,16 +178,21 @@ def test_db_connection_execute_non_pyexasol_error_propagates_unmodified(snapshot
 
 def test_db_connection_execute_error_is_logged_with_full_detail(snapshot, caplog):
     """
-    Tests that the original exception's full detail is logged server-side at
-    WARNING level (not just the bare fact that something failed), while the
-    exception raised to the caller only carries the sanitized message.
+    Tests that the original exception's full, unsanitized detail (e.g. dsn, user -
+    see FakeConnectionFactory) is logged server-side at WARNING level via `exc_info`,
+    while the exception raised to the caller only carries the sanitized message.
     """
     factory = FakeConnectionFactory(results=[pyexasol.ExaQueryError], snapshot=snapshot)
     db_connection = DbConnection(factory, num_retries=2)
     with caplog.at_level(logging.WARNING):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as exc_info:
             db_connection.execute_query("SELECT 1", snapshot=snapshot)
     assert len(caplog.records) == 1
     record = caplog.records[0]
     assert record.levelno == logging.WARNING
-    assert "error" in record.getMessage()
+    assert record.exc_info is not None
+    logged_detail = "".join(traceback.format_exception(*record.exc_info))
+    assert factory.connection.options["dsn"] in logged_detail
+    assert factory.connection.options["user"] in logged_detail
+    assert factory.connection.options["dsn"] not in str(exc_info.value)
+    assert factory.connection.options["user"] not in str(exc_info.value)

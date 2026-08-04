@@ -89,27 +89,8 @@ class DbConnection:
         check. This is intended for unauthenticated internal callers such as the health
         check endpoint.
         """
-        queries = [query] if isinstance(query, str) else query
-        attempt = 1
         try:
-            while True:
-                with self._conn_factory(no_auth=no_auth) as connection:
-                    connection.options["fetch_dict"] = True
-                    try:
-                        result = None
-                        for q in queries:
-                            result = (
-                                connection.meta.execute_snapshot(query=q)
-                                if snapshot
-                                else connection.execute(query=q)
-                            )
-                        return result
-
-                    except (ExaCommunicationError, ExaRuntimeError, ExaAuthError):
-                        connection.close()
-                        if attempt == self._num_retries:
-                            raise
-                        attempt += 1
+            return self._execute_with_retries(query, snapshot=snapshot, no_auth=no_auth)
         except ExaQueryError as ex:
             logger.warning(
                 "Query execution failed with a database error", exc_info=True
@@ -120,3 +101,32 @@ class DbConnection:
                 "A pyexasol error occurred while executing a query", exc_info=True
             )
             raise RuntimeError(GENERIC_DB_ERROR_MESSAGE) from ex
+
+    def _execute_with_retries(
+        self, query: str | list[str], snapshot: bool, no_auth: bool
+    ) -> ExaStatement:
+        queries = [query] if isinstance(query, str) else query
+        attempt = 1
+        while True:
+            with self._conn_factory(no_auth=no_auth) as connection:
+                connection.options["fetch_dict"] = True
+                try:
+                    return self._run_queries(connection, queries, snapshot=snapshot)
+                except (ExaCommunicationError, ExaRuntimeError, ExaAuthError):
+                    connection.close()
+                    if attempt == self._num_retries:
+                        raise
+                    attempt += 1
+
+    @staticmethod
+    def _run_queries(
+        connection: ExaConnection, queries: list[str], snapshot: bool
+    ) -> ExaStatement:
+        result = None
+        for q in queries:
+            result = (
+                connection.meta.execute_snapshot(query=q)
+                if snapshot
+                else connection.execute(query=q)
+            )
+        return result
