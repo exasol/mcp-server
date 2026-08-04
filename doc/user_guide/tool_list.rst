@@ -527,3 +527,16 @@ describe_exasol_built_in_function
         - ``syntax``: call syntax, if available
         - ``usage``: guidelines, restrictions and limitations, if applicable
         - ``example``: one or more call examples
+
+Error Handling
+--------------
+
+If a database-backed tool (e.g. ``execute_exasol_query``) fails because of an error
+returned by the Exasol server or the underlying driver, the error message returned to
+the client never includes internal connection details such as the DSN, database or OS
+username, OS name, or driver/client version. For errors specific to the query itself
+(for example a SQL syntax error or a reference to a non-existent object) the message
+includes the original database error text, since that text does not carry any such
+internal information. For all other database-level errors (for example connection or
+authentication failures) a generic message is returned instead; full details are only
+available in the server-side log.

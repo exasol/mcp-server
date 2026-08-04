@@ -1,3 +1,5 @@
+import logging
+import traceback
 from contextlib import contextmanager
 from typing import (
     Any,
@@ -8,7 +10,11 @@ from unittest.mock import MagicMock
 import pyexasol
 import pytest
 
-from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import (
+    GENERIC_DB_ERROR_MESSAGE,
+    QUERY_ERROR_PREFIX,
+    DbConnection,
+)
 
 
 def _create_mock_statement(val: Any) -> pyexasol.ExaStatement:
@@ -20,6 +26,8 @@ def _create_mock_statement(val: Any) -> pyexasol.ExaStatement:
 def _create_mock_exception(
     ex_type: type[pyexasol.ExaError], connection: pyexasol.ExaConnection
 ) -> pyexasol.ExaError:
+    if issubclass(ex_type, pyexasol.ExaQueryError):
+        return ex_type(connection, query="SELECT 1", code=666, message="error")
     if issubclass(ex_type, pyexasol.ExaRequestError):
         return ex_type(connection, code=666, message="error")
     return ex_type(connection, message="error")
@@ -28,7 +36,14 @@ def _create_mock_exception(
 class FakeConnectionFactory:
     def __init__(self, results: list[Any], snapshot: bool):
         self.connection = MagicMock(spec=pyexasol.ExaConnection)
-        self.connection.options = {}
+        # A real ExaConnection always carries these keys (verbose_error defaults to
+        # True in pyexasol); ExaError.__str__() needs them to render, which the
+        # sanitizing log call in db_connection.py relies on.
+        self.connection.options = {
+            "verbose_error": True,
+            "dsn": "mock-dsn",
+            "user": "mock-user",
+        }
         self.connection.is_closed = False
         self.connection.close.side_effect = self._close
         side_effect = [
@@ -74,13 +89,17 @@ def test_db_connection_execute_success(snapshot):
 
 def test_db_connection_execute_failure(snapshot):
     """
-    Tests the failure of a query execution first time.
+    Tests that a non-retryable, non-query pyexasol error (ExaRequestError) is
+    sanitized to a generic connection-tier RuntimeError, with the original
+    exception preserved as __cause__.
     """
     results = [pyexasol.ExaRequestError, 1]
     factory = FakeConnectionFactory(results=results, snapshot=snapshot)
     db_connection = DbConnection(factory, num_retries=2)
-    with pytest.raises(pyexasol.ExaRequestError):
-        db_connection.execute_query("SELECT 1", snapshot=snapshot).fetchval()
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaRequestError)
 
 
 def test_db_connection_execute_retry_success(snapshot):
@@ -102,7 +121,9 @@ def test_db_connection_execute_retry_success(snapshot):
 
 def test_db_connection_execute_retry_failure(snapshot):
     """
-    Tests the failure after a number of retries.
+    Tests that after retries are exhausted, the last error (ExaAuthError) is
+    sanitized to a generic connection-tier RuntimeError, with the original
+    exception preserved as __cause__.
     """
     results = [
         pyexasol.ExaCommunicationError,
@@ -112,5 +133,66 @@ def test_db_connection_execute_retry_failure(snapshot):
     ]
     factory = FakeConnectionFactory(results=results, snapshot=snapshot)
     db_connection = DbConnection(factory, num_retries=3)
-    with pytest.raises(pyexasol.ExaAuthError):
+    with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaAuthError)
+
+
+@pytest.mark.parametrize(
+    "ex_type",
+    [
+        pyexasol.ExaQueryError,
+        pyexasol.ExaQueryTimeoutError,
+        pyexasol.ExaQueryAbortError,
+    ],
+)
+def test_db_connection_execute_query_error_detail_preserved(snapshot, ex_type):
+    """
+    Tests that ExaQueryError (and subclasses) surface the original `.message` to
+    the caller: this exception family's `.message` does not carry
+    dsn/user/schema/session_id info (unlike the generic ExaError `__str__` output).
+    """
+    factory = FakeConnectionFactory(results=[ex_type], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == f"{QUERY_ERROR_PREFIX}error"
+    assert isinstance(exc_info.value.__cause__, ex_type)
+
+
+def test_db_connection_execute_non_pyexasol_error_propagates_unmodified(snapshot):
+    """
+    Tests that a bug in our own code (a non-pyexasol exception) is not caught or
+    sanitized by execute_query, and propagates unmodified.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    if snapshot:
+        factory.connection.meta.execute_snapshot.side_effect = TypeError("boom")
+    else:
+        factory.connection.execute.side_effect = TypeError("boom")
+    db_connection = DbConnection(factory, num_retries=2)
+    with pytest.raises(TypeError, match="boom"):
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+
+
+def test_db_connection_execute_error_is_logged_with_full_detail(snapshot, caplog):
+    """
+    Tests that the original exception's full, unsanitized detail (e.g. dsn, user -
+    see FakeConnectionFactory) is logged server-side at WARNING level via `exc_info`,
+    while the exception raised to the caller only carries the sanitized message.
+    """
+    factory = FakeConnectionFactory(results=[pyexasol.ExaQueryError], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError) as exc_info:
+            db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == logging.WARNING
+    assert record.exc_info is not None
+    logged_detail = "".join(traceback.format_exception(*record.exc_info))
+    assert factory.connection.options["dsn"] in logged_detail
+    assert factory.connection.options["user"] in logged_detail
+    assert factory.connection.options["dsn"] not in str(exc_info.value)
+    assert factory.connection.options["user"] not in str(exc_info.value)
