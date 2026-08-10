@@ -10,10 +10,12 @@ from test.utils.db_objects import (
 )
 from test.utils.result_utils import (
     get_list_result_json,
+    get_query_result_json,
     get_result_json,
     get_sort_result_json,
     list_tools,
     result_sort_func,
+    to_dicts,
 )
 from test.utils.tool_utils import run_tool
 from typing import Any
@@ -834,8 +836,9 @@ def test_set_preprocessor(
     assert db_preprocessor.name.upper() in data[CURRENT_PREPROCESSOR_FIELD].upper()
 
 
+@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
 def test_summarize_table(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ) -> None:
     """
     Test the `summarize_exasol_table` tool. Verifies column statistics and sample data
@@ -844,6 +847,7 @@ def test_summarize_table(
     config = McpServerSettings(
         enable_summarize_table=True,
         columns=MetaSettings(enable=True),
+        query_result_format=query_result_format,
     )
     ski_resort = next(t for t in db_tables if t.name == "ski_resort")
 
@@ -906,7 +910,7 @@ def test_summarize_table(
         assert altitude["null_percentage"] == 0
 
         # Sample
-        sample = result_json["sample"]
+        sample = to_dicts(result_json["sample"])
         assert len(sample) > 0
         assert len(sample) <= 10
 
@@ -921,13 +925,18 @@ def test_summarize_table_disabled(pyexasol_connection) -> None:
     assert "summarize_exasol_table" not in tool_list
 
 
-def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+def test_execute_query(
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
+):
     """
     Test the `execute_query` tool. Runs the simplest SELECT query that grabs the entire
     content of a table and validates this content. The tool is tested on each table
-    of every schema.
+    of every schema, against both values of `query_result_format`.
     """
-    config = McpServerSettings(enable_read_query=True)
+    config = McpServerSettings(
+        enable_read_query=True, query_result_format=query_result_format
+    )
     for schema in db_schemas:
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -938,7 +947,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
                 query=query,
             )
             if result.content:
-                result_json = get_list_result_json(result)
+                result_json = get_query_result_json(result)
             else:
                 result_json = []
             expected_json = [
@@ -947,6 +956,29 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
             ]
             expected_json.sort(key=result_sort_func)
             assert result_json == expected_json
+
+
+def test_execute_query_preserves_duplicate_columns(
+    pyexasol_connection, setup_database, db_schemas, db_tables
+):
+    """
+    A result set with two identically-named columns (e.g. the same column selected
+    twice) silently collapses to one key under the dict format
+    (`dict(zip(col_names, row))` drops one value). The default columnar format reads
+    rows positionally and must preserve both.
+    """
+    schema = db_schemas[0]
+    table = next(t for t in db_tables if t.columns)
+    col_name = table.columns[0].name
+    query = f'SELECT "{col_name}", "{col_name}" FROM "{schema.name}"."{table.name}"'
+    config = McpServerSettings(enable_read_query=True)
+    result = run_tool(
+        pyexasol_connection, config, tool_name="execute_exasol_query", query=query
+    )
+    result_json = get_result_json(result)
+    assert result_json["columns"] == [col_name, col_name]
+    if table.rows:
+        assert len(result_json["rows"][0]) == 2
 
 
 def test_execute_query_error(
@@ -972,13 +1004,16 @@ def test_execute_query_error(
                 )
 
 
+@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
 def test_execute_query_with_row_limit(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ):
     """
     Test that the row_limit parameter caps the number of returned rows.
     """
-    config = McpServerSettings(enable_read_query=True)
+    config = McpServerSettings(
+        enable_read_query=True, query_result_format=query_result_format
+    )
     row_limit = 1
     for schema in db_schemas:
         for table in db_tables:
@@ -992,15 +1027,20 @@ def test_execute_query_with_row_limit(
                 query=query,
                 row_limit=row_limit,
             )
-            result_json = get_list_result_json(result) if result.content else []
+            result_json = get_query_result_json(result) if result.content else []
             assert len(result_json) <= row_limit
 
 
-def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+def test_profile_query(
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
+):
     """
     Test that profile_exasol_query returns a non-empty execution plan for a valid query.
     """
-    config = McpServerSettings(enable_query_profiling=True)
+    config = McpServerSettings(
+        enable_query_profiling=True, query_result_format=query_result_format
+    )
     schema = db_schemas[0]
     table = db_tables[0]
     query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -1010,7 +1050,7 @@ def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_table
         tool_name="profile_exasol_query",
         query=query,
     )
-    result_json = get_list_result_json(result)
+    result_json = get_query_result_json(result)
     assert len(result_json) > 0
     assert "PART_NAME" in result_json[0]
     assert "DURATION" in result_json[0]

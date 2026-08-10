@@ -1,5 +1,8 @@
 import warnings
-from typing import Any
+from typing import (
+    Any,
+    Literal,
+)
 
 from pydantic import (
     BaseModel,
@@ -104,6 +107,21 @@ class McpServerSettings(BaseModel):
     enable_read_bucketfs: bool = False
     enable_write_bucketfs: bool = False
     disable_elicitation: bool = False
+
+    query_result_format: Literal["columnar", "dict"] = "columnar"
+    """
+    Shape of the tabular data returned by execute_exasol_query, profile_exasol_query
+    and the sample rows of summarize_exasol_table.
+
+    "columnar" (the default) returns the column names once and the rows as arrays of
+    values in that same order, e.g. {"columns": ["ID", "NAME"], "rows": [[1, "Alice"]]}.
+    This is more compact for wide or long results.
+
+    "dict" returns each row as an object with column names as keys, e.g.
+    [{"ID": 1, "NAME": "Alice"}]. This matches the format used before this setting was
+    introduced and may be preferable if the connecting model handles that shape more
+    reliably.
+    """
 
     language: str = ""
     """

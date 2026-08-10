@@ -16,6 +16,7 @@ from pydantic import (
     BaseModel,
     Field,
 )
+from pyexasol import ExaStatement
 from sqlglot import (
     exp,
     parse_one,
@@ -54,7 +55,9 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBReturnFunction,
     DBTable,
     DBTableSummary,
+    DBTableSummaryColumnar,
     QualifiedDBObject,
+    QueryResult,
     SQLTypeInfo,
 )
 from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
@@ -117,6 +120,26 @@ RowLimitArg = Annotated[
     ),
 ]
 
+SampleSizeArg = Annotated[
+    int,
+    Field(
+        description="Number of sample rows to include in the result",
+        default=10,
+        ge=1,
+        le=100,
+    ),
+]
+
+TopValuesArg = Annotated[
+    int,
+    Field(
+        description="Number of most common distinct values to return per column",
+        default=5,
+        ge=1,
+        le=100,
+    ),
+]
+
 M = TypeVar("M", bound=BaseModel)
 
 
@@ -154,6 +177,28 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if INFO_COLUMN in row:
             row.pop(INFO_COLUMN)
     return result
+
+
+def _statement_to_columnar(statement: ExaStatement) -> QueryResult:
+    """
+    Reads a query result positionally instead of as dict rows, so that columns are
+    read from the cursor metadata (correct even for an empty result set or a result
+    set with duplicate column names) rather than from the keys of the first row.
+    """
+    statement.fetch_dict = False
+    return QueryResult(
+        columns=statement.column_names(),
+        rows=[list(row) for row in statement.fetchall()],
+    )
+
+
+def _dicts_to_columnar(rows: list[dict[str, Any]]) -> QueryResult:
+    if not rows:
+        return QueryResult(columns=[], rows=[])
+    columns = list(rows[0].keys())
+    return QueryResult(
+        columns=columns, rows=[[row[c] for c in columns] for row in rows]
+    )
 
 
 _NUMERIC_TYPE_PREFIXES = frozenset(
@@ -568,29 +613,9 @@ class ExasolMCPServer(FastMCP):
             )
         return result
 
-    def summarize_table(
-        self,
-        schema_name: SchemaNameArg,
-        table_name: TableNameArg,
-        sample_size: Annotated[
-            int,
-            Field(
-                description="Number of sample rows to include in the result",
-                default=10,
-                ge=1,
-                le=100,
-            ),
-        ] = 10,
-        top_values: Annotated[
-            int,
-            Field(
-                description="Number of most common distinct values to return per column",
-                default=5,
-                ge=1,
-                le=100,
-            ),
-        ] = 5,
-    ) -> DBTableSummary:
+    def _summarize_table_core(
+        self, schema_name: str, table_name: str, sample_size: int, top_values: int
+    ) -> tuple[str | None, int, list[DBColumnSummary], list[dict[str, Any]]]:
         if not self.config.enable_summarize_table:
             raise RuntimeError("The table summarization is disabled.")
         columns = self.describe_columns(schema_name, table_name)
@@ -608,13 +633,48 @@ class ExasolMCPServer(FastMCP):
         sample_data = self.connection.execute_query(
             _build_sample_query(table_ref, sample_size), snapshot=False
         ).fetchall()
+        column_summaries = _build_column_summaries(
+            columns, stats_row, column_top_values
+        )
+        row_count = stats_row.get("ROW_COUNT", 0) if stats_row else 0
+        return comment, row_count, column_summaries, sample_data
+
+    def summarize_table(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: SampleSizeArg = 10,
+        top_values: TopValuesArg = 5,
+    ) -> DBTableSummary:
+        comment, row_count, column_summaries, sample_data = self._summarize_table_core(
+            schema_name, table_name, sample_size, top_values
+        )
         return DBTableSummary(
             schema=schema_name,
             name=table_name,
             comment=comment,
-            row_count=stats_row.get("ROW_COUNT", 0) if stats_row else 0,
-            columns=_build_column_summaries(columns, stats_row, column_top_values),
+            row_count=row_count,
+            columns=column_summaries,
             sample=sample_data,
+        )
+
+    def summarize_table_columnar(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: SampleSizeArg = 10,
+        top_values: TopValuesArg = 5,
+    ) -> DBTableSummaryColumnar:
+        comment, row_count, column_summaries, sample_data = self._summarize_table_core(
+            schema_name, table_name, sample_size, top_values
+        )
+        return DBTableSummaryColumnar(
+            schema=schema_name,
+            name=table_name,
+            comment=comment,
+            row_count=row_count,
+            columns=column_summaries,
+            sample=_dicts_to_columnar(sample_data),
         )
 
     def describe_function(
@@ -631,9 +691,7 @@ class ExasolMCPServer(FastMCP):
             DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
-    def execute_query(
-        self, query: QueryArg, row_limit: RowLimitArg = None
-    ) -> list[dict[str, Any]]:
+    def _execute_select_query(self, query: str, row_limit: int | None) -> ExaStatement:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if not verify_query(query):
@@ -641,9 +699,19 @@ class ExasolMCPServer(FastMCP):
         effective_query = (
             _build_preview_query(query, row_limit) if row_limit is not None else query
         )
-        return self.connection.execute_query(effective_query, snapshot=False).fetchall()
+        return self.connection.execute_query(effective_query, snapshot=False)
 
-    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+    def execute_query(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> list[dict[str, Any]]:
+        return self._execute_select_query(query, row_limit).fetchall()
+
+    def execute_query_columnar(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> QueryResult:
+        return _statement_to_columnar(self._execute_select_query(query, row_limit))
+
+    def _run_profile_query(self, query: str) -> ExaStatement:
         if not self.config.enable_query_profiling:
             raise RuntimeError("Query profiling is disabled.")
         if not verify_query(query):
@@ -659,7 +727,13 @@ class ExasolMCPServer(FastMCP):
         if not profile_already_on:
             statements.append("ALTER SESSION SET PROFILE = 'OFF'")
         statements.append(_build_profile_select(query))
-        return self.connection.execute_query(statements, snapshot=False).fetchall()
+        return self.connection.execute_query(statements, snapshot=False)
+
+    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+        return self._run_profile_query(query).fetchall()
+
+    def profile_query_columnar(self, query: QueryArg) -> QueryResult:
+        return _statement_to_columnar(self._run_profile_query(query))
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:

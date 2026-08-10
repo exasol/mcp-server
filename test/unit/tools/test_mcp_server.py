@@ -16,7 +16,9 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_set_preprocessor_query,
     _build_stats_query,
     _build_top_values_query,
+    _dicts_to_columnar,
     _is_numeric_type,
+    _statement_to_columnar,
     remove_info_column,
     verify_query,
 )
@@ -24,6 +26,7 @@ from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
     DBObject,
+    QueryResult,
 )
 
 
@@ -199,6 +202,73 @@ def test_execute_meta_query_empty_result():
     server = ExasolMCPServer(connection=connection, config=config)
     result = server._execute_meta_query("SELECT 1", DBObject)
     assert result == []
+
+
+def test_dicts_to_columnar():
+    rows = [{"ID": 1, "NAME": "Alice"}, {"ID": 2, "NAME": "Bob"}]
+    result = _dicts_to_columnar(rows)
+    assert result == QueryResult(
+        columns=["ID", "NAME"], rows=[[1, "Alice"], [2, "Bob"]]
+    )
+
+
+def test_dicts_to_columnar_empty():
+    assert _dicts_to_columnar([]) == QueryResult(columns=[], rows=[])
+
+
+def test_statement_to_columnar():
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "NAME"]
+    statement.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+    result = _statement_to_columnar(statement)
+    assert statement.fetch_dict is False
+    assert result == QueryResult(
+        columns=["ID", "NAME"], rows=[[1, "Alice"], [2, "Bob"]]
+    )
+
+
+def test_statement_to_columnar_empty_result_keeps_columns():
+    """
+    Columns must come from the cursor metadata, not from the first row, otherwise an
+    empty result set would be indistinguishable from "no columns".
+    """
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "NAME"]
+    statement.fetchall.return_value = []
+    result = _statement_to_columnar(statement)
+    assert result == QueryResult(columns=["ID", "NAME"], rows=[])
+
+
+def test_statement_to_columnar_preserves_duplicate_column_names():
+    """
+    dict(zip(col_names, row)), used for the dict-format output, silently collapses
+    same-named columns (e.g. a join on two tables that both have an ID column). The
+    columnar path reads rows positionally, so it must preserve both values.
+    """
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "ID"]
+    statement.fetchall.return_value = [(1, 2)]
+    result = _statement_to_columnar(statement)
+    assert result == QueryResult(columns=["ID", "ID"], rows=[[1, 2]])
+
+
+def test_execute_query_columnar():
+    connection = MagicMock()
+    connection.execute_query.return_value.column_names.return_value = ["ID"]
+    connection.execute_query.return_value.fetchall.return_value = [(1,), (2,)]
+    config = MagicMock()
+    config.enable_read_query = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.execute_query_columnar("SELECT ID FROM T")
+    assert result == QueryResult(columns=["ID"], rows=[[1], [2]])
+
+
+def test_profile_query_columnar():
+    server, connection = _make_profile_server(profile_already_on=True)
+    connection.execute_query.return_value.column_names.return_value = ["PART_NAME"]
+    connection.execute_query.return_value.fetchall.return_value = [("step1",)]
+    result = server.profile_query_columnar("SELECT 1")
+    assert result == QueryResult(columns=["PART_NAME"], rows=[["step1"]])
 
 
 @pytest.mark.parametrize(
