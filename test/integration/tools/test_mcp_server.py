@@ -20,6 +20,7 @@ from test.utils.result_utils import (
 from test.utils.tool_utils import run_tool
 from typing import Any
 
+import pyexasol
 import pytest
 from fastmcp.exceptions import ToolError
 
@@ -960,7 +961,7 @@ def test_execute_query(
 
 
 def test_execute_query_rejects_duplicate_columns(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    backend_aware_database_params, setup_database, db_schemas, db_tables
 ):
     """
     pyexasol itself refuses to return a result set with two identically-named
@@ -968,16 +969,21 @@ def test_execute_query_rejects_duplicate_columns(
     `ExaStatement._check_duplicate_col_names`, which runs unconditionally as part of
     statement execution. The tool can only surface this as a sanitized error, not
     work around it.
+
+    Triggering this error makes `DbConnection` discard the connection it used (see
+    `db_connection.py`'s handling of `ExaRuntimeError`), so this test opens its own,
+    disposable connection instead of using the session-scoped `pyexasol_connection`
+    fixture, which other fixtures and tests rely on staying open for the rest of the
+    session.
     """
     schema = db_schemas[0]
     table = next(t for t in db_tables if t.columns)
     col_name = table.columns[0].name
     query = f'SELECT "{col_name}", "{col_name}" FROM "{schema.name}"."{table.name}"'
     config = McpServerSettings(enable_read_query=True)
-    with pytest.raises(ToolError) as exc_info:
-        run_tool(
-            pyexasol_connection, config, tool_name="execute_exasol_query", query=query
-        )
+    with pyexasol.connect(**backend_aware_database_params) as connection:
+        with pytest.raises(ToolError) as exc_info:
+            run_tool(connection, config, tool_name="execute_exasol_query", query=query)
     assert (
         str(exc_info.value)
         == f"Error calling tool 'execute_exasol_query': {GENERIC_DB_ERROR_MESSAGE}"
