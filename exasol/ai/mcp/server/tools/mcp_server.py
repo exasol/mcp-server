@@ -200,15 +200,6 @@ def _statement_to_columnar(statement: ExaStatement) -> QueryResult:
     )
 
 
-def _dicts_to_columnar(rows: list[dict[str, Any]]) -> QueryResult:
-    if not rows:
-        return QueryResult(columns=[], rows=[])
-    columns = list(rows[0].keys())
-    return QueryResult(
-        columns=columns, rows=[[row[c] for c in columns] for row in rows]
-    )
-
-
 _NUMERIC_TYPE_PREFIXES = frozenset(
     [
         "DECIMAL",
@@ -682,13 +673,17 @@ class ExasolMCPServer(FastMCP):
         comment, row_count, column_summaries, sample_data = self._summarize_table_core(
             schema_name, table_name, sample_size, top_values
         )
+        sample_columns = [c.name for c in column_summaries]
         return DBTableSummaryColumnar(
             schema=schema_name,
             name=table_name,
             comment=comment,
             row_count=row_count,
             columns=column_summaries,
-            sample=_dicts_to_columnar(sample_data),
+            sample=QueryResult(
+                columns=sample_columns,
+                rows=[[row[c] for c in sample_columns] for row in sample_data],
+            ),
         )
 
     def describe_function(

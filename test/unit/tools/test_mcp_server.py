@@ -16,7 +16,6 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_set_preprocessor_query,
     _build_stats_query,
     _build_top_values_query,
-    _dicts_to_columnar,
     _is_numeric_type,
     _statement_to_columnar,
     remove_info_column,
@@ -217,18 +216,6 @@ def test_execute_meta_query_empty_result():
     server = ExasolMCPServer(connection=connection, config=config)
     result = server._execute_meta_query("SELECT 1", DBObject)
     assert result == []
-
-
-def test_dicts_to_columnar():
-    rows = [{"ID": 1, "NAME": "Alice"}, {"ID": 2, "NAME": "Bob"}]
-    result = _dicts_to_columnar(rows)
-    assert result == QueryResult(
-        columns=["ID", "NAME"], rows=[[1, "Alice"], [2, "Bob"]]
-    )
-
-
-def test_dicts_to_columnar_empty():
-    assert _dicts_to_columnar([]) == QueryResult(columns=[], rows=[])
 
 
 def test_statement_to_columnar():
