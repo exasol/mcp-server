@@ -5,7 +5,10 @@ from abc import (
 )
 from typing import Any
 
-from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import (
+    DbConnection,
+    fetchall,
+)
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaSettings,
@@ -43,7 +46,7 @@ class ParameterParser(ABC):
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
-        return self.connection.execute_query(query=query).fetchall()
+        return self.connection.execute_query(query=query, fetch=fetchall)
 
     def describe(
         self,

@@ -1,6 +1,10 @@
 import logging
 from collections.abc import Callable
-from typing import ContextManager
+from typing import (
+    Any,
+    ContextManager,
+    TypeVar,
+)
 
 from pyexasol import (
     ExaAuthError,
@@ -20,6 +24,32 @@ GENERIC_DB_ERROR_MESSAGE = (
 )
 
 QUERY_ERROR_PREFIX = "The database rejected the query: "
+
+T = TypeVar("T")
+
+
+def _identity(statement: ExaStatement) -> ExaStatement:
+    return statement
+
+
+def fetchall(statement: ExaStatement) -> list[Any]:
+    """`fetch` callable for `DbConnection.execute_query`: fetches all rows."""
+    return statement.fetchall()
+
+
+def fetchcol(statement: ExaStatement) -> list[Any]:
+    """`fetch` callable for `DbConnection.execute_query`: fetches the first column."""
+    return statement.fetchcol()
+
+
+def fetchone(statement: ExaStatement) -> Any:
+    """`fetch` callable for `DbConnection.execute_query`: fetches one row."""
+    return statement.fetchone()
+
+
+def fetchval(statement: ExaStatement) -> Any:
+    """`fetch` callable for `DbConnection.execute_query`: fetches one value."""
+    return statement.fetchval()
 
 
 class DbConnection:
@@ -51,15 +81,29 @@ class DbConnection:
         self._num_retries = num_retries
 
     def execute_query(
-        self, query: str | list[str], snapshot: bool = True, no_auth: bool = False
-    ) -> ExaStatement:
+        self,
+        query: str | list[str],
+        snapshot: bool = True,
+        no_auth: bool = False,
+        fetch: Callable[[ExaStatement], T] = _identity,
+    ) -> T:
         """
         Will make the set number of attempts to execute the provided query. A repeated
         attempt may follow a CommunicationError, ExaRuntimeError or ExaAuthError.
 
+        `fetch` is called on the resulting statement while still inside this method's
+        sanitizing try/except, so callers should retrieve rows through it (e.g.
+        `fetch=fetchall`, using the module-level helper below) rather than calling
+        `.fetchall()`/`.fetchval()`/etc. on the returned value afterwards. An `ExaError`
+        raised while fetching - for example a connection failure while pulling a later
+        chunk of a large result set - is sanitized exactly like one raised during query
+        execution; fetching outside this method would let it through unsanitized. The
+        default `fetch` returns the statement unchanged, for callers that only execute
+        a statement for its side effect (e.g. DDL/DML) and never fetch from it.
+
         Any `ExaError` that ultimately reaches this method (whether from establishing
-        the connection or from an unretried/retry-exhausted query failure) is
-        sanitized before being raised to the caller:
+        the connection, from an unretried/retry-exhausted query failure, or from the
+        `fetch` call) is sanitized before being raised to the caller:
 
         - The full original exception is always logged server-side at WARNING level
           first (including any DSN, DB/OS username, OS name, driver/client version
@@ -90,7 +134,10 @@ class DbConnection:
         check endpoint.
         """
         try:
-            return self._execute_with_retries(query, snapshot=snapshot, no_auth=no_auth)
+            statement = self._execute_with_retries(
+                query, snapshot=snapshot, no_auth=no_auth
+            )
+            return fetch(statement)
         except ExaQueryError as ex:
             logger.warning(
                 "Query execution failed with a database error", exc_info=True

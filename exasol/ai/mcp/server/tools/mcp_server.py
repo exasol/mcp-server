@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from functools import cache
 from typing import (
     Annotated,
@@ -24,7 +25,13 @@ from sqlglot import (
 from sqlglot.errors import ParseError
 from starlette.responses import JSONResponse
 
-from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import (
+    DbConnection,
+    fetchall,
+    fetchcol,
+    fetchone,
+    fetchval,
+)
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
 from exasol.ai.mcp.server.tools.meta_query import (
@@ -141,6 +148,7 @@ TopValuesArg = Annotated[
 ]
 
 M = TypeVar("M", bound=BaseModel)
+T = TypeVar("T")
 
 
 @cache
@@ -466,7 +474,7 @@ class ExasolMCPServer(FastMCP):
         to assist filtering. This is necessary to avoid polluting the LLM's context
         with data it doesn't need at the current stage.
         """
-        result = self.connection.execute_query(query).fetchall()
+        result = self.connection.execute_query(query, fetch=fetchall)
         if keywords:
             result = keyword_filter(result, keywords, language=self.config.language)
             result = remove_info_column(result)
@@ -608,8 +616,10 @@ class ExasolMCPServer(FastMCP):
         for col in columns:
             result.append(
                 self.connection.execute_query(
-                    _build_top_values_query(table_ref, col, top_n), snapshot=False
-                ).fetchcol()
+                    _build_top_values_query(table_ref, col, top_n),
+                    snapshot=False,
+                    fetch=fetchcol,
+                )
             )
         return result
 
@@ -625,14 +635,18 @@ class ExasolMCPServer(FastMCP):
             db=exp.Identifier(this=schema_name, quoted=True),
         )
         stats_row = self.connection.execute_query(
-            _build_stats_query(table_ref, columns), snapshot=False
-        ).fetchone()
+            _build_stats_query(table_ref, columns),
+            snapshot=False,
+            fetch=fetchone,
+        )
         column_top_values = self._fetch_column_top_values(
             table_ref, columns, top_values
         )
         sample_data = self.connection.execute_query(
-            _build_sample_query(table_ref, sample_size), snapshot=False
-        ).fetchall()
+            _build_sample_query(table_ref, sample_size),
+            snapshot=False,
+            fetch=fetchall,
+        )
         column_summaries = _build_column_summaries(
             columns, stats_row, column_top_values
         )
@@ -691,7 +705,9 @@ class ExasolMCPServer(FastMCP):
             DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
-    def _execute_select_query(self, query: str, row_limit: int | None) -> ExaStatement:
+    def _execute_select_query(
+        self, query: str, row_limit: int | None, fetch: Callable[[ExaStatement], T]
+    ) -> T:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if not verify_query(query):
@@ -699,25 +715,30 @@ class ExasolMCPServer(FastMCP):
         effective_query = (
             _build_preview_query(query, row_limit) if row_limit is not None else query
         )
-        return self.connection.execute_query(effective_query, snapshot=False)
+        return self.connection.execute_query(
+            effective_query, snapshot=False, fetch=fetch
+        )
 
     def execute_query(
         self, query: QueryArg, row_limit: RowLimitArg = None
     ) -> list[dict[str, Any]]:
-        return self._execute_select_query(query, row_limit).fetchall()
+        return self._execute_select_query(query, row_limit, fetchall)
 
     def execute_query_columnar(
         self, query: QueryArg, row_limit: RowLimitArg = None
     ) -> QueryResult:
-        return _statement_to_columnar(self._execute_select_query(query, row_limit))
+        return self._execute_select_query(query, row_limit, _statement_to_columnar)
 
-    def _run_profile_query(self, query: str) -> ExaStatement:
+    def _run_profile_query(self, query: str, fetch: Callable[[ExaStatement], T]) -> T:
         if not self.config.enable_query_profiling:
             raise RuntimeError("Query profiling is disabled.")
         if not verify_query(query):
             raise ValueError("The query is invalid or not a SELECT statement.")
         profile_already_on = (
-            self.connection.execute_query(_build_profile_status_query()).fetchval()
+            self.connection.execute_query(
+                _build_profile_status_query(),
+                fetch=fetchval,
+            )
             == "ON"
         )
         statements: list[str] = []
@@ -727,13 +748,13 @@ class ExasolMCPServer(FastMCP):
         if not profile_already_on:
             statements.append("ALTER SESSION SET PROFILE = 'OFF'")
         statements.append(_build_profile_select(query))
-        return self.connection.execute_query(statements, snapshot=False)
+        return self.connection.execute_query(statements, snapshot=False, fetch=fetch)
 
     def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
-        return self._run_profile_query(query).fetchall()
+        return self._run_profile_query(query, fetchall)
 
     def profile_query_columnar(self, query: QueryArg) -> QueryResult:
-        return _statement_to_columnar(self._run_profile_query(query))
+        return self._run_profile_query(query, _statement_to_columnar)
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:
@@ -807,15 +828,16 @@ class ExasolMCPServer(FastMCP):
         ],
     ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
-        return self.connection.execute_query(query).fetchcol()
+        return self.connection.execute_query(query, fetch=fetchcol)
 
     def list_preprocessors(self) -> DBPreprocessorList:
         preprocessors = self._execute_meta_query(
             _build_list_preprocessors_query(), QualifiedDBObject
         )
         current = self.connection.execute_query(
-            _build_current_preprocessor_query()
-        ).fetchval()
+            _build_current_preprocessor_query(),
+            fetch=fetchval,
+        )
         return DBPreprocessorList(
             preprocessors=preprocessors, current_preprocessor=current
         )
@@ -836,7 +858,9 @@ class ExasolMCPServer(FastMCP):
         A simple health check, runs a trivial query to verify that the DB is accessible.
         """
         try:
-            result = self.connection.execute_query("SELECT 1", no_auth=True).fetchval()
+            result = self.connection.execute_query(
+                "SELECT 1", no_auth=True, fetch=fetchval
+            )
             if result == 1:
                 return JSONResponse(
                     {"status": "healthy", "service": "exasol-mcp-server"}

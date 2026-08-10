@@ -161,6 +161,42 @@ def test_db_connection_execute_query_error_detail_preserved(snapshot, ex_type):
     assert isinstance(exc_info.value.__cause__, ex_type)
 
 
+def test_db_connection_fetch_error_is_sanitized(snapshot):
+    """
+    Tests that an `ExaError` raised by the `fetch` callable - e.g. a communication
+    failure while pulling a later chunk of a large result set, which can only happen
+    after query execution has already succeeded - is sanitized the same way as one
+    raised during execution. This is the reason `fetch` runs inside `execute_query`'s
+    try/except instead of callers fetching from the returned statement afterwards.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+
+    def fetch(statement):
+        raise pyexasol.ExaCommunicationError(factory.connection, "connection dropped")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaCommunicationError)
+
+
+def test_db_connection_fetch_non_pyexasol_error_propagates_unmodified(snapshot):
+    """
+    Tests that a bug in our own code raised from the `fetch` callable is not caught
+    or sanitized by execute_query, and propagates unmodified - mirroring the same
+    guarantee for errors raised during execution.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+
+    def fetch(statement):
+        raise TypeError("boom")
+
+    with pytest.raises(TypeError, match="boom"):
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+
+
 def test_db_connection_execute_non_pyexasol_error_propagates_unmodified(snapshot):
     """
     Tests that a bug in our own code (a non-pyexasol exception) is not caught or

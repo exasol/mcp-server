@@ -30,6 +30,21 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
 )
 
 
+def _mock_connection() -> MagicMock:
+    """
+    A `MagicMock` standing in for `DbConnection`, wired so that `execute_query`
+    applies its `fetch` argument to the mock statement (`execute_query.return_value`)
+    the same way the real `DbConnection.execute_query` does.
+    """
+    connection = MagicMock()
+    connection.execute_query.side_effect = (
+        lambda *args, fetch=lambda statement: statement, **kwargs: fetch(
+            connection.execute_query.return_value
+        )
+    )
+    return connection
+
+
 def sample_select_query() -> str:
 
     return dedent("""
@@ -196,7 +211,7 @@ def test_remove_info_column():
 
 
 def test_execute_meta_query_empty_result():
-    connection = MagicMock()
+    connection = _mock_connection()
     connection.execute_query.return_value.fetchall.return_value = []
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
@@ -253,7 +268,7 @@ def test_statement_to_columnar_preserves_duplicate_column_names():
 
 
 def test_execute_query_columnar():
-    connection = MagicMock()
+    connection = _mock_connection()
     connection.execute_query.return_value.column_names.return_value = ["ID"]
     connection.execute_query.return_value.fetchall.return_value = [(1,), (2,)]
     config = MagicMock()
@@ -469,7 +484,7 @@ def test_build_profile_status_query():
 
 
 def _make_profile_server(profile_already_on: bool):
-    connection = MagicMock()
+    connection = _mock_connection()
     connection.execute_query.return_value.fetchval.return_value = (
         "ON" if profile_already_on else "OFF"
     )

@@ -9,5 +9,9 @@
 
 ## Security
 
-* #256: Sanitized errors from `execute_exasol_query` and other DB-backed tools.
+* #256: Sanitized errors from `execute_exasol_query` and other DB-backed tools. Closed
+  a follow-up gap where an error raised while *fetching* query results (e.g. a
+  connection failure while pulling a later chunk of a large result set) bypassed this
+  sanitization, since fetching happened outside `DbConnection.execute_query`'s
+  try/except.
 * #266: Added scheduled Trivy CVE scan for the Docker image.
