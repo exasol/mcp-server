@@ -273,6 +273,86 @@ def test_profile_query_columnar():
     assert result == QueryResult(columns=["PART_NAME"], rows=[["step1"]])
 
 
+def test_execute_query():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = [{"ID": 1}]
+    config = MagicMock()
+    config.enable_read_query = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.execute_query("SELECT ID FROM T")
+    assert result == [{"ID": 1}]
+
+
+def test_list_keywords():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchcol.return_value = ["SELECT", "INSERT"]
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.list_keywords(reserved=True, letter="S")
+    assert result == ["SELECT", "INSERT"]
+
+
+def test_list_preprocessors():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = []
+    connection.execute_query.return_value.fetchval.return_value = "MY_PREPROCESSOR"
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.list_preprocessors()
+    assert result.preprocessors == []
+    assert result.current_preprocessor == "MY_PREPROCESSOR"
+
+
+def test_health_check_healthy():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchval.return_value = 1
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    response = server.health_check()
+    assert b'"status":"healthy"' in response.body
+
+
+def test_health_check_unhealthy():
+    connection = MagicMock()
+    connection.execute_query.side_effect = RuntimeError("boom")
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    response = server.health_check()
+    assert b'"status":"unhealthy"' in response.body
+
+
+def _make_summarize_server() -> tuple[ExasolMCPServer, MagicMock]:
+    connection = _mock_connection()
+    statement = connection.execute_query.return_value
+    statement.fetchone.return_value = {"ROW_COUNT": 2}
+    statement.fetchcol.return_value = [1, 2]
+    statement.fetchall.return_value = [{"id": 1}, {"id": 2}]
+    config = MagicMock()
+    config.enable_summarize_table = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
+    server.describe_columns = MagicMock(return_value=columns)
+    server._get_table_comment = MagicMock(return_value="a comment")
+    return server, connection
+
+
+def test_summarize_table():
+    server, _ = _make_summarize_server()
+    result = server.summarize_table("MY_SCHEMA", "MY_TABLE")
+    assert result.schema == "MY_SCHEMA"
+    assert result.comment == "a comment"
+    assert result.row_count == 2
+    assert result.sample == [{"id": 1}, {"id": 2}]
+
+
+def test_summarize_table_columnar():
+    server, _ = _make_summarize_server()
+    result = server.summarize_table_columnar("MY_SCHEMA", "MY_TABLE")
+    assert result.comment == "a comment"
+    assert result.row_count == 2
+    assert result.sample == QueryResult(columns=["id"], rows=[[1], [2]])
+
+
 @pytest.mark.parametrize(
     ["sql_type", "expected"],
     [

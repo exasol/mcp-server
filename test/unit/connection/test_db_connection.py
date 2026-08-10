@@ -14,6 +14,10 @@ from exasol.ai.mcp.server.connection.db_connection import (
     GENERIC_DB_ERROR_MESSAGE,
     QUERY_ERROR_PREFIX,
     DbConnection,
+    fetchall,
+    fetchcol,
+    fetchone,
+    fetchval,
 )
 
 
@@ -74,6 +78,30 @@ class FakeConnectionFactory:
 @pytest.fixture(params=[True, False])
 def snapshot(request) -> bool:
     return request.param
+
+
+def test_fetchall():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchall.return_value = [{"A": 1}, {"A": 2}]
+    assert fetchall(statement) == [{"A": 1}, {"A": 2}]
+
+
+def test_fetchcol():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchcol.return_value = [1, 2, 3]
+    assert fetchcol(statement) == [1, 2, 3]
+
+
+def test_fetchone():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchone.return_value = {"A": 1}
+    assert fetchone(statement) == {"A": 1}
+
+
+def test_fetchval():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchval.return_value = 1
+    assert fetchval(statement) == 1
 
 
 def test_db_connection_execute_success(snapshot):

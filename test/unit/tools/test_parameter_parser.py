@@ -1,8 +1,10 @@
 from textwrap import dedent
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
+from exasol.ai.mcp.server.tools.parameter_parser import FuncParameterParser
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
     DBEmitFunction,
@@ -451,6 +453,16 @@ def test_script_extract_parameters_error(
     }
     with pytest.raises(ValueError, match="Failed to parse"):
         script_parameter_parser.extract_parameters(info)
+
+
+def test_execute_query(parameter_config):
+    connection = MagicMock()
+    connection.execute_query.return_value = [{"FUNCTION_NAME": "Validate"}]
+    parser = FuncParameterParser(connection=connection, settings=parameter_config)
+    result = parser._execute_query("SELECT 1")
+    assert result == [{"FUNCTION_NAME": "Validate"}]
+    _, kwargs = connection.execute_query.call_args
+    assert kwargs["query"] == "SELECT 1"
 
 
 @mock.patch(
