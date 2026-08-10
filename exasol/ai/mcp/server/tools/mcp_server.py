@@ -196,7 +196,7 @@ def _statement_to_columnar(statement: ExaStatement) -> QueryResult:
     statement.fetch_dict = False
     return QueryResult(
         columns=statement.column_names(),
-        rows=[list(row) for row in statement.fetchall()],
+        rows=[list(row) for row in statement],
     )
 
 

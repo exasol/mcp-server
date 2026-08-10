@@ -221,7 +221,7 @@ def test_execute_meta_query_empty_result():
 def test_statement_to_columnar():
     statement = MagicMock()
     statement.column_names.return_value = ["ID", "NAME"]
-    statement.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+    statement.__iter__.return_value = iter([(1, "Alice"), (2, "Bob")])
     result = _statement_to_columnar(statement)
     assert statement.fetch_dict is False
     assert result == QueryResult(
@@ -249,7 +249,7 @@ def test_statement_to_columnar_preserves_duplicate_column_names():
     """
     statement = MagicMock()
     statement.column_names.return_value = ["ID", "ID"]
-    statement.fetchall.return_value = [(1, 2)]
+    statement.__iter__.return_value = iter([(1, 2)])
     result = _statement_to_columnar(statement)
     assert result == QueryResult(columns=["ID", "ID"], rows=[[1, 2]])
 
@@ -257,7 +257,7 @@ def test_statement_to_columnar_preserves_duplicate_column_names():
 def test_execute_query_columnar():
     connection = _mock_connection()
     connection.execute_query.return_value.column_names.return_value = ["ID"]
-    connection.execute_query.return_value.fetchall.return_value = [(1,), (2,)]
+    connection.execute_query.return_value.__iter__.return_value = iter([(1,), (2,)])
     config = MagicMock()
     config.enable_read_query = True
     server = ExasolMCPServer(connection=connection, config=config)
@@ -268,7 +268,7 @@ def test_execute_query_columnar():
 def test_profile_query_columnar():
     server, connection = _make_profile_server(profile_already_on=True)
     connection.execute_query.return_value.column_names.return_value = ["PART_NAME"]
-    connection.execute_query.return_value.fetchall.return_value = [("step1",)]
+    connection.execute_query.return_value.__iter__.return_value = iter([("step1",)])
     result = server.profile_query_columnar("SELECT 1")
     assert result == QueryResult(columns=["PART_NAME"], rows=[["step1"]])
 
