@@ -253,12 +253,7 @@ class QueryResult(BaseModel):
     ]
 
 
-class DBTableSummaryColumnar(QualifiedDBObject):
-    row_count: Annotated[int, Field(description="Total number of rows in the table")]
-    columns: Annotated[
-        list[DBColumnSummary],
-        Field(description="Per-column statistics"),
-    ]
+class DBTableSummaryColumnar(DBTableSummary):
     sample: Annotated[
         QueryResult,
         Field(description="Sample rows from the table"),
