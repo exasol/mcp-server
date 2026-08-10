@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 from fastmcp.exceptions import ToolError
 
+from exasol.ai.mcp.server.connection.db_connection import GENERIC_DB_ERROR_MESSAGE
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
@@ -958,27 +959,29 @@ def test_execute_query(
             assert result_json == expected_json
 
 
-def test_execute_query_preserves_duplicate_columns(
+def test_execute_query_rejects_duplicate_columns(
     pyexasol_connection, setup_database, db_schemas, db_tables
 ):
     """
-    A result set with two identically-named columns (e.g. the same column selected
-    twice) silently collapses to one key under the dict format
-    (`dict(zip(col_names, row))` drops one value). The default columnar format reads
-    rows positionally and must preserve both.
+    pyexasol itself refuses to return a result set with two identically-named
+    columns (e.g. the same column selected twice), regardless of fetch format - see
+    `ExaStatement._check_duplicate_col_names`, which runs unconditionally as part of
+    statement execution. The tool can only surface this as a sanitized error, not
+    work around it.
     """
     schema = db_schemas[0]
     table = next(t for t in db_tables if t.columns)
     col_name = table.columns[0].name
     query = f'SELECT "{col_name}", "{col_name}" FROM "{schema.name}"."{table.name}"'
     config = McpServerSettings(enable_read_query=True)
-    result = run_tool(
-        pyexasol_connection, config, tool_name="execute_exasol_query", query=query
+    with pytest.raises(ToolError) as exc_info:
+        run_tool(
+            pyexasol_connection, config, tool_name="execute_exasol_query", query=query
+        )
+    assert (
+        str(exc_info.value)
+        == f"Error calling tool 'execute_exasol_query': {GENERIC_DB_ERROR_MESSAGE}"
     )
-    result_json = get_result_json(result)
-    assert result_json["columns"] == [col_name, col_name]
-    if table.rows:
-        assert len(result_json["rows"][0]) == 2
 
 
 def test_execute_query_error(

@@ -190,8 +190,8 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _statement_to_columnar(statement: ExaStatement) -> QueryResult:
     """
     Reads a query result positionally instead of as dict rows, so that columns are
-    read from the cursor metadata (correct even for an empty result set or a result
-    set with duplicate column names) rather than from the keys of the first row.
+    read from the cursor metadata (correct even for an empty result set) rather than
+    from the keys of the first row.
     """
     statement.fetch_dict = False
     return QueryResult(

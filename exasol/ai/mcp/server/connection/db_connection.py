@@ -89,7 +89,13 @@ class DbConnection:
     ) -> T:
         """
         Will make the set number of attempts to execute the provided query. A repeated
-        attempt may follow a CommunicationError, ExaRuntimeError or ExaAuthError.
+        attempt may follow an `ExaCommunicationError` or `ExaAuthError`, since these can
+        be transient (a network blip, a briefly stale token) and may succeed on a fresh
+        connection. `ExaRuntimeError` is never retried: pyexasol only raises it for
+        client-side precondition failures (e.g. duplicate column names in the result
+        set, an already-closed connection) that are a function of the query/arguments
+        themselves, not of connection state - retrying would reproduce the identical
+        error while needlessly discarding a connection.
 
         `fetch` is called on the resulting statement while still inside this method's
         sanitizing try/except, so callers should retrieve rows through it (e.g.
@@ -159,7 +165,19 @@ class DbConnection:
                 connection.options["fetch_dict"] = True
                 try:
                     return self._run_queries(connection, queries, snapshot=snapshot)
-                except (ExaCommunicationError, ExaRuntimeError, ExaAuthError):
+                except ExaRuntimeError:
+                    # A client-side precondition failure, not a connection problem.
+                    # The same query would fail with the same error on any
+                    # connection, so it's not retried; the connection is discarded
+                    # out of caution, since the error may reflect it being in an
+                    # unexpected state. close() itself is not expected to fail here,
+                    # but it must not be allowed to mask the original error if it does.
+                    try:
+                        connection.close()
+                    except ExaError:
+                        pass
+                    raise
+                except (ExaCommunicationError, ExaAuthError):
                     connection.close()
                     if attempt == self._num_retries:
                         raise
