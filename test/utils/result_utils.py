@@ -83,7 +83,9 @@ def get_query_result_json(result, content_extractor=get_result_content):
     dicts, so tests can compare the result regardless of `query_result_format`.
     """
     result_json = to_dicts(get_result_json(result, content_extractor))
-    return sorted(result_json, key=result_sort_func)
+    if isinstance(result_json, list):
+        return sorted(result_json, key=result_sort_func)
+    return result_json
 
 
 async def _list_tools_async(
