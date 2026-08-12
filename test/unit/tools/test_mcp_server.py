@@ -17,7 +17,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_stats_query,
     _build_top_values_query,
     _is_numeric_type,
-    _statement_to_columnar,
+    _statement_to_tabular,
     remove_info_column,
     verify_query,
 )
@@ -36,11 +36,12 @@ def _mock_connection() -> MagicMock:
     the same way the real `DbConnection.execute_query` does.
     """
     connection = MagicMock()
-    connection.execute_query.side_effect = (
-        lambda *args, fetch=lambda statement: statement, **kwargs: fetch(
-            connection.execute_query.return_value
-        )
-    )
+    mock_statement = connection.execute_query.return_value
+
+    def execute_query(*args, fetch=lambda statement: statement, **kwargs):
+        return fetch(mock_statement)
+
+    connection.execute_query.side_effect = execute_query
     return connection
 
 
@@ -218,18 +219,18 @@ def test_execute_meta_query_empty_result():
     assert result == []
 
 
-def test_statement_to_columnar():
+def test_statement_to_tabular():
     statement = MagicMock()
     statement.column_names.return_value = ["ID", "NAME"]
     statement.__iter__.return_value = iter([(1, "Alice"), (2, "Bob")])
-    result = _statement_to_columnar(statement)
+    result = _statement_to_tabular(statement)
     assert statement.fetch_dict is False
     assert result == QueryResult(
         columns=["ID", "NAME"], rows=[[1, "Alice"], [2, "Bob"]]
     )
 
 
-def test_statement_to_columnar_empty_result_keeps_columns():
+def test_statement_to_tabular_empty_result_keeps_columns():
     """
     Columns must come from the cursor metadata, not from the first row, otherwise an
     empty result set would be indistinguishable from "no columns".
@@ -237,39 +238,39 @@ def test_statement_to_columnar_empty_result_keeps_columns():
     statement = MagicMock()
     statement.column_names.return_value = ["ID", "NAME"]
     statement.fetchall.return_value = []
-    result = _statement_to_columnar(statement)
+    result = _statement_to_tabular(statement)
     assert result == QueryResult(columns=["ID", "NAME"], rows=[])
 
 
-def test_statement_to_columnar_preserves_duplicate_column_names():
+def test_statement_to_tabular_preserves_duplicate_column_names():
     """
     dict(zip(col_names, row)), used for the dict-format output, silently collapses
     same-named columns (e.g. a join on two tables that both have an ID column). The
-    columnar path reads rows positionally, so it must preserve both values.
+    tabular path reads rows positionally, so it must preserve both values.
     """
     statement = MagicMock()
     statement.column_names.return_value = ["ID", "ID"]
     statement.__iter__.return_value = iter([(1, 2)])
-    result = _statement_to_columnar(statement)
+    result = _statement_to_tabular(statement)
     assert result == QueryResult(columns=["ID", "ID"], rows=[[1, 2]])
 
 
-def test_execute_query_columnar():
+def test_execute_query_tabular():
     connection = _mock_connection()
     connection.execute_query.return_value.column_names.return_value = ["ID"]
     connection.execute_query.return_value.__iter__.return_value = iter([(1,), (2,)])
     config = MagicMock()
     config.enable_read_query = True
     server = ExasolMCPServer(connection=connection, config=config)
-    result = server.execute_query_columnar("SELECT ID FROM T")
+    result = server.execute_query_tabular("SELECT ID FROM T")
     assert result == QueryResult(columns=["ID"], rows=[[1], [2]])
 
 
-def test_profile_query_columnar():
+def test_profile_query_tabular():
     server, connection = _make_profile_server(profile_already_on=True)
     connection.execute_query.return_value.column_names.return_value = ["PART_NAME"]
     connection.execute_query.return_value.__iter__.return_value = iter([("step1",)])
-    result = server.profile_query_columnar("SELECT 1")
+    result = server.profile_query_tabular("SELECT 1")
     assert result == QueryResult(columns=["PART_NAME"], rows=[["step1"]])
 
 
@@ -345,9 +346,9 @@ def test_summarize_table():
     assert result.sample == [{"id": 1}, {"id": 2}]
 
 
-def test_summarize_table_columnar():
+def test_summarize_table_tabular():
     server, _ = _make_summarize_server()
-    result = server.summarize_table_columnar("MY_SCHEMA", "MY_TABLE")
+    result = server.summarize_table_tabular("MY_SCHEMA", "MY_TABLE")
     assert result.comment == "a comment"
     assert result.row_count == 2
     assert result.sample == QueryResult(columns=["id"], rows=[[1], [2]])

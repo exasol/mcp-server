@@ -3,7 +3,7 @@
 ## Features
 
 * #272: Changed `execute_exasol_query`, `profile_exasol_query` and the `sample`
-  field of `summarize_exasol_table` to return a columnar `{columns, rows}` shape by
+  field of `summarize_exasol_table` to return a tabular `{columns, rows}` shape by
   default.
 
 ## Bug Fixes

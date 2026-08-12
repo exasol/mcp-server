@@ -125,8 +125,8 @@ def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
 
 def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
     fn = (
-        mcp_server.summarize_table_columnar
-        if mcp_server.config.query_result_format == "columnar"
+        mcp_server.summarize_table_tabular
+        if mcp_server.config.query_result_format == "tabular"
         else mcp_server.summarize_table
     )
     mcp_server.tool(
@@ -155,8 +155,8 @@ def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
 
 def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
     fn = (
-        mcp_server.execute_query_columnar
-        if mcp_server.config.query_result_format == "columnar"
+        mcp_server.execute_query_tabular
+        if mcp_server.config.query_result_format == "tabular"
         else mcp_server.execute_query
     )
     mcp_server.tool(
@@ -171,8 +171,8 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
 
 def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
     fn = (
-        mcp_server.profile_query_columnar
-        if mcp_server.config.query_result_format == "columnar"
+        mcp_server.profile_query_tabular
+        if mcp_server.config.query_result_format == "tabular"
         else mcp_server.profile_query
     )
     mcp_server.tool(

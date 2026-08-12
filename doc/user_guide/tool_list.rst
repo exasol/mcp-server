@@ -282,7 +282,7 @@ execute_exasol_query
     - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting
       (see :doc:`tool_setup`)
     - **Data**:
-        - by default (``query_result_format`` = ``"columnar"``): a dict with
+        - by default (``query_result_format`` = ``"tabular"``): a dict with
           ``columns`` (list of column names) and ``rows`` (list of rows, each row a
           list of values in the same order as ``columns``)
         - if ``query_result_format`` is set to ``"dict"``: selected rows in a form of

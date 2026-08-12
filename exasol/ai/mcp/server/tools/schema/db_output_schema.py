@@ -253,7 +253,7 @@ class QueryResult(BaseModel):
     ]
 
 
-class DBTableSummaryColumnar(DBTableSummary):
+class DBTableSummaryTabular(DBTableSummary):
     sample: Annotated[
         QueryResult,
         Field(description="Sample rows from the table"),

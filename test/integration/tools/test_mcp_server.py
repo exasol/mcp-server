@@ -838,7 +838,7 @@ def test_set_preprocessor(
     assert db_preprocessor.name.upper() in data[CURRENT_PREPROCESSOR_FIELD].upper()
 
 
-@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_summarize_table(
     pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ) -> None:
@@ -927,7 +927,7 @@ def test_summarize_table_disabled(pyexasol_connection) -> None:
     assert "summarize_exasol_table" not in tool_list
 
 
-@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_execute_query(
     pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ):
@@ -1013,7 +1013,7 @@ def test_execute_query_error(
                 )
 
 
-@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_execute_query_with_row_limit(
     pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ):
@@ -1040,7 +1040,7 @@ def test_execute_query_with_row_limit(
             assert len(result_json) <= row_limit
 
 
-@pytest.mark.parametrize("query_result_format", ["columnar", "dict"])
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_profile_query(
     pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ):

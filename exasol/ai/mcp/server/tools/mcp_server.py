@@ -62,7 +62,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBReturnFunction,
     DBTable,
     DBTableSummary,
-    DBTableSummaryColumnar,
+    DBTableSummaryTabular,
     QualifiedDBObject,
     QueryResult,
     SQLTypeInfo,
@@ -187,7 +187,7 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-def _statement_to_columnar(statement: ExaStatement) -> QueryResult:
+def _statement_to_tabular(statement: ExaStatement) -> QueryResult:
     """
     Reads a query result positionally instead of as dict rows, so that columns are
     read from the cursor metadata (correct even for an empty result set) rather than
@@ -663,18 +663,18 @@ class ExasolMCPServer(FastMCP):
             sample=sample_data,
         )
 
-    def summarize_table_columnar(
+    def summarize_table_tabular(
         self,
         schema_name: SchemaNameArg,
         table_name: TableNameArg,
         sample_size: SampleSizeArg = 10,
         top_values: TopValuesArg = 5,
-    ) -> DBTableSummaryColumnar:
+    ) -> DBTableSummaryTabular:
         comment, row_count, column_summaries, sample_data = self._summarize_table_core(
             schema_name, table_name, sample_size, top_values
         )
         sample_columns = [c.name for c in column_summaries]
-        return DBTableSummaryColumnar(
+        return DBTableSummaryTabular(
             schema=schema_name,
             name=table_name,
             comment=comment,
@@ -719,10 +719,10 @@ class ExasolMCPServer(FastMCP):
     ) -> list[dict[str, Any]]:
         return self._execute_select_query(query, row_limit, fetchall)
 
-    def execute_query_columnar(
+    def execute_query_tabular(
         self, query: QueryArg, row_limit: RowLimitArg = None
     ) -> QueryResult:
-        return self._execute_select_query(query, row_limit, _statement_to_columnar)
+        return self._execute_select_query(query, row_limit, _statement_to_tabular)
 
     def _run_profile_query(self, query: str, fetch: Callable[[ExaStatement], T]) -> T:
         if not self.config.enable_query_profiling:
@@ -748,8 +748,8 @@ class ExasolMCPServer(FastMCP):
     def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
         return self._run_profile_query(query, fetchall)
 
-    def profile_query_columnar(self, query: QueryArg) -> QueryResult:
-        return self._run_profile_query(query, _statement_to_columnar)
+    def profile_query_tabular(self, query: QueryArg) -> QueryResult:
+        return self._run_profile_query(query, _statement_to_tabular)
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:

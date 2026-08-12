@@ -38,7 +38,7 @@ def to_dicts(result_json: Any) -> list[dict[str, Any]]:
     """
     Normalizes a query-result payload to a list of dicts, regardless of the
     configured `query_result_format`: passes a list of dicts through unchanged, and
-    converts the columnar `{"columns": [...], "rows": [[...], ...]}` shape.
+    converts the tabular `{"columns": [...], "rows": [[...], ...]}` shape.
     """
     if (
         isinstance(result_json, dict)
@@ -77,7 +77,7 @@ def get_list_result_json(result, content_extractor=get_result_content):
 
 def get_query_result_json(result, content_extractor=get_result_content):
     """
-    Like `get_list_result_json`, but first normalizes the columnar
+    Like `get_list_result_json`, but first normalizes the tabular
     `{"columns", "rows"}` shape (used by `execute_exasol_query`,
     `profile_exasol_query` and the `summarize_exasol_table` sample) to a list of
     dicts, so tests can compare the result regardless of `query_result_format`.

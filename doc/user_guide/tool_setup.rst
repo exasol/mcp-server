@@ -63,7 +63,7 @@ Choose the query result format
 
 ``execute_exasol_query``, ``profile_exasol_query`` and the ``sample`` field of
 ``summarize_exasol_table`` return arbitrary, unbounded query rows. By default
-(``query_result_format`` = ``"columnar"``), the result is returned as a single object
+(``query_result_format`` = ``"tabular"``), the result is returned as a single object
 with the column names listed once and the rows as arrays of values in that same
 order, e.g. ``{"columns": ["ID", "NAME"], "rows": [[1, "Alice"]]}``. This avoids
 repeating every column name on every row, which is the biggest source of token usage
@@ -309,7 +309,7 @@ The following JSON shows the default settings.
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,
-        "query_result_format": "columnar",
+        "query_result_format": "tabular",
         "language": ""
     }
 
