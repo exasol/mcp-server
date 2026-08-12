@@ -96,7 +96,26 @@ KeywordsArg = Annotated[
 
 TableNameArg = Annotated[str, Field(description="Name of the table or view")]
 
-FunctionNameArg = Annotated[str, Field(description="Name of the function")]
+TableNamesArg = Annotated[
+    list[str],
+    Field(
+        description=(
+            "Names of the tables and/or views to describe. Pass every table or "
+            "view you need in a single call instead of calling this tool once "
+            "per name."
+        )
+    ),
+]
+
+FunctionNamesArg = Annotated[
+    list[str],
+    Field(
+        description=(
+            "Names of the functions to describe. Pass every function you need "
+            "in a single call instead of calling this tool once per name."
+        )
+    ),
+]
 
 PreprocessorScriptNameArg = Annotated[
     str, Field(description="Name of the preprocessor script")
@@ -471,6 +490,27 @@ class ExasolMCPServer(FastMCP):
             result = remove_info_column(result)
         return [model_cls.model_validate(row) for row in result]
 
+    @staticmethod
+    def _describe_many(
+        schema_name: str, names: list[str], describe_one: Callable[[str, str], T]
+    ) -> list[T]:
+        """
+        Calls `describe_one(schema_name, name)` for every name in `names`, in order.
+        If any call raises a ValueError (e.g. object not found or failed to parse),
+        the whole batch fails with a single ValueError aggregating all the individual
+        messages.
+        """
+        results = []
+        errors = []
+        for name in names:
+            try:
+                results.append(describe_one(schema_name, name))
+            except ValueError as e:
+                errors.append(str(e))
+        if errors:
+            raise ValueError("; ".join(errors))
+        return results
+
     def list_schemas(self) -> list[DBObject]:
         if not self.config.schemas.enable:
             raise RuntimeError("The schema listing is disabled.")
@@ -546,7 +586,7 @@ class ExasolMCPServer(FastMCP):
     ) -> list[DBColumn]:
         """
         Returns the list of columns in the given table. Currently, this is a part of
-        the `describe_table` tool, but it can be used independently in the future.
+        the `describe_tables` tool, but it can be used independently in the future.
         """
         if not self.config.columns.enable:
             raise RuntimeError("The column listing is disabled.")
@@ -559,7 +599,7 @@ class ExasolMCPServer(FastMCP):
     ) -> list[DBConstraint]:
         """
         Returns the list of constraints in the given table. Currently, this is a part
-        of the `describe_table` tool, but it can be used independently in the future.
+        of the `describe_tables` tool, but it can be used independently in the future.
         """
         if not self.config.columns.enable:
             raise RuntimeError("The constraint listing is disabled.")
@@ -567,10 +607,7 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.describe_constraints(schema_name, table_name)
         return self._execute_meta_query(query, DBConstraint)
 
-    def describe_table(
-        self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> DBTable:
-
+    def _describe_one_table(self, schema_name: str, table_name: str) -> DBTable:
         system_table = is_system_schema(schema_name)
         if system_table:
             query = self.meta_query.get_system_tables(schema_name, table_name)
@@ -589,6 +626,16 @@ class ExasolMCPServer(FastMCP):
                 else self.describe_constraints(schema_name, table_name)
             ),
         )
+
+    def describe_tables(
+        self, schema_name: SchemaNameArg, table_names: TableNamesArg
+    ) -> list[DBTable]:
+        """
+        Describes one or more tables or views in the given schema. Pass every
+        table or view you need in a single call instead of calling this tool
+        once per name.
+        """
+        return self._describe_many(schema_name, table_names, self._describe_one_table)
 
     def _get_table_comment(self, schema_name: str, table_name: str) -> str | None:
         if is_system_schema(schema_name):
@@ -686,19 +733,31 @@ class ExasolMCPServer(FastMCP):
             ),
         )
 
-    def describe_function(
-        self, schema_name: SchemaNameArg, func_name: FunctionNameArg
-    ) -> DBReturnFunction:
+    def describe_functions(
+        self, schema_name: SchemaNameArg, func_names: FunctionNamesArg
+    ) -> list[DBReturnFunction]:
+        """
+        Describes one or more custom functions in the given schema. Pass every
+        function you need in a single call instead of calling this tool once
+        per name.
+        """
         parser = FuncParameterParser(connection=self.connection, settings=self.config)
-        return cast(DBReturnFunction, parser.describe(schema_name, func_name))
+        describe_one = cast(Callable[[str, str], DBReturnFunction], parser.describe)
+        return self._describe_many(schema_name, func_names, describe_one)
 
-    def describe_script(
-        self, schema_name: SchemaNameArg, func_name: FunctionNameArg
-    ) -> DBReturnFunction | DBEmitFunction:
+    def describe_scripts(
+        self, schema_name: SchemaNameArg, func_names: FunctionNamesArg
+    ) -> list[DBReturnFunction | DBEmitFunction]:
+        """
+        Describes one or more User Defined Functions (UDFs) in the given schema.
+        Pass every UDF you need in a single call instead of calling this tool
+        once per name.
+        """
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
-        return cast(
-            DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
+        describe_one = cast(
+            Callable[[str, str], DBReturnFunction | DBEmitFunction], parser.describe
         )
+        return self._describe_many(schema_name, func_names, describe_one)
 
     def _execute_select_query(
         self, query: str, row_limit: int | None, fetch: Callable[[ExaStatement], T]
@@ -802,10 +861,10 @@ class ExasolMCPServer(FastMCP):
         return self._list_system_tables(SysInfoType.STATISTICS)
 
     def describe_system_table(self, table_name: TableNameArg) -> DBTable:
-        return self.describe_table(SysInfoType.SYSTEM.value, table_name)
+        return self._describe_one_table(SysInfoType.SYSTEM.value, table_name)
 
     def describe_statistics_table(self, table_name: TableNameArg) -> DBTable:
-        return self.describe_table(SysInfoType.STATISTICS.value, table_name)
+        return self._describe_one_table(SysInfoType.STATISTICS.value, table_name)
 
     def list_keywords(
         self,

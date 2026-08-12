@@ -23,8 +23,8 @@ Start broad, then narrow down:
 2. list_exasol_tables_and_views(schema_name=...)
    → pick a table
 
-3. describe_exasol_table_or_view(schema_name=..., table_name=...)
-   → see columns, types, constraints
+3. describe_exasol_tables_and_views(schema_name=..., table_names=[...])
+   → see columns, types, constraints (pass every table/view needed in one call)
 
 4. summarize_exasol_table(schema_name=..., table_name=...)
    → understand data distribution (if enabled)
@@ -51,8 +51,8 @@ If you already know roughly what you are looking for, use the `find_*` variants 
 1. list_exasol_user_defined_functions(schema_name=...)
    → see all UDF scripts in a schema
 
-2. describe_exasol_user_defined_function(schema_name=..., script_name=...)
-   → read source code and parameter declarations
+2. describe_exasol_user_defined_functions(schema_name=..., func_names=[...])
+   → read source code and parameter declarations (pass every UDF needed in one call)
 
 3. execute_exasol_query(query="SELECT schema.script_name(col) FROM table")
    → invoke the script on data

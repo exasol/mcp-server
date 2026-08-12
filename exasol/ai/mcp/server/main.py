@@ -115,10 +115,10 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
     )
 
 
-def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
+def _register_describe_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
-        mcp_server.describe_table,
-        name="describe_exasol_table_or_view",
+        mcp_server.describe_tables,
+        name="describe_exasol_tables_and_views",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -137,18 +137,18 @@ def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
     )
 
 
-def _register_describe_function(mcp_server: ExasolMCPServer) -> None:
+def _register_describe_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
-        mcp_server.describe_function,
-        name="describe_exasol_custom_function",
+        mcp_server.describe_functions,
+        name="describe_exasol_custom_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
 
-def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
+def _register_describe_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
-        mcp_server.describe_script,
-        name="describe_exasol_user_defined_function",
+        mcp_server.describe_scripts,
+        name="describe_exasol_user_defined_functions",
         annotations=ToolAnnotations(readOnlyHint=True),
     )
 
@@ -397,12 +397,12 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_list_preprocessors(mcp_server)
         _register_set_preprocessor(mcp_server)
     if config.columns.enable:
-        _register_describe_table(mcp_server)
+        _register_describe_tables(mcp_server)
     if config.enable_summarize_table and config.columns.enable:
         _register_summarize_table(mcp_server)
     if config.parameters.enable:
-        _register_describe_function(mcp_server)
-        _register_describe_script(mcp_server)
+        _register_describe_functions(mcp_server)
+        _register_describe_scripts(mcp_server)
     if config.enable_read_query:
         _register_execute_query(mcp_server)
     if config.enable_query_profiling:

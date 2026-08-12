@@ -166,15 +166,20 @@ set_exasol_preprocessor
     - **Type**: ``string``
     - **Data**: fully-qualified name of the newly-activated preprocessor
 
-describe_exasol_table_or_view
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+describe_exasol_tables_and_views
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Provides full available information about the specified table or view.
+    Provides full available information about one or more specified tables and/or
+    views. Pass the names of every table or view needed in a single call.
+
+:Parameters:
+    - ``schema_name``: name of the schema containing the tables and/or views
+    - ``table_names``: list of table and/or view names to describe
 
 :Returns:
-    - **Type**: ``dict``
-    - **Data**:
+    - **Type**: ``list``
+    - **Data**: one entry per requested name, in the order requested:
         - ``schema``: name of the schema where the table or view is located
         - ``name``: name of the table or view
         - ``comment``: table or view comment, if available
@@ -189,6 +194,9 @@ describe_exasol_table_or_view
             - ``referenced_schema``: schema referenced in the FOREIGN KEY constraint
             - ``referenced_table``: table referenced in the FOREIGN KEY constraint
             - ``referenced_columns``: comma separated list of columns in the referenced table in the FOREIGN KEY constraint
+
+    If any requested name is not found, the whole call fails with an error naming
+    the missing table(s) or view(s).
 
 summarize_exasol_table
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -232,29 +240,42 @@ summarize_exasol_table
           setting (see :doc:`tool_setup`) - by default ``{"columns": [...], "rows": [[...], ...]}``,
           or a list of dicts with column names as keys if ``query_result_format`` is set to ``"dict"``
 
-describe_exasol_custom_function
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+describe_exasol_custom_functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Provides full available information about the specified custom function.
+    Provides full available information about one or more specified custom
+    functions. Pass the names of every function needed in a single call.
+
+:Parameters:
+    - ``schema_name``: name of the schema containing the functions
+    - ``func_names``: list of function names to describe
 
 :Returns:
-    - **Type**: ``dict``
-    - **Data**:
+    - **Type**: ``list``
+    - **Data**: one entry per requested name, in the order requested:
         - ``input``: list of input parameters
             - ``name``: parameter name
             - ``type``: SQL type, e.g. "VARCHAR(2000)"
         - ``returns``: returned SQL type
 
-describe_exasol_user_defined_function
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    If any requested name is not found, the whole call fails with an error naming
+    the missing function(s).
+
+describe_exasol_user_defined_functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Provides full available information about the specified User Defined Function (UDF).
+    Provides full available information about one or more specified User Defined
+    Functions (UDFs). Pass the names of every UDF needed in a single call.
+
+:Parameters:
+    - ``schema_name``: name of the schema containing the UDFs
+    - ``func_names``: list of UDF names to describe
 
 :Returns:
-    - **Type**: ``dict``
-    - **Data**:
+    - **Type**: ``list``
+    - **Data**: one entry per requested name, in the order requested:
         - ``input``: list of input parameters
             - ``name``: parameter name
             - ``type``: SQL type, e.g. "VARCHAR(2000)"
@@ -264,6 +285,9 @@ describe_exasol_user_defined_function
             - ``name``: parameter name
             - ``type``: SQL type
         - ``dynamic_output``: for emit type UDF, indication that the UDF emits dynamic output
+
+    If any requested name is not found or fails to parse, the whole call fails
+    with an error naming the problem UDF(s).
 
 Tools Executing a Query
 -----------------------

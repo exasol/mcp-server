@@ -1,6 +1,9 @@
 from test.utils.text_utils import collapse_spaces
 from textwrap import dedent
-from unittest.mock import MagicMock
+from unittest.mock import (
+    MagicMock,
+    patch,
+)
 
 import pytest
 import sqlglot.expressions as exp
@@ -24,7 +27,10 @@ from exasol.ai.mcp.server.tools.mcp_server import (
 from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
+    DBEmitFunction,
     DBObject,
+    DBReturnFunction,
+    DBTable,
     QueryResult,
 )
 
@@ -320,6 +326,163 @@ def test_health_check_unhealthy():
     server = ExasolMCPServer(connection=connection, config=config)
     response = server.health_check()
     assert b'"status":"unhealthy"' in response.body
+
+
+def test_describe_many_success():
+    result = ExasolMCPServer._describe_many(
+        "MY_SCHEMA", ["a", "b"], lambda schema, name: f"described-{schema}-{name}"
+    )
+    assert result == ["described-MY_SCHEMA-a", "described-MY_SCHEMA-b"]
+
+
+def test_describe_many_aggregates_errors():
+    def describe_one(schema_name: str, name: str) -> str:
+        if name == "bad":
+            raise ValueError(f"{schema_name}.{name} not found.")
+        return name
+
+    with pytest.raises(ValueError, match="MY_SCHEMA.bad not found"):
+        ExasolMCPServer._describe_many("MY_SCHEMA", ["good", "bad"], describe_one)
+
+
+def _make_describe_tables_server() -> ExasolMCPServer:
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+
+    def describe_one(schema_name: str, table_name: str) -> DBTable:
+        if table_name == "MISSING":
+            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
+        return DBTable(schema=schema_name, name=table_name, comment=None, columns=[])
+
+    server._describe_one_table = describe_one
+    return server
+
+
+def test_describe_tables_batch_returns_list_in_order():
+    server = _make_describe_tables_server()
+    result = server.describe_tables("MY_SCHEMA", ["T1", "T2"])
+    assert [t.name for t in result] == ["T1", "T2"]
+
+
+def test_describe_tables_batch_missing_name_raises():
+    server = _make_describe_tables_server()
+    with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
+        server.describe_tables("MY_SCHEMA", ["T1", "MISSING"])
+
+
+def test_describe_system_table_returns_single_object():
+    server = _make_describe_tables_server()
+    result = server.describe_system_table("EXA_ALL_COLUMNS")
+    assert isinstance(result, DBTable)
+    assert result.schema == "SYS"
+    assert result.name == "EXA_ALL_COLUMNS"
+
+
+def test_describe_statistics_table_returns_single_object():
+    server = _make_describe_tables_server()
+    result = server.describe_statistics_table("EXA_DBA_SESSIONS")
+    assert isinstance(result, DBTable)
+    assert result.schema == "EXA_STATISTICS"
+    assert result.name == "EXA_DBA_SESSIONS"
+
+
+def test_describe_functions_batch_returns_list_in_order():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+
+    def describe(schema_name: str, func_name: str) -> DBReturnFunction:
+        return DBReturnFunction(
+            schema=schema_name,
+            name=func_name,
+            comment=None,
+            input=[],
+            returns="INTEGER",
+        )
+
+    with patch(
+        "exasol.ai.mcp.server.tools.mcp_server.FuncParameterParser"
+    ) as parser_cls:
+        parser_cls.return_value.describe.side_effect = describe
+        result = server.describe_functions("MY_SCHEMA", ["F1", "F2"])
+
+    assert [f.name for f in result] == ["F1", "F2"]
+
+
+def test_describe_functions_batch_missing_name_raises():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+
+    def describe(schema_name: str, func_name: str) -> DBReturnFunction:
+        if func_name == "MISSING":
+            raise ValueError(
+                f"The function or script {schema_name}.{func_name} not found."
+            )
+        return DBReturnFunction(
+            schema=schema_name,
+            name=func_name,
+            comment=None,
+            input=[],
+            returns="INTEGER",
+        )
+
+    with patch(
+        "exasol.ai.mcp.server.tools.mcp_server.FuncParameterParser"
+    ) as parser_cls:
+        parser_cls.return_value.describe.side_effect = describe
+        with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
+            server.describe_functions("MY_SCHEMA", ["F1", "MISSING"])
+
+
+def test_describe_scripts_batch_returns_list_in_order():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+
+    def describe(schema_name: str, func_name: str) -> DBReturnFunction | DBEmitFunction:
+        return DBReturnFunction(
+            schema=schema_name,
+            name=func_name,
+            comment=None,
+            input=[],
+            returns="INTEGER",
+        )
+
+    with patch(
+        "exasol.ai.mcp.server.tools.mcp_server.ScriptParameterParser"
+    ) as parser_cls:
+        parser_cls.return_value.describe.side_effect = describe
+        result = server.describe_scripts("MY_SCHEMA", ["S1", "S2"])
+
+    assert [s.name for s in result] == ["S1", "S2"]
+
+
+def test_describe_scripts_batch_missing_name_raises():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+
+    def describe(schema_name: str, func_name: str) -> DBReturnFunction | DBEmitFunction:
+        if func_name == "MISSING":
+            raise ValueError(
+                f"The function or script {schema_name}.{func_name} not found."
+            )
+        return DBReturnFunction(
+            schema=schema_name,
+            name=func_name,
+            comment=None,
+            input=[],
+            returns="INTEGER",
+        )
+
+    with patch(
+        "exasol.ai.mcp.server.tools.mcp_server.ScriptParameterParser"
+    ) as parser_cls:
+        parser_cls.return_value.describe.side_effect = describe
+        with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
+            server.describe_scripts("MY_SCHEMA", ["S1", "MISSING"])
 
 
 def _make_summarize_server() -> tuple[ExasolMCPServer, MagicMock]:

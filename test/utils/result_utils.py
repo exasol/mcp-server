@@ -58,14 +58,24 @@ def get_result_json(result, content_extractor=get_result_content):
     return json.loads(content_extractor(result))
 
 
-def get_sort_result_json(
-    result, content_extractor=get_result_content
-) -> dict[str, Any]:
-    result_json = get_result_json(result, content_extractor)
+def sort_dict_lists(d: dict[str, Any]) -> dict[str, Any]:
     return {
         key: sorted(val, key=result_sort_func) if isinstance(val, list) else val
-        for key, val in result_json.items()
+        for key, val in d.items()
     }
+
+
+def get_sort_result_json_list(
+    result, content_extractor=get_result_content
+) -> list[dict[str, Any]]:
+    """
+    For tools that return a list of items (e.g. the batched `describe_*` tools) -
+    sorts the list-valued fields of every item, preserving the order of the items
+    themselves.
+    """
+    return [
+        sort_dict_lists(item) for item in get_result_json(result, content_extractor)
+    ]
 
 
 def get_list_result_json(result, content_extractor=get_result_content):
