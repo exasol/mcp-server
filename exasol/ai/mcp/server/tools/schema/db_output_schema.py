@@ -233,6 +233,33 @@ class DBTableSummary(QualifiedDBObject):
     ]
 
 
+class QueryResult(BaseModel):
+    columns: Annotated[
+        list[str],
+        Field(
+            description=(
+                "Column names, in order. Each entry in `rows` has exactly one "
+                "value per column, in this same order."
+            )
+        ),
+    ]
+    rows: Annotated[
+        list[list[Any]],
+        Field(
+            description=(
+                "Result rows. `rows[i][j]` is the value of `columns[j]` in row i."
+            )
+        ),
+    ]
+
+
+class DBTableSummaryTabular(DBTableSummary):
+    sample: Annotated[
+        QueryResult,
+        Field(description="Sample rows from the table"),
+    ]
+
+
 class DBPreprocessorList(BaseModel):
     preprocessors: Annotated[
         list[QualifiedDBObject],

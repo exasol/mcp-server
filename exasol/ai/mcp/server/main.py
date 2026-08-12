@@ -124,8 +124,13 @@ def _register_describe_table(mcp_server: ExasolMCPServer) -> None:
 
 
 def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
+    fn = (
+        mcp_server.summarize_table_tabular
+        if mcp_server.config.query_result_format == "tabular"
+        else mcp_server.summarize_table
+    )
     mcp_server.tool(
-        mcp_server.summarize_table,
+        fn,
         name="summarize_exasol_table",
         description="Column statistics (distinct count, numeric min/max) and a row sample.",
         annotations=ToolAnnotations(readOnlyHint=True),
@@ -149,8 +154,13 @@ def _register_describe_script(mcp_server: ExasolMCPServer) -> None:
 
 
 def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
+    fn = (
+        mcp_server.execute_query_tabular
+        if mcp_server.config.query_result_format == "tabular"
+        else mcp_server.execute_query
+    )
     mcp_server.tool(
-        mcp_server.execute_query,
+        fn,
         name="execute_exasol_query",
         description=(
             "The query must be a SELECT statement. Returns data selected by the query."
@@ -160,8 +170,13 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
 
 
 def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
+    fn = (
+        mcp_server.profile_query_tabular
+        if mcp_server.config.query_result_format == "tabular"
+        else mcp_server.profile_query
+    )
     mcp_server.tool(
-        mcp_server.profile_query,
+        fn,
         name="profile_exasol_query",
         description=(
             "Runs the query with profiling enabled and returns a breakdown of the "

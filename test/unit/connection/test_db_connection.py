@@ -14,6 +14,10 @@ from exasol.ai.mcp.server.connection.db_connection import (
     GENERIC_DB_ERROR_MESSAGE,
     QUERY_ERROR_PREFIX,
     DbConnection,
+    fetchall,
+    fetchcol,
+    fetchone,
+    fetchval,
 )
 
 
@@ -76,6 +80,30 @@ def snapshot(request) -> bool:
     return request.param
 
 
+def test_fetchall():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchall.return_value = [{"A": 1}, {"A": 2}]
+    assert fetchall(statement) == [{"A": 1}, {"A": 2}]
+
+
+def test_fetchcol():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchcol.return_value = [1, 2, 3]
+    assert fetchcol(statement) == [1, 2, 3]
+
+
+def test_fetchone():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchone.return_value = {"A": 1}
+    assert fetchone(statement) == {"A": 1}
+
+
+def test_fetchval():
+    statement = MagicMock(spec=pyexasol.ExaStatement)
+    statement.fetchval.return_value = 1
+    assert fetchval(statement) == 1
+
+
 def test_db_connection_execute_success(snapshot):
     """
     Tests the successful execution of a query first time.
@@ -104,19 +132,19 @@ def test_db_connection_execute_failure(snapshot):
 
 def test_db_connection_execute_retry_success(snapshot):
     """
-    Tests the successful execution of a query after a number of retries.
+    Tests the successful execution of a query after a number of retries, following
+    the transient/retryable errors (ExaCommunicationError, ExaAuthError).
     """
     results = [
         pyexasol.ExaCommunicationError,
-        pyexasol.ExaRuntimeError,
         pyexasol.ExaAuthError,
         1,
     ]
     factory = FakeConnectionFactory(results=results, snapshot=snapshot)
-    db_connection = DbConnection(factory, num_retries=4)
+    db_connection = DbConnection(factory, num_retries=3)
     result = db_connection.execute_query("SELECT 1", snapshot=snapshot).fetchval()
     assert result == 1
-    assert factory.conn_state == [True, True, True, False]
+    assert factory.conn_state == [True, True, False]
 
 
 def test_db_connection_execute_retry_failure(snapshot):
@@ -127,16 +155,56 @@ def test_db_connection_execute_retry_failure(snapshot):
     """
     results = [
         pyexasol.ExaCommunicationError,
-        pyexasol.ExaRuntimeError,
         pyexasol.ExaAuthError,
         1,
     ]
+    factory = FakeConnectionFactory(results=results, snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaAuthError)
+
+
+def test_db_connection_execute_runtime_error_not_retried(snapshot):
+    """
+    Tests that ExaRuntimeError - pyexasol's client-side precondition-failure error
+    (e.g. duplicate column names, an already-closed connection) - is never retried,
+    since the same query would deterministically fail with the same error on any
+    connection. The connection is still closed, but only once, and the second queued
+    result (a success) is never reached. `conn_state` stays empty because the
+    connection factory's context manager is exited via the propagating exception,
+    not normally, so its post-yield bookkeeping never runs - this is exercised
+    instead by asserting the connection's `is_closed` directly.
+    """
+    results = [pyexasol.ExaRuntimeError, 1]
     factory = FakeConnectionFactory(results=results, snapshot=snapshot)
     db_connection = DbConnection(factory, num_retries=3)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
     assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
-    assert isinstance(exc_info.value.__cause__, pyexasol.ExaAuthError)
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaRuntimeError)
+    assert factory.connection.is_closed is True
+    assert factory.conn_state == []
+
+
+def test_db_connection_execute_runtime_error_survives_close_failure(snapshot):
+    """
+    Tests that if `connection.close()` itself raises (e.g. the disconnect command
+    hits a communication error) while handling an ExaRuntimeError, that close
+    failure is swallowed rather than replacing the original error: the caller still
+    sees the ExaRuntimeError as the cause, not the failure from closing.
+    """
+    results = [pyexasol.ExaRuntimeError, 1]
+    factory = FakeConnectionFactory(results=results, snapshot=snapshot)
+    factory.connection.close.side_effect = pyexasol.ExaCommunicationError(
+        factory.connection, "disconnect failed"
+    )
+    db_connection = DbConnection(factory, num_retries=3)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaRuntimeError)
 
 
 @pytest.mark.parametrize(
@@ -159,6 +227,42 @@ def test_db_connection_execute_query_error_detail_preserved(snapshot, ex_type):
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
     assert str(exc_info.value) == f"{QUERY_ERROR_PREFIX}error"
     assert isinstance(exc_info.value.__cause__, ex_type)
+
+
+def test_db_connection_fetch_error_is_sanitized(snapshot):
+    """
+    Tests that an `ExaError` raised by the `fetch` callable - e.g. a communication
+    failure while pulling a later chunk of a large result set, which can only happen
+    after query execution has already succeeded - is sanitized the same way as one
+    raised during execution. This is the reason `fetch` runs inside `execute_query`'s
+    try/except instead of callers fetching from the returned statement afterwards.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+
+    def fetch(statement):
+        raise pyexasol.ExaCommunicationError(factory.connection, "connection dropped")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, pyexasol.ExaCommunicationError)
+
+
+def test_db_connection_fetch_non_pyexasol_error_propagates_unmodified(snapshot):
+    """
+    Tests that a bug in our own code raised from the `fetch` callable is not caught
+    or sanitized by execute_query, and propagates unmodified - mirroring the same
+    guarantee for errors raised during execution.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+
+    def fetch(statement):
+        raise TypeError("boom")
+
+    with pytest.raises(TypeError, match="boom"):
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
 
 
 def test_db_connection_execute_non_pyexasol_error_propagates_unmodified(snapshot):

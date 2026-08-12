@@ -228,7 +228,9 @@ summarize_exasol_table
             - ``top_values``: most common distinct values in descending frequency order; empty list if all values are NULL
             - ``has_nulls``: ``true`` if the column contains at least one NULL value
             - ``null_percentage``: percentage of NULL values rounded to whole percent
-        - ``sample``: list of sample rows, each row is a dict with column names as keys
+        - ``sample``: sample rows, in the shape controlled by the ``query_result_format``
+          setting (see :doc:`tool_setup`) - by default ``{"columns": [...], "rows": [[...], ...]}``,
+          or a list of dicts with column names as keys if ``query_result_format`` is set to ``"dict"``
 
 describe_exasol_custom_function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -277,9 +279,14 @@ execute_exasol_query
     ``SELECT * FROM (<query>) LIMIT <row_limit>``.
 
 :Returns:
-    - **Type**: ``list``
+    - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting
+      (see :doc:`tool_setup`)
     - **Data**:
-        - selected rows in a form of dictionaries, with column names as keys
+        - by default (``query_result_format`` = ``"tabular"``): a dict with
+          ``columns`` (list of column names) and ``rows`` (list of rows, each row a
+          list of values in the same order as ``columns``)
+        - if ``query_result_format`` is set to ``"dict"``: selected rows in a form of
+          dictionaries, with column names as keys
 
 profile_exasol_query
 ~~~~~~~~~~~~~~~~~~~~
@@ -289,8 +296,12 @@ profile_exasol_query
     of the execution plan. Use this to understand why a query is slow.
 
 :Returns:
-    - **Type**: ``list``
-    - **Data**:
+    - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting
+      (see :doc:`tool_setup`)
+    - **Data**: the execution plan breakdown, in the shape controlled by
+      ``query_result_format`` (see ``execute_exasol_query`` above). Each row has the
+      following columns:
+
         - ``PART_NAME``: name of the execution step
         - ``PART_INFO``: additional information about the step
         - ``OBJECT_SCHEMA``: schema of the database object involved

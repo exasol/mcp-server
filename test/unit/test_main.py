@@ -26,6 +26,9 @@ from exasol.ai.mcp.server.main import (
     ENV_LOG_LEVEL,
     ENV_LOG_TO_CONSOLE,
     ENV_SETTINGS,
+    _register_execute_query,
+    _register_profile_query,
+    _register_summarize_table,
     get_mcp_settings,
     main_http,
     mcp_server,
@@ -283,6 +286,32 @@ def test_register_tools_find_disabled() -> None:
         p_ft.assert_not_called()
         p_ff.assert_not_called()
         p_fsc.assert_not_called()
+
+
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
+@pytest.mark.parametrize(
+    "register, tabular_fn, dict_fn",
+    [
+        (_register_execute_query, "execute_query_tabular", "execute_query"),
+        (_register_profile_query, "profile_query_tabular", "profile_query"),
+        (
+            _register_summarize_table,
+            "summarize_table_tabular",
+            "summarize_table",
+        ),
+    ],
+)
+def test_register_respects_query_result_format(
+    register, tabular_fn, dict_fn, query_result_format
+) -> None:
+    mcp_server = MagicMock()
+    mcp_server.config = McpServerSettings(query_result_format=query_result_format)
+    register(mcp_server)
+    registered_fn = mcp_server.tool.call_args[0][0]
+    expected_fn = getattr(
+        mcp_server, tabular_fn if query_result_format == "tabular" else dict_fn
+    )
+    assert registered_fn is expected_fn
 
 
 @patch("fastmcp.FastMCP.run")

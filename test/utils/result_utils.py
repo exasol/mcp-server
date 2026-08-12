@@ -34,6 +34,22 @@ def result_sort_func(d: Any) -> str:
     return str(d)
 
 
+def to_dicts(result_json: Any) -> list[dict[str, Any]]:
+    """
+    Normalizes a query-result payload to a list of dicts, regardless of the
+    configured `query_result_format`: passes a list of dicts through unchanged, and
+    converts the tabular `{"columns": [...], "rows": [[...], ...]}` shape.
+    """
+    if (
+        isinstance(result_json, dict)
+        and "columns" in result_json
+        and "rows" in result_json
+    ):
+        columns = result_json["columns"]
+        return [dict(zip(columns, row)) for row in result_json["rows"]]
+    return result_json
+
+
 def get_result_content(result) -> str:
     return result.content[0].text
 
@@ -54,6 +70,19 @@ def get_sort_result_json(
 
 def get_list_result_json(result, content_extractor=get_result_content):
     result_json = get_result_json(result, content_extractor)
+    if isinstance(result_json, list):
+        return sorted(result_json, key=result_sort_func)
+    return result_json
+
+
+def get_query_result_json(result, content_extractor=get_result_content):
+    """
+    Like `get_list_result_json`, but first normalizes the tabular
+    `{"columns", "rows"}` shape (used by `execute_exasol_query`,
+    `profile_exasol_query` and the `summarize_exasol_table` sample) to a list of
+    dicts, so tests can compare the result regardless of `query_result_format`.
+    """
+    result_json = to_dicts(get_result_json(result, content_extractor))
     if isinstance(result_json, list):
         return sorted(result_json, key=result_sort_func)
     return result_json

@@ -1,5 +1,18 @@
 # Unreleased
 
+## Features
+
+* #272: Changed `execute_exasol_query`, `profile_exasol_query` and the `sample`
+  field of `summarize_exasol_table` to return a tabular `{columns, rows}` shape by
+  default.
+
+## Bug Fixes
+
+* #272: Stopped retrying `ExaRuntimeError` in `DbConnection`. pyexasol only raises
+  it for client-side precondition failures (e.g. duplicate column names in a result
+  set), which reproduce identically on any connection, so retrying only discarded
+  connections and added latency without ever succeeding.
+
 ## Security
 
 * #256: Sanitized errors from `execute_exasol_query` and other DB-backed tools.

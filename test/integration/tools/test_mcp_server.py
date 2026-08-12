@@ -10,17 +10,21 @@ from test.utils.db_objects import (
 )
 from test.utils.result_utils import (
     get_list_result_json,
+    get_query_result_json,
     get_result_json,
     get_sort_result_json,
     list_tools,
     result_sort_func,
+    to_dicts,
 )
 from test.utils.tool_utils import run_tool
 from typing import Any
 
+import pyexasol
 import pytest
 from fastmcp.exceptions import ToolError
 
+from exasol.ai.mcp.server.connection.db_connection import GENERIC_DB_ERROR_MESSAGE
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
@@ -834,8 +838,9 @@ def test_set_preprocessor(
     assert db_preprocessor.name.upper() in data[CURRENT_PREPROCESSOR_FIELD].upper()
 
 
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_summarize_table(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ) -> None:
     """
     Test the `summarize_exasol_table` tool. Verifies column statistics and sample data
@@ -844,6 +849,7 @@ def test_summarize_table(
     config = McpServerSettings(
         enable_summarize_table=True,
         columns=MetaSettings(enable=True),
+        query_result_format=query_result_format,
     )
     ski_resort = next(t for t in db_tables if t.name == "ski_resort")
 
@@ -906,7 +912,7 @@ def test_summarize_table(
         assert altitude["null_percentage"] == 0
 
         # Sample
-        sample = result_json["sample"]
+        sample = to_dicts(result_json["sample"])
         assert len(sample) > 0
         assert len(sample) <= 10
 
@@ -921,13 +927,18 @@ def test_summarize_table_disabled(pyexasol_connection) -> None:
     assert "summarize_exasol_table" not in tool_list
 
 
-def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
+def test_execute_query(
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
+):
     """
     Test the `execute_query` tool. Runs the simplest SELECT query that grabs the entire
     content of a table and validates this content. The tool is tested on each table
-    of every schema.
+    of every schema, against both values of `query_result_format`.
     """
-    config = McpServerSettings(enable_read_query=True)
+    config = McpServerSettings(
+        enable_read_query=True, query_result_format=query_result_format
+    )
     for schema in db_schemas:
         for table in db_tables:
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -938,7 +949,7 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
                 query=query,
             )
             if result.content:
-                result_json = get_list_result_json(result)
+                result_json = get_query_result_json(result)
             else:
                 result_json = []
             expected_json = [
@@ -947,6 +958,36 @@ def test_execute_query(pyexasol_connection, setup_database, db_schemas, db_table
             ]
             expected_json.sort(key=result_sort_func)
             assert result_json == expected_json
+
+
+def test_execute_query_rejects_duplicate_columns(
+    backend_aware_database_params, setup_database, db_schemas, db_tables
+):
+    """
+    pyexasol itself refuses to return a result set with two identically-named
+    columns (e.g. the same column selected twice), regardless of fetch format - see
+    `ExaStatement._check_duplicate_col_names`, which runs unconditionally as part of
+    statement execution. The tool can only surface this as a sanitized error, not
+    work around it.
+
+    Triggering this error makes `DbConnection` discard the connection it used (see
+    `db_connection.py`'s handling of `ExaRuntimeError`), so this test opens its own,
+    disposable connection instead of using the session-scoped `pyexasol_connection`
+    fixture, which other fixtures and tests rely on staying open for the rest of the
+    session.
+    """
+    schema = db_schemas[0]
+    table = next(t for t in db_tables if t.columns)
+    col_name = table.columns[0].name
+    query = f'SELECT "{col_name}", "{col_name}" FROM "{schema.name}"."{table.name}"'
+    config = McpServerSettings(enable_read_query=True)
+    with pyexasol.connect(**backend_aware_database_params) as connection:
+        with pytest.raises(ToolError) as exc_info:
+            run_tool(connection, config, tool_name="execute_exasol_query", query=query)
+    assert (
+        str(exc_info.value)
+        == f"Error calling tool 'execute_exasol_query': {GENERIC_DB_ERROR_MESSAGE}"
+    )
 
 
 def test_execute_query_error(
@@ -972,13 +1013,16 @@ def test_execute_query_error(
                 )
 
 
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_execute_query_with_row_limit(
-    pyexasol_connection, setup_database, db_schemas, db_tables
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
 ):
     """
     Test that the row_limit parameter caps the number of returned rows.
     """
-    config = McpServerSettings(enable_read_query=True)
+    config = McpServerSettings(
+        enable_read_query=True, query_result_format=query_result_format
+    )
     row_limit = 1
     for schema in db_schemas:
         for table in db_tables:
@@ -992,15 +1036,20 @@ def test_execute_query_with_row_limit(
                 query=query,
                 row_limit=row_limit,
             )
-            result_json = get_list_result_json(result) if result.content else []
+            result_json = get_query_result_json(result) if result.content else []
             assert len(result_json) <= row_limit
 
 
-def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_tables):
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
+def test_profile_query(
+    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
+):
     """
     Test that profile_exasol_query returns a non-empty execution plan for a valid query.
     """
-    config = McpServerSettings(enable_query_profiling=True)
+    config = McpServerSettings(
+        enable_query_profiling=True, query_result_format=query_result_format
+    )
     schema = db_schemas[0]
     table = db_tables[0]
     query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -1010,7 +1059,7 @@ def test_profile_query(pyexasol_connection, setup_database, db_schemas, db_table
         tool_name="profile_exasol_query",
         query=query,
     )
-    result_json = get_list_result_json(result)
+    result_json = get_query_result_json(result)
     assert len(result_json) > 0
     assert "PART_NAME" in result_json[0]
     assert "DURATION" in result_json[0]

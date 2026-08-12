@@ -58,6 +58,27 @@ query is slow. The tool is disabled by default. To enable it, set
 
 Note that the connecting user must have access to the ``EXA_STATISTICS`` system schema.
 
+Choose the query result format
+-------------------------------
+
+``execute_exasol_query``, ``profile_exasol_query`` and the ``sample`` field of
+``summarize_exasol_table`` return arbitrary, unbounded query rows. By default
+(``query_result_format`` = ``"tabular"``), the result is returned as a single object
+with the column names listed once and the rows as arrays of values in that same
+order, e.g. ``{"columns": ["ID", "NAME"], "rows": [[1, "Alice"]]}``. This avoids
+repeating every column name on every row, which is the biggest source of token usage
+for wide or long results.
+
+To restore the previous shape, where each row is an object with column names as
+keys (e.g. ``[{"ID": 1, "NAME": "Alice"}]``), set ``query_result_format`` to
+``"dict"``:
+
+.. code-block:: json
+
+    {
+        "query_result_format": "dict"
+    }
+
 Disable preprocessor tools
 --------------------------
 
@@ -288,6 +309,7 @@ The following JSON shows the default settings.
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,
+        "query_result_format": "tabular",
         "language": ""
     }
 

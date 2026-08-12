@@ -17,6 +17,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_stats_query,
     _build_top_values_query,
     _is_numeric_type,
+    _statement_to_tabular,
     remove_info_column,
     verify_query,
 )
@@ -24,7 +25,24 @@ from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
     DBObject,
+    QueryResult,
 )
+
+
+def _mock_connection() -> MagicMock:
+    """
+    A `MagicMock` standing in for `DbConnection`, wired so that `execute_query`
+    applies its `fetch` argument to the mock statement (`execute_query.return_value`)
+    the same way the real `DbConnection.execute_query` does.
+    """
+    connection = MagicMock()
+    mock_statement = connection.execute_query.return_value
+
+    def execute_query(*args, fetch=lambda statement: statement, **kwargs):
+        return fetch(mock_statement)
+
+    connection.execute_query.side_effect = execute_query
+    return connection
 
 
 def sample_select_query() -> str:
@@ -193,12 +211,147 @@ def test_remove_info_column():
 
 
 def test_execute_meta_query_empty_result():
-    connection = MagicMock()
+    connection = _mock_connection()
     connection.execute_query.return_value.fetchall.return_value = []
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
     result = server._execute_meta_query("SELECT 1", DBObject)
     assert result == []
+
+
+def test_statement_to_tabular():
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "NAME"]
+    statement.__iter__.return_value = iter([(1, "Alice"), (2, "Bob")])
+    result = _statement_to_tabular(statement)
+    assert statement.fetch_dict is False
+    assert result == QueryResult(
+        columns=["ID", "NAME"], rows=[[1, "Alice"], [2, "Bob"]]
+    )
+
+
+def test_statement_to_tabular_empty_result_keeps_columns():
+    """
+    Columns must come from the cursor metadata, not from the first row, otherwise an
+    empty result set would be indistinguishable from "no columns".
+    """
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "NAME"]
+    statement.fetchall.return_value = []
+    result = _statement_to_tabular(statement)
+    assert result == QueryResult(columns=["ID", "NAME"], rows=[])
+
+
+def test_statement_to_tabular_preserves_duplicate_column_names():
+    """
+    dict(zip(col_names, row)), used for the dict-format output, silently collapses
+    same-named columns (e.g. a join on two tables that both have an ID column). The
+    tabular path reads rows positionally, so it must preserve both values.
+    """
+    statement = MagicMock()
+    statement.column_names.return_value = ["ID", "ID"]
+    statement.__iter__.return_value = iter([(1, 2)])
+    result = _statement_to_tabular(statement)
+    assert result == QueryResult(columns=["ID", "ID"], rows=[[1, 2]])
+
+
+def test_execute_query_tabular():
+    connection = _mock_connection()
+    connection.execute_query.return_value.column_names.return_value = ["ID"]
+    connection.execute_query.return_value.__iter__.return_value = iter([(1,), (2,)])
+    config = MagicMock()
+    config.enable_read_query = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.execute_query_tabular("SELECT ID FROM T")
+    assert result == QueryResult(columns=["ID"], rows=[[1], [2]])
+
+
+def test_profile_query_tabular():
+    server, connection = _make_profile_server(profile_already_on=True)
+    connection.execute_query.return_value.column_names.return_value = ["PART_NAME"]
+    connection.execute_query.return_value.__iter__.return_value = iter([("step1",)])
+    result = server.profile_query_tabular("SELECT 1")
+    assert result == QueryResult(columns=["PART_NAME"], rows=[["step1"]])
+
+
+def test_execute_query():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = [{"ID": 1}]
+    config = MagicMock()
+    config.enable_read_query = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.execute_query("SELECT ID FROM T")
+    assert result == [{"ID": 1}]
+
+
+def test_list_keywords():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchcol.return_value = ["SELECT", "INSERT"]
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.list_keywords(reserved=True, letter="S")
+    assert result == ["SELECT", "INSERT"]
+
+
+def test_list_preprocessors():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = []
+    connection.execute_query.return_value.fetchval.return_value = "MY_PREPROCESSOR"
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.list_preprocessors()
+    assert result.preprocessors == []
+    assert result.current_preprocessor == "MY_PREPROCESSOR"
+
+
+def test_health_check_healthy():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchval.return_value = 1
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    response = server.health_check()
+    assert b'"status":"healthy"' in response.body
+
+
+def test_health_check_unhealthy():
+    connection = MagicMock()
+    connection.execute_query.side_effect = RuntimeError("boom")
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    response = server.health_check()
+    assert b'"status":"unhealthy"' in response.body
+
+
+def _make_summarize_server() -> tuple[ExasolMCPServer, MagicMock]:
+    connection = _mock_connection()
+    statement = connection.execute_query.return_value
+    statement.fetchone.return_value = {"ROW_COUNT": 2}
+    statement.fetchcol.return_value = [1, 2]
+    statement.fetchall.return_value = [{"id": 1}, {"id": 2}]
+    config = MagicMock()
+    config.enable_summarize_table = True
+    server = ExasolMCPServer(connection=connection, config=config)
+    columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
+    server.describe_columns = MagicMock(return_value=columns)
+    server._get_table_comment = MagicMock(return_value="a comment")
+    return server, connection
+
+
+def test_summarize_table():
+    server, _ = _make_summarize_server()
+    result = server.summarize_table("MY_SCHEMA", "MY_TABLE")
+    assert result.schema == "MY_SCHEMA"
+    assert result.comment == "a comment"
+    assert result.row_count == 2
+    assert result.sample == [{"id": 1}, {"id": 2}]
+
+
+def test_summarize_table_tabular():
+    server, _ = _make_summarize_server()
+    result = server.summarize_table_tabular("MY_SCHEMA", "MY_TABLE")
+    assert result.comment == "a comment"
+    assert result.row_count == 2
+    assert result.sample == QueryResult(columns=["id"], rows=[[1], [2]])
 
 
 @pytest.mark.parametrize(
@@ -399,7 +552,7 @@ def test_build_profile_status_query():
 
 
 def _make_profile_server(profile_already_on: bool):
-    connection = MagicMock()
+    connection = _mock_connection()
     connection.execute_query.return_value.fetchval.return_value = (
         "ON" if profile_already_on else "OFF"
     )

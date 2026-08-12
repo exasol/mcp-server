@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from functools import cache
 from typing import (
     Annotated,
@@ -16,6 +17,7 @@ from pydantic import (
     BaseModel,
     Field,
 )
+from pyexasol import ExaStatement
 from sqlglot import (
     exp,
     parse_one,
@@ -23,7 +25,13 @@ from sqlglot import (
 from sqlglot.errors import ParseError
 from starlette.responses import JSONResponse
 
-from exasol.ai.mcp.server.connection.db_connection import DbConnection
+from exasol.ai.mcp.server.connection.db_connection import (
+    DbConnection,
+    fetchall,
+    fetchcol,
+    fetchone,
+    fetchval,
+)
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
 from exasol.ai.mcp.server.tools.meta_query import (
@@ -54,7 +62,9 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBReturnFunction,
     DBTable,
     DBTableSummary,
+    DBTableSummaryTabular,
     QualifiedDBObject,
+    QueryResult,
     SQLTypeInfo,
 )
 from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
@@ -117,7 +127,28 @@ RowLimitArg = Annotated[
     ),
 ]
 
+SampleSizeArg = Annotated[
+    int,
+    Field(
+        description="Number of sample rows to include in the result",
+        default=10,
+        ge=1,
+        le=100,
+    ),
+]
+
+TopValuesArg = Annotated[
+    int,
+    Field(
+        description="Number of most common distinct values to return per column",
+        default=5,
+        ge=1,
+        le=100,
+    ),
+]
+
 M = TypeVar("M", bound=BaseModel)
+T = TypeVar("T")
 
 
 @cache
@@ -154,6 +185,19 @@ def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if INFO_COLUMN in row:
             row.pop(INFO_COLUMN)
     return result
+
+
+def _statement_to_tabular(statement: ExaStatement) -> QueryResult:
+    """
+    Reads a query result positionally instead of as dict rows, so that columns are
+    read from the cursor metadata (correct even for an empty result set) rather than
+    from the keys of the first row.
+    """
+    statement.fetch_dict = False
+    return QueryResult(
+        columns=statement.column_names(),
+        rows=[list(row) for row in statement],
+    )
 
 
 _NUMERIC_TYPE_PREFIXES = frozenset(
@@ -421,7 +465,7 @@ class ExasolMCPServer(FastMCP):
         to assist filtering. This is necessary to avoid polluting the LLM's context
         with data it doesn't need at the current stage.
         """
-        result = self.connection.execute_query(query).fetchall()
+        result = self.connection.execute_query(query, fetch=fetchall)
         if keywords:
             result = keyword_filter(result, keywords, language=self.config.language)
             result = remove_info_column(result)
@@ -563,34 +607,16 @@ class ExasolMCPServer(FastMCP):
         for col in columns:
             result.append(
                 self.connection.execute_query(
-                    _build_top_values_query(table_ref, col, top_n), snapshot=False
-                ).fetchcol()
+                    _build_top_values_query(table_ref, col, top_n),
+                    snapshot=False,
+                    fetch=fetchcol,
+                )
             )
         return result
 
-    def summarize_table(
-        self,
-        schema_name: SchemaNameArg,
-        table_name: TableNameArg,
-        sample_size: Annotated[
-            int,
-            Field(
-                description="Number of sample rows to include in the result",
-                default=10,
-                ge=1,
-                le=100,
-            ),
-        ] = 10,
-        top_values: Annotated[
-            int,
-            Field(
-                description="Number of most common distinct values to return per column",
-                default=5,
-                ge=1,
-                le=100,
-            ),
-        ] = 5,
-    ) -> DBTableSummary:
+    def _summarize_table_core(
+        self, schema_name: str, table_name: str, sample_size: int, top_values: int
+    ) -> tuple[str | None, int, list[DBColumnSummary], list[dict[str, Any]]]:
         if not self.config.enable_summarize_table:
             raise RuntimeError("The table summarization is disabled.")
         columns = self.describe_columns(schema_name, table_name)
@@ -600,21 +626,64 @@ class ExasolMCPServer(FastMCP):
             db=exp.Identifier(this=schema_name, quoted=True),
         )
         stats_row = self.connection.execute_query(
-            _build_stats_query(table_ref, columns), snapshot=False
-        ).fetchone()
+            _build_stats_query(table_ref, columns),
+            snapshot=False,
+            fetch=fetchone,
+        )
         column_top_values = self._fetch_column_top_values(
             table_ref, columns, top_values
         )
         sample_data = self.connection.execute_query(
-            _build_sample_query(table_ref, sample_size), snapshot=False
-        ).fetchall()
+            _build_sample_query(table_ref, sample_size),
+            snapshot=False,
+            fetch=fetchall,
+        )
+        column_summaries = _build_column_summaries(
+            columns, stats_row, column_top_values
+        )
+        row_count = stats_row.get("ROW_COUNT", 0) if stats_row else 0
+        return comment, row_count, column_summaries, sample_data
+
+    def summarize_table(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: SampleSizeArg = 10,
+        top_values: TopValuesArg = 5,
+    ) -> DBTableSummary:
+        comment, row_count, column_summaries, sample_data = self._summarize_table_core(
+            schema_name, table_name, sample_size, top_values
+        )
         return DBTableSummary(
             schema=schema_name,
             name=table_name,
             comment=comment,
-            row_count=stats_row.get("ROW_COUNT", 0) if stats_row else 0,
-            columns=_build_column_summaries(columns, stats_row, column_top_values),
+            row_count=row_count,
+            columns=column_summaries,
             sample=sample_data,
+        )
+
+    def summarize_table_tabular(
+        self,
+        schema_name: SchemaNameArg,
+        table_name: TableNameArg,
+        sample_size: SampleSizeArg = 10,
+        top_values: TopValuesArg = 5,
+    ) -> DBTableSummaryTabular:
+        comment, row_count, column_summaries, sample_data = self._summarize_table_core(
+            schema_name, table_name, sample_size, top_values
+        )
+        sample_columns = [c.name for c in column_summaries]
+        return DBTableSummaryTabular(
+            schema=schema_name,
+            name=table_name,
+            comment=comment,
+            row_count=row_count,
+            columns=column_summaries,
+            sample=QueryResult(
+                columns=sample_columns,
+                rows=[[row[c] for c in sample_columns] for row in sample_data],
+            ),
         )
 
     def describe_function(
@@ -631,9 +700,9 @@ class ExasolMCPServer(FastMCP):
             DBReturnFunction | DBEmitFunction, parser.describe(schema_name, func_name)
         )
 
-    def execute_query(
-        self, query: QueryArg, row_limit: RowLimitArg = None
-    ) -> list[dict[str, Any]]:
+    def _execute_select_query(
+        self, query: str, row_limit: int | None, fetch: Callable[[ExaStatement], T]
+    ) -> T:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
         if not verify_query(query):
@@ -641,15 +710,30 @@ class ExasolMCPServer(FastMCP):
         effective_query = (
             _build_preview_query(query, row_limit) if row_limit is not None else query
         )
-        return self.connection.execute_query(effective_query, snapshot=False).fetchall()
+        return self.connection.execute_query(
+            effective_query, snapshot=False, fetch=fetch
+        )
 
-    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+    def execute_query(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> list[dict[str, Any]]:
+        return self._execute_select_query(query, row_limit, fetchall)
+
+    def execute_query_tabular(
+        self, query: QueryArg, row_limit: RowLimitArg = None
+    ) -> QueryResult:
+        return self._execute_select_query(query, row_limit, _statement_to_tabular)
+
+    def _run_profile_query(self, query: str, fetch: Callable[[ExaStatement], T]) -> T:
         if not self.config.enable_query_profiling:
             raise RuntimeError("Query profiling is disabled.")
         if not verify_query(query):
             raise ValueError("The query is invalid or not a SELECT statement.")
         profile_already_on = (
-            self.connection.execute_query(_build_profile_status_query()).fetchval()
+            self.connection.execute_query(
+                _build_profile_status_query(),
+                fetch=fetchval,
+            )
             == "ON"
         )
         statements: list[str] = []
@@ -659,7 +743,13 @@ class ExasolMCPServer(FastMCP):
         if not profile_already_on:
             statements.append("ALTER SESSION SET PROFILE = 'OFF'")
         statements.append(_build_profile_select(query))
-        return self.connection.execute_query(statements, snapshot=False).fetchall()
+        return self.connection.execute_query(statements, snapshot=False, fetch=fetch)
+
+    def profile_query(self, query: QueryArg) -> list[dict[str, Any]]:
+        return self._run_profile_query(query, fetchall)
+
+    def profile_query_tabular(self, query: QueryArg) -> QueryResult:
+        return self._run_profile_query(query, _statement_to_tabular)
 
     async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
         if not self.config.enable_write_query:
@@ -733,15 +823,16 @@ class ExasolMCPServer(FastMCP):
         ],
     ) -> list[str]:
         query = ExasolMetaQuery.get_keywords(reserved, letter)
-        return self.connection.execute_query(query).fetchcol()
+        return self.connection.execute_query(query, fetch=fetchcol)
 
     def list_preprocessors(self) -> DBPreprocessorList:
         preprocessors = self._execute_meta_query(
             _build_list_preprocessors_query(), QualifiedDBObject
         )
         current = self.connection.execute_query(
-            _build_current_preprocessor_query()
-        ).fetchval()
+            _build_current_preprocessor_query(),
+            fetch=fetchval,
+        )
         return DBPreprocessorList(
             preprocessors=preprocessors, current_preprocessor=current
         )
@@ -762,7 +853,9 @@ class ExasolMCPServer(FastMCP):
         A simple health check, runs a trivial query to verify that the DB is accessible.
         """
         try:
-            result = self.connection.execute_query("SELECT 1", no_auth=True).fetchval()
+            result = self.connection.execute_query(
+                "SELECT 1", no_auth=True, fetch=fetchval
+            )
             if result == 1:
                 return JSONResponse(
                     {"status": "healthy", "service": "exasol-mcp-server"}
