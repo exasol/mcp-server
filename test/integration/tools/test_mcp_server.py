@@ -12,7 +12,7 @@ from test.utils.result_utils import (
     get_list_result_json,
     get_query_result_json,
     get_result_json,
-    get_sort_result_json,
+    get_sort_result_json_list,
     list_tools,
     result_sort_func,
     to_dicts,
@@ -179,9 +179,9 @@ def _get_schema_param(schema: ExaSchema, restricted: bool, case_sensitive: bool)
         ("list_exasol_tables_and_views", ["tables", "views"]),
         ("list_exasol_custom_functions", ["functions"]),
         ("list_exasol_user_defined_functions", ["scripts"]),
-        ("describe_exasol_table_or_view", ["columns"]),
-        ("describe_exasol_custom_function", ["parameters"]),
-        ("describe_exasol_user_defined_function", ["parameters"]),
+        ("describe_exasol_tables_and_views", ["columns"]),
+        ("describe_exasol_custom_functions", ["parameters"]),
+        ("describe_exasol_user_defined_functions", ["parameters"]),
     ],
 )
 def test_tool_disabled(
@@ -626,11 +626,11 @@ def test_find_scripts(
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_table(
+def test_describe_tables(
     pyexasol_connection, setup_database, db_schemas, db_tables, case_sensitive
 ) -> None:
     """
-    Test the `describe_table` tool. The tool is tested on each table of every schema.
+    Test the `describe_tables` tool, describing every table of a schema in one call.
     """
     config = McpServerSettings(
         columns=MetaSettings(
@@ -639,32 +639,35 @@ def test_describe_table(
         case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
-        for table in db_tables:
-            result = run_tool(
-                pyexasol_connection,
-                config,
-                "describe_exasol_table_or_view",
-                schema_name=_get_db_name_param(schema, case_sensitive),
-                table_name=_get_db_name_param(table, case_sensitive),
-            )
-            result_json = get_sort_result_json(result)
-            expected_json = _get_expected_table_json(table, schema.name)
-            assert result_json == expected_json
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "describe_exasol_tables_and_views",
+            schema_name=_get_db_name_param(schema, case_sensitive),
+            table_names=[
+                _get_db_name_param(table, case_sensitive) for table in db_tables
+            ],
+        )
+        result_json = get_sort_result_json_list(result)
+        expected_json = [
+            _get_expected_table_json(table, schema.name) for table in db_tables
+        ]
+        assert result_json == expected_json
 
 
 def test_describe_sys_table(pyexasol_connection) -> None:
     """
-    Test the `describe_table` tool, passing the name of a system table to it.
+    Test the `describe_tables` tool, passing the name of a system table to it.
     """
     config = McpServerSettings(columns=MetaSettings(enable=True))
     result = run_tool(
         pyexasol_connection,
         config,
-        "describe_exasol_table_or_view",
+        "describe_exasol_tables_and_views",
         schema_name="SYS",
-        table_name="EXA_ALL_COLUMNS",
+        table_names=["EXA_ALL_COLUMNS"],
     )
-    result_json = get_result_json(result)
+    result_json = get_result_json(result)[0]
     result_columns = result_json["columns"]
     column_names = [col[NAME_FIELD] for col in result_columns]
     assert all(
@@ -684,26 +687,25 @@ def test_describe_view_comment(
         case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
-        for view in db_views:
-            result = run_tool(
-                pyexasol_connection,
-                config,
-                "describe_exasol_table_or_view",
-                schema_name=_get_db_name_param(schema, case_sensitive),
-                table_name=_get_db_name_param(view, case_sensitive),
-            )
-            result_json = get_sort_result_json(result)
-            assert result_json[COMMENT_FIELD] == view.comment
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "describe_exasol_tables_and_views",
+            schema_name=_get_db_name_param(schema, case_sensitive),
+            table_names=[_get_db_name_param(view, case_sensitive) for view in db_views],
+        )
+        result_json = get_sort_result_json_list(result)
+        assert [r[COMMENT_FIELD] for r in result_json] == [v.comment for v in db_views]
 
 
 @pytest.mark.parametrize(
     ["tool_name", "other_kwargs"],
     [
-        ("describe_exasol_table_or_view", {"table_name": "ski_resort"}),
-        ("describe_exasol_custom_function", {"func_name": "factorial"}),
-        ("describe_exasol_user_defined_function", {"func_name": "fibonacci"}),
+        ("describe_exasol_tables_and_views", {"table_names": ["ski_resort"]}),
+        ("describe_exasol_custom_functions", {"func_names": ["factorial"]}),
+        ("describe_exasol_user_defined_functions", {"func_names": ["fibonacci"]}),
     ],
-    ids=["describe_table", "describe_function", "describe_script"],
+    ids=["describe_tables", "describe_functions", "describe_scripts"],
 )
 def test_describe_no_schema_name(
     pyexasol_connection, setup_database, tool_name, other_kwargs
@@ -723,9 +725,9 @@ def test_describe_no_schema_name(
 @pytest.mark.parametrize(
     "tool_name",
     [
-        "describe_exasol_table_or_view",
-        "describe_exasol_custom_function",
-        "describe_exasol_user_defined_function",
+        "describe_exasol_tables_and_views",
+        "describe_exasol_custom_functions",
+        "describe_exasol_user_defined_functions",
     ],
 )
 def test_describe_no_db_object_name(
@@ -750,12 +752,12 @@ def test_describe_no_db_object_name(
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_function(
+def test_describe_functions(
     pyexasol_connection, setup_database, db_schemas, db_functions, case_sensitive
 ) -> None:
     """
-    Test the `describe_function` tool. The tool is tested on each function
-    of every schema.
+    Test the `describe_functions` tool, describing every function of a schema
+    in one call.
     """
     config = McpServerSettings(
         parameters=MetaSettings(
@@ -764,27 +766,31 @@ def test_describe_function(
         case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "describe_exasol_custom_functions",
+            schema_name=_get_db_name_param(schema, case_sensitive),
+            func_names=[
+                _get_db_name_param(func, case_sensitive) for func in db_functions
+            ],
+        )
+        result_json = get_result_json(result)
+        expected_json = []
         for func in db_functions:
-            result = run_tool(
-                pyexasol_connection,
-                config,
-                "describe_exasol_custom_function",
-                schema_name=_get_db_name_param(schema, case_sensitive),
-                func_name=_get_db_name_param(func, case_sensitive),
-            )
-            result_json = get_result_json(result)
-            expected_json = _get_expected_param_json(func, schema.name)
-            expected_json[USAGE_FIELD] = ""
-            assert result_json == expected_json
+            func_json = _get_expected_param_json(func, schema.name)
+            func_json[USAGE_FIELD] = ""
+            expected_json.append(func_json)
+        assert result_json == expected_json
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_script(
+def test_describe_scripts(
     pyexasol_connection, setup_database, db_schemas, db_scripts, case_sensitive
 ) -> None:
     """
-    Test the `describe_script` tool. The tool is tested on each script
-    of every schema.
+    Test the `describe_scripts` tool, describing every script of a schema in
+    one call.
     """
     config = McpServerSettings(
         parameters=MetaSettings(
@@ -793,21 +799,23 @@ def test_describe_script(
         case_sensitive=case_sensitive,
     )
     for schema in db_schemas:
-        for script in db_scripts:
-            result = run_tool(
-                pyexasol_connection,
-                config,
-                "describe_exasol_user_defined_function",
-                schema_name=_get_db_name_param(schema, case_sensitive),
-                func_name=_get_db_name_param(script, case_sensitive),
-            )
-            result_json = get_result_json(result)
+        result = run_tool(
+            pyexasol_connection,
+            config,
+            "describe_exasol_user_defined_functions",
+            schema_name=_get_db_name_param(schema, case_sensitive),
+            func_names=[
+                _get_db_name_param(script, case_sensitive) for script in db_scripts
+            ],
+        )
+        result_json = get_result_json(result)
+        for script, script_json in zip(db_scripts, result_json):
             # The call example message is properly tested in the unit tests.
             # Here we just verify that it exists.
-            assert USAGE_FIELD in result_json
-            result_json.pop(USAGE_FIELD)
+            assert USAGE_FIELD in script_json
+            script_json.pop(USAGE_FIELD)
             expected_json = _get_expected_param_json(script, schema.name)
-            assert result_json == expected_json
+            assert script_json == expected_json
 
 
 def test_list_preprocessors(

@@ -207,7 +207,7 @@ ORDER BY DURATION DESC NULLS LAST;
 ## When to Use System Tables vs MCP Tools
 
 **Prefer MCP tools** for simple, single-object lookups:
-- `describe_exasol_table_or_view` instead of querying `EXA_ALL_COLUMNS` for one table.
+- `describe_exasol_tables_and_views` instead of querying `EXA_ALL_COLUMNS` for one table.
 - `list_exasol_user_defined_functions` instead of querying `EXA_ALL_SCRIPTS`.
 - MCP tools apply server-side filtering, ranking, and consistent field naming.
 

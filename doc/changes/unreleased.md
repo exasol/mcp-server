@@ -2,6 +2,8 @@
 
 ## Features
 
+* #274: Renamed the `describe_exasol_*` tools (plural forms) and changed them to
+  accept a list of names, describing multiple tables, views or functions per call.
 * #272: Changed `execute_exasol_query`, `profile_exasol_query` and the `sample`
   field of `summarize_exasol_table` to return a tabular `{columns, rows}` shape by
   default.
