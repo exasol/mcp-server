@@ -1021,21 +1021,37 @@ def test_execute_query_error(
                 )
 
 
+@pytest.mark.parametrize(
+    "default_row_limit, row_limit, effective_limit",
+    [
+        (None, 1, 1),  # row_limit caps the result, no default configured
+        (1, None, 1),  # default_row_limit is applied when row_limit is omitted
+        (1, 3, 3),  # an explicit row_limit overrides a configured default
+    ],
+)
 @pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 def test_execute_query_with_row_limit(
-    pyexasol_connection, setup_database, db_schemas, db_tables, query_result_format
+    pyexasol_connection,
+    setup_database,
+    db_schemas,
+    db_tables,
+    query_result_format,
+    default_row_limit,
+    row_limit,
+    effective_limit,
 ):
     """
-    Test that the row_limit parameter caps the number of returned rows.
+    Test that row_limit caps the number of returned rows, that a configured
+    default_row_limit is applied when row_limit is omitted, and that an
+    explicit row_limit always takes precedence over the default.
     """
     config = McpServerSettings(
-        enable_read_query=True, query_result_format=query_result_format
+        enable_read_query=True,
+        default_row_limit=default_row_limit,
+        query_result_format=query_result_format,
     )
-    row_limit = 1
     for schema in db_schemas:
         for table in db_tables:
-            if not table.rows:
-                continue
             query = f'SELECT * FROM "{schema.name}"."{table.name}"'
             result = run_tool(
                 pyexasol_connection,
@@ -1045,7 +1061,8 @@ def test_execute_query_with_row_limit(
                 row_limit=row_limit,
             )
             result_json = get_query_result_json(result) if result.content else []
-            assert len(result_json) <= row_limit
+            expected_rows = min(effective_limit, len(table.rows))
+            assert len(result_json) == expected_rows
 
 
 @pytest.mark.parametrize("query_result_format", ["tabular", "dict"])

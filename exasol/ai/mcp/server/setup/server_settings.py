@@ -6,6 +6,7 @@ from typing import (
 
 from pydantic import (
     BaseModel,
+    Field,
     model_validator,
 )
 
@@ -101,6 +102,13 @@ class McpServerSettings(BaseModel):
 
     enable_read_query: bool = False
     enable_write_query: bool = False
+    default_row_limit: int | None = Field(default=None, ge=1)
+    """
+    An optional default for the row_limit parameter of execute_exasol_query. It is
+    applied only when a call omits row_limit; a caller-supplied row_limit is always
+    used as given. Disabled (no limit) unless configured explicitly.
+    """
+
     enable_summarize_table: bool = False
     enable_query_profiling: bool = False
     enable_preprocessor_tools: bool = True

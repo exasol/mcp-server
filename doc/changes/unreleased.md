@@ -2,6 +2,8 @@
 
 ## Features
 
+* #279: Added a `default_row_limit` server setting that caps the rows returned by
+  `execute_exasol_query`.
 * #274: Renamed the `describe_exasol_*` tools (plural forms) and changed them to
   accept a list of names, describing multiple tables, views or functions per call.
 * #272: Changed `execute_exasol_query`, `profile_exasol_query` and the `sample`
