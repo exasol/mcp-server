@@ -92,8 +92,19 @@ def test_get_match_scores_no_data(corpus):
         ([0.8] + [0.4] * 50 + [0.2] * 50, [0]),
         ([0.8, 0.7] + [0.4] * 50 + [0.2] * 50, [0, 1]),
         ([0.5], [0]),
+        ([0.0, 0.0, 0.0], []),
+        ([0.9, 0.9, 0.9], [0, 1, 2]),
     ],
-    ids=["top-1", "top-3", "most", "one-outlier", "two-outliers", "single-point"],
+    ids=[
+        "top-1",
+        "top-3",
+        "most",
+        "one-outlier",
+        "two-outliers",
+        "single-point",
+        "all-zero",
+        "all-good",
+    ],
 )
 def test_top_score_indices(scores, expected_result):
     result = top_score_indices(scores)
@@ -144,8 +155,28 @@ def test_top_score_indices_trivial(scores):
             [{"name": "supermarket"}],
         ),
         ([], ["Apples", "Pears"], []),
+        (
+            [
+                {"name": "orders"},
+                {"name": "customers"},
+                {"name": "invoices"},
+            ],
+            ["zzz_totally_unrelated_keyword"],
+            [],
+        ),
+        (
+            [
+                {"name": "Apple tree"},
+                {"name": "Apple orchard"},
+            ],
+            ["Apple"],
+            [
+                {"name": "Apple tree"},
+                {"name": "Apple orchard"},
+            ],
+        ),
     ],
-    ids=["camel cases", "underscores", "single-row", "no-data"],
+    ids=["camel cases", "underscores", "single-row", "no-data", "no-match", "all-tied"],
 )
 def test_keyword_filter(input_data, keywords, expected_output_data):
     output_data = keyword_filter(input_data, keywords)

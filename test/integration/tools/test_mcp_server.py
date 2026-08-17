@@ -406,6 +406,32 @@ def test_find_tables(
             assert result_json == expected_json
 
 
+def test_find_tables_no_match(
+    pyexasol_connection,
+    setup_database,
+    db_schemas,
+) -> None:
+    """
+    Regression test for https://github.com/exasol/mcp-server/issues/281.
+    `find_exasol_tables_and_views` used to return every table/view when none of
+    the provided keywords matched anything. It should return an empty result
+    instead.
+    """
+    schema = next(schema for schema in db_schemas if schema.is_new)
+    config = McpServerSettings(
+        tables=MetaListSettings(enable=True),
+        views=MetaListSettings(enable=True),
+    )
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        "find_exasol_tables_and_views",
+        keywords=["zzz_no_such_keyword_xyz"],
+        schema_name=schema.name,
+    )
+    assert get_result_json(result) == []
+
+
 @pytest.mark.parametrize(
     ["use_like", "use_regexp", "case_sensitive"],
     [
