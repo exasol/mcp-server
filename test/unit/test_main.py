@@ -288,6 +288,60 @@ def test_register_tools_find_disabled() -> None:
         p_fsc.assert_not_called()
 
 
+def test_register_tools_dialect_tools_enabled_by_default() -> None:
+    config = McpServerSettings()
+    with (
+        patch("exasol.ai.mcp.server.main._register_list_sql_types") as p_lst,
+        patch("exasol.ai.mcp.server.main._register_list_system_tables") as p_lsy,
+        patch("exasol.ai.mcp.server.main._register_describe_system_table") as p_dsy,
+        patch("exasol.ai.mcp.server.main._register_list_statistics_tables") as p_lst2,
+        patch("exasol.ai.mcp.server.main._register_describe_statistics_table") as p_dst,
+        patch("exasol.ai.mcp.server.main._register_list_keywords") as p_lk,
+        patch(
+            "exasol.ai.mcp.server.main._register_builtin_function_categories"
+        ) as p_bfc,
+        patch("exasol.ai.mcp.server.main._register_list_builtin_functions") as p_lbf,
+        patch("exasol.ai.mcp.server.main._register_describe_builtin_function") as p_dbf,
+    ):
+        register_tools(MagicMock(), config)
+        p_lst.assert_called_once()
+        p_lsy.assert_called_once()
+        p_dsy.assert_called_once()
+        p_lst2.assert_called_once()
+        p_dst.assert_called_once()
+        p_lk.assert_called_once()
+        p_bfc.assert_called_once()
+        p_lbf.assert_called_once()
+        p_dbf.assert_called_once()
+
+
+def test_register_tools_dialect_tools_disabled() -> None:
+    config = McpServerSettings(enable_dialect_tools=False)
+    with (
+        patch("exasol.ai.mcp.server.main._register_list_sql_types") as p_lst,
+        patch("exasol.ai.mcp.server.main._register_list_system_tables") as p_lsy,
+        patch("exasol.ai.mcp.server.main._register_describe_system_table") as p_dsy,
+        patch("exasol.ai.mcp.server.main._register_list_statistics_tables") as p_lst2,
+        patch("exasol.ai.mcp.server.main._register_describe_statistics_table") as p_dst,
+        patch("exasol.ai.mcp.server.main._register_list_keywords") as p_lk,
+        patch(
+            "exasol.ai.mcp.server.main._register_builtin_function_categories"
+        ) as p_bfc,
+        patch("exasol.ai.mcp.server.main._register_list_builtin_functions") as p_lbf,
+        patch("exasol.ai.mcp.server.main._register_describe_builtin_function") as p_dbf,
+    ):
+        register_tools(MagicMock(), config)
+        p_lst.assert_not_called()
+        p_lsy.assert_not_called()
+        p_dsy.assert_not_called()
+        p_lst2.assert_not_called()
+        p_dst.assert_not_called()
+        p_lk.assert_not_called()
+        p_bfc.assert_not_called()
+        p_lbf.assert_not_called()
+        p_dbf.assert_not_called()
+
+
 @pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
 @pytest.mark.parametrize(
     "register, tabular_fn, dict_fn",

@@ -107,6 +107,19 @@ To disable them, set ``enable_preprocessor_tools`` to false:
         "enable_preprocessor_tools": false
     }
 
+Disable SQL dialect tools
+--------------------------
+
+The tools providing information about the Exasol SQL dialect (SQL types, system and
+statistics tables, keywords, and built-in functions) are enabled by default. To
+disable them, set ``enable_dialect_tools`` to false:
+
+.. code-block:: json
+
+    {
+        "enable_dialect_tools": false
+    }
+
 Hide list or find tools
 -----------------------
 
@@ -323,6 +336,7 @@ The following JSON shows the default settings.
         "enable_summarize_table": false,
         "enable_query_profiling": false,
         "enable_preprocessor_tools": true,
+        "enable_dialect_tools": true,
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,

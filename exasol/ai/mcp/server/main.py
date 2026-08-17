@@ -419,15 +419,16 @@ def register_tools(mcp_server: ExasolMCPServer, config: McpServerSettings) -> No
         _register_download_file(mcp_server)
         _register_delete_file(mcp_server)
         _register_delete_directory(mcp_server)
-    _register_list_sql_types(mcp_server)
-    _register_list_system_tables(mcp_server)
-    _register_describe_system_table(mcp_server)
-    _register_list_statistics_tables(mcp_server)
-    _register_describe_statistics_table(mcp_server)
-    _register_list_keywords(mcp_server)
-    _register_builtin_function_categories(mcp_server)
-    _register_list_builtin_functions(mcp_server)
-    _register_describe_builtin_function(mcp_server)
+    if config.enable_dialect_tools:
+        _register_list_sql_types(mcp_server)
+        _register_list_system_tables(mcp_server)
+        _register_describe_system_table(mcp_server)
+        _register_list_statistics_tables(mcp_server)
+        _register_describe_statistics_table(mcp_server)
+        _register_list_keywords(mcp_server)
+        _register_builtin_function_categories(mcp_server)
+        _register_list_builtin_functions(mcp_server)
+        _register_describe_builtin_function(mcp_server)
 
 
 def register_custom_routes(mcp_server: ExasolMCPServer) -> None:
