@@ -450,6 +450,7 @@ list_exasol_sql_types
 
 :Description:
     Lists Exasol SQL types and their parameters.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -463,6 +464,7 @@ list_exasol_system_tables
 
 :Description:
     Lists Exasol system tables in the SYS schema.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -474,6 +476,7 @@ describe_exasol_system_table
 
 :Description:
     Provides full available information about the specified system table.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``dict``
@@ -487,6 +490,7 @@ list_exasol_statistics_tables
 
 :Description:
     Lists Exasol statistics tables in the EXA_STATISTICS schema.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -498,6 +502,7 @@ describe_exasol_statistics_table
 
 :Description:
     Provides full available information about the specified statistics table.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``dict``
@@ -514,6 +519,7 @@ list_exasol_keywords
     Lists Exasol keywords that start with a given letter.
     A tool argument specifies if the output should include keywords that are reserved words
     or not reserved words.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -525,6 +531,7 @@ list_exasol_built_in_function_categories
 
 :Description:
     Lists built-in function categories.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -536,6 +543,7 @@ list_exasol_built_in_functions
 
 :Description:
     Lists built-in functions in the specified category.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``
@@ -550,6 +558,7 @@ describe_exasol_built_in_function
     Returns a list that in most cases includes one data structure.
     However, in few cases, when a function with the same name works with different types of data,
     the tool returns multiple structures.
+    Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
 :Returns:
     - **Type**: ``list``

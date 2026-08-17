@@ -2,6 +2,8 @@
 
 ## Features
 
+* #277: Added the `enable_dialect_tools` setting to allow hiding the tools that
+  provide information about the Exasol SQL dialect.
 * #274: Renamed the `describe_exasol_*` tools (plural forms) and changed them to
   accept a list of names, describing multiple tables, views or functions per call.
 * #272: Changed `execute_exasol_query`, `profile_exasol_query` and the `sample`
