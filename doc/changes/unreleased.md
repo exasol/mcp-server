@@ -18,6 +18,8 @@
   it for client-side precondition failures (e.g. duplicate column names in a result
   set), which reproduce identically on any connection, so retrying only discarded
   connections and added latency without ever succeeding.
+* #281: Fixed `find_exasol_*` tools returning all objects instead of none when no
+  keyword matched anything.
 
 ## Security
 
