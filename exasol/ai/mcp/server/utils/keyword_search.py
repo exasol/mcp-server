@@ -81,6 +81,12 @@ def _clipped_k_means(points: np.ndarray, max_iters=100) -> np.ndarray:
     for _ in range(max_iters):
         # If both centroids collapsed into one point, stop
         if np.isclose(centroids[0, 0], centroids[1, 0]):
+            # A collapse at zero means none of the keywords matched anything
+            # in the corpus - there is no "top" cluster to report. A collapse
+            # at a non-zero value means every point is a genuine, equally
+            # good match, so all of them stay in cluster 0.
+            if np.isclose(centroids[0, 0], 0):
+                labels = np.ones_like(points, dtype=int)
             break
 
         # Normal assignment step: assign each point to the closest centroid
