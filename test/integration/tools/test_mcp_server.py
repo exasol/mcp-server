@@ -429,7 +429,9 @@ def test_find_tables_no_match(
         keywords=["zzz_no_such_keyword_xyz"],
         schema_name=schema.name,
     )
-    assert get_result_json(result) == []
+    # An empty list result has no content blocks (a FastMCP quirk), so read the
+    # already-parsed value instead of going through get_result_json().
+    assert result.data == []
 
 
 @pytest.mark.parametrize(
