@@ -9,6 +9,7 @@ from typing import Any
 
 import click
 import exasol.bucketfs as bfs
+import yaml
 from exasol.telemetry import client as telemetry
 from fastmcp import FastMCP
 from fastmcp.client import Client
@@ -562,12 +563,59 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
+_ERROR_CODE_CONFIG_FILE = "error_code_config.yml"
+_DEFAULT_PROJECT_SHORT_TAG = "mcp-server"
+
+
+def _find_error_code_config() -> Path | None:
+    """
+    Looks for the error code config file next to the directory containing
+    this module's top-level package (e.g. the repository root in a
+    checkout, or a site-packages directory once installed). The number of
+    dot-separated components in ``__name__`` (e.g.
+    "exasol.ai.mcp.server.main") gives the number of directory levels
+    ``__file__`` sits below that root. Returns None if the file is not
+    found there.
+    """
+    depth = len(__name__.split("."))
+    parents = Path(__file__).resolve().parents
+    if depth > len(parents):
+        return None
+    candidate = parents[depth - 1] / _ERROR_CODE_CONFIG_FILE
+    return candidate if candidate.exists() else None
+
+
+def get_project_short_tag() -> str | None:
+    """
+    Reads the project short tag, e.g. "EMCP", from the "error-tags" section
+    of the error code config file. Returns None if the file cannot be found
+    or does not have the expected format.
+    """
+    config_file = _find_error_code_config()
+    if config_file is None:
+        return None
+    try:
+        with config_file.open("r") as file:
+            error_tags = yaml.safe_load(file)["error-tags"]
+        return next(iter(error_tags))
+    except Exception:
+        return None
+
+
 def setup_telemetry(logger: logging.Logger):
     # register telemetry library and shutdown hook, send "started" event
     try:
         if not telemetry.was_setup():
             telemetry.setup()
-            telemetry.track("mcp-server.started")
+            project_tag = get_project_short_tag()
+            if project_tag is None:
+                logger.warning(
+                    "Could not find the project short tag in %s; "
+                    "falling back to the default telemetry event name.",
+                    _ERROR_CODE_CONFIG_FILE,
+                )
+                project_tag = _DEFAULT_PROJECT_SHORT_TAG
+            telemetry.track(f"{project_tag}.started")
     except telemetry.TelemetryError as e:
         logger.warning("Telemetry init error: %s", str(e))
 

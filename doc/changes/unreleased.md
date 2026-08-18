@@ -12,6 +12,8 @@
 
 ## Bug Fixes
 
+* #253: Changed the telemetry "started" event to use the project short tag
+  (e.g. `EMCP`) read from `error_code_config.yml`.
 * #272: Stopped retrying `ExaRuntimeError` in `DbConnection`. pyexasol only raises
   it for client-side precondition failures (e.g. duplicate column names in a result
   set), which reproduce identically on any connection, so retrying only discarded

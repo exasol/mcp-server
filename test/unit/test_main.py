@@ -1,6 +1,7 @@
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 from unittest.mock import (
     MagicMock,
@@ -13,6 +14,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastmcp.server.auth import RemoteAuthProvider
 
+import exasol.ai.mcp.server.main as main_module
 from exasol.ai.mcp.server.connection.connection_factory import (
     ENV_DSN,
     ENV_PASSWORD,
@@ -26,14 +28,17 @@ from exasol.ai.mcp.server.main import (
     ENV_LOG_LEVEL,
     ENV_LOG_TO_CONSOLE,
     ENV_SETTINGS,
+    _find_error_code_config,
     _register_execute_query,
     _register_profile_query,
     _register_summarize_table,
     get_mcp_settings,
+    get_project_short_tag,
     main_http,
     mcp_server,
     register_tools,
     setup_logger,
+    setup_telemetry,
 )
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
@@ -366,6 +371,110 @@ def test_register_respects_query_result_format(
         mcp_server, tabular_fn if query_result_format == "tabular" else dict_fn
     )
     assert registered_fn is expected_fn
+
+
+def _set_fake_module_location(
+    monkeypatch: MonkeyPatch, module_file: Path, module_name: str
+) -> None:
+    monkeypatch.setattr(main_module, "__file__", str(module_file))
+    monkeypatch.setattr(main_module, "__name__", module_name)
+
+
+def test_find_error_code_config_found(tmp_path, monkeypatch) -> None:
+    (tmp_path / "error_code_config.yml").write_text(
+        "error-tags:\n  ABC:\n    highest-index: 0\n"
+    )
+    module_path = tmp_path / "exasol" / "ai" / "mcp" / "server" / "main.py"
+    module_path.parent.mkdir(parents=True)
+    _set_fake_module_location(monkeypatch, module_path, "exasol.ai.mcp.server.main")
+    assert _find_error_code_config() == tmp_path / "error_code_config.yml"
+
+
+def test_find_error_code_config_missing_next_to_package_root(
+    tmp_path, monkeypatch
+) -> None:
+    module_path = tmp_path / "exasol" / "ai" / "mcp" / "server" / "main.py"
+    module_path.parent.mkdir(parents=True)
+    _set_fake_module_location(monkeypatch, module_path, "exasol.ai.mcp.server.main")
+    assert _find_error_code_config() is None
+
+
+def test_find_error_code_config_ignores_ancestor_files(tmp_path, monkeypatch) -> None:
+    """
+    A file further up the tree (above the directory containing the
+    top-level package) must not be picked up.
+    """
+    (tmp_path / "error_code_config.yml").write_text(
+        "error-tags:\n  WRONG:\n    highest-index: 0\n"
+    )
+    package_root = tmp_path / "site-packages"
+    module_path = package_root / "exasol" / "ai" / "mcp" / "server" / "main.py"
+    module_path.parent.mkdir(parents=True)
+    _set_fake_module_location(monkeypatch, module_path, "exasol.ai.mcp.server.main")
+    assert _find_error_code_config() is None
+
+
+def test_find_error_code_config_module_name_too_deep(monkeypatch) -> None:
+    # "/main.py" only has one parent ("/"), which is fewer than the five
+    # directory levels implied by the dotted module name.
+    _set_fake_module_location(
+        monkeypatch, Path("/main.py"), "exasol.ai.mcp.server.main"
+    )
+    assert _find_error_code_config() is None
+
+
+def test_get_project_short_tag_found(tmp_path, monkeypatch) -> None:
+    config_file = tmp_path / "error_code_config.yml"
+    config_file.write_text("error-tags:\n  ABC:\n    highest-index: 0\n")
+    monkeypatch.setattr(
+        "exasol.ai.mcp.server.main._find_error_code_config",
+        lambda: config_file,
+    )
+    assert get_project_short_tag() == "ABC"
+
+
+def test_get_project_short_tag_missing_file(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "exasol.ai.mcp.server.main._find_error_code_config",
+        lambda: None,
+    )
+    assert get_project_short_tag() is None
+
+
+def test_get_project_short_tag_malformed(tmp_path, monkeypatch) -> None:
+    config_file = tmp_path / "error_code_config.yml"
+    config_file.write_text("not-error-tags: {}\n")
+    monkeypatch.setattr(
+        "exasol.ai.mcp.server.main._find_error_code_config",
+        lambda: config_file,
+    )
+    assert get_project_short_tag() is None
+
+
+def test_setup_telemetry_uses_project_short_tag() -> None:
+    logger = logging.getLogger("test_setup_telemetry_ok")
+    with (
+        patch("exasol.ai.mcp.server.main.telemetry.was_setup", return_value=False),
+        patch("exasol.ai.mcp.server.main.telemetry.setup"),
+        patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track,
+        patch("exasol.ai.mcp.server.main.get_project_short_tag", return_value="EMCP"),
+    ):
+        setup_telemetry(logger)
+        mock_track.assert_called_once_with("EMCP.started")
+
+
+def test_setup_telemetry_warns_when_tag_missing(caplog) -> None:
+    logger = logging.getLogger("test_setup_telemetry_warn")
+    caplog.set_level(logging.WARNING, logger="test_setup_telemetry_warn")
+    with (
+        patch("exasol.ai.mcp.server.main.telemetry.was_setup", return_value=False),
+        patch("exasol.ai.mcp.server.main.telemetry.setup"),
+        patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track,
+        patch("exasol.ai.mcp.server.main.get_project_short_tag", return_value=None),
+    ):
+        setup_telemetry(logger)
+        mock_track.assert_called_once_with("mcp-server.started")
+        assert any(rec.levelname == "WARNING" for rec in caplog.records)
 
 
 @patch("fastmcp.FastMCP.run")
