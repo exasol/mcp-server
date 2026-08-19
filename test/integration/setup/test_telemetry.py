@@ -44,3 +44,20 @@ def test_setup_telemetry_sends_started_event(httpserver, monkeypatch) -> None:
     request, _ = httpserver.log[0]
     features = json.loads(request.get_data())["features"]
     assert f"{_PROJECT_SHORT_TAG}.started" in features
+
+
+# TODO(#253): temporary, remove after manually confirming the disabled path
+# behaves as expected.
+def test_setup_telemetry_disabled_sends_nothing(httpserver, monkeypatch) -> None:
+    """
+    When telemetry is disabled, ``setup_telemetry`` must not deliver the
+    "started" event.
+    """
+    monkeypatch.setenv(ENV_ENDPOINT, httpserver.url_for("/telemetry"))
+    monkeypatch.setenv(ENV_DISABLE, "true")
+    httpserver.expect_request("/telemetry", method="POST").respond_with_json({})
+
+    setup_telemetry(logging.getLogger("test_setup_telemetry_disabled"))
+    telemetry.shutdown(flush_buffers=True)
+
+    assert len(httpserver.log) == 0
