@@ -20,6 +20,7 @@ from exasol.ai.mcp.server.connection.connection_factory import (
 )
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import (
+    _PROJECT_SHORT_TAG,
     ENV_LOG_FILE,
     ENV_LOG_FORMATTER,
     ENV_LOG_IGNORE,
@@ -34,6 +35,7 @@ from exasol.ai.mcp.server.main import (
     mcp_server,
     register_tools,
     setup_logger,
+    setup_telemetry,
 )
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_PROVIDER_TYPE,
@@ -366,6 +368,17 @@ def test_register_respects_query_result_format(
         mcp_server, tabular_fn if query_result_format == "tabular" else dict_fn
     )
     assert registered_fn is expected_fn
+
+
+def test_setup_telemetry_uses_project_short_tag() -> None:
+    logger = logging.getLogger("test_setup_telemetry_ok")
+    with (
+        patch("exasol.ai.mcp.server.main.telemetry.was_setup", return_value=False),
+        patch("exasol.ai.mcp.server.main.telemetry.setup"),
+        patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track,
+    ):
+        setup_telemetry(logger)
+        mock_track.assert_called_once_with(f"{_PROJECT_SHORT_TAG}.started")
 
 
 @patch("fastmcp.FastMCP.run")
