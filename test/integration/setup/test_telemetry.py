@@ -49,7 +49,7 @@ def test_setup_telemetry_sends_started_event(httpserver, monkeypatch) -> None:
 # TODO(#253): temporary, remove after manually confirming the disabled path
 # behaves as expected.
 # @pytest.mark.parametrize("envar", [ENV_CI, ENV_DISABLE])
-def test_setup_telemetry_disabled_sends_nothing(httpserver, monkeypatch, envar) -> None:
+def test_setup_telemetry_disabled_sends_nothing(httpserver, monkeypatch) -> None:
     """
     When telemetry is disabled, ``setup_telemetry`` must not deliver the
     "started" event.
