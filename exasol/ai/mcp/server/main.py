@@ -562,12 +562,16 @@ def get_env() -> dict[str:Any]:
     return os.environ
 
 
+# Matches the "error-tags" key in error_code_config.yml.
+_PROJECT_SHORT_TAG = "EMCP"
+
+
 def setup_telemetry(logger: logging.Logger):
     # register telemetry library and shutdown hook, send "started" event
     try:
         if not telemetry.was_setup():
             telemetry.setup()
-            telemetry.track("mcp-server.started")
+            telemetry.track(f"{_PROJECT_SHORT_TAG}.started")
     except telemetry.TelemetryError as e:
         logger.warning("Telemetry init error: %s", str(e))
 
