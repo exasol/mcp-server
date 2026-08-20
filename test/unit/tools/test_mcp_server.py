@@ -267,6 +267,7 @@ def test_execute_query_tabular():
     connection.execute_query.return_value.__iter__.return_value = iter([(1,), (2,)])
     config = MagicMock()
     config.enable_read_query = True
+    config.default_row_limit = None
     server = ExasolMCPServer(connection=connection, config=config)
     result = server.execute_query_tabular("SELECT ID FROM T")
     assert result == QueryResult(columns=["ID"], rows=[[1], [2]])
@@ -285,9 +286,36 @@ def test_execute_query():
     connection.execute_query.return_value.fetchall.return_value = [{"ID": 1}]
     config = MagicMock()
     config.enable_read_query = True
+    config.default_row_limit = None
     server = ExasolMCPServer(connection=connection, config=config)
     result = server.execute_query("SELECT ID FROM T")
     assert result == [{"ID": 1}]
+    query = connection.execute_query.call_args[0][0]
+    assert query == "SELECT ID FROM T"
+
+
+@pytest.mark.parametrize(
+    "default_row_limit, row_limit, expected_query",
+    [
+        (5, None, "SELECT * FROM (SELECT ID FROM T) LIMIT 5"),
+        (5, 100, "SELECT * FROM (SELECT ID FROM T) LIMIT 100"),
+    ],
+)
+def test_execute_query_row_limit(default_row_limit, row_limit, expected_query):
+    """
+    Test that a configured default_row_limit is applied only when the caller
+    omits row_limit, and that an explicit row_limit always takes precedence
+    over the default.
+    """
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = [{"ID": 1}]
+    config = MagicMock()
+    config.enable_read_query = True
+    config.default_row_limit = default_row_limit
+    server = ExasolMCPServer(connection=connection, config=config)
+    server.execute_query("SELECT ID FROM T", row_limit=row_limit)
+    query = connection.execute_query.call_args[0][0]
+    assert collapse_spaces(query) == collapse_spaces(expected_query)
 
 
 def test_list_keywords():

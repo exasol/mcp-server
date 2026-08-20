@@ -25,6 +25,22 @@ is :ref:`explicitly disabled <disable-elicitation>`.
         "enable_write_query": true
     }
 
+Set a default row limit
+------------------------
+
+``execute_exasol_query`` accepts an optional ``row_limit`` parameter that the calling
+model can use to preview a sample of results. If the model omits it, the full,
+unbounded result set is fetched by default. To guard against accidentally large
+result sets, an admin can configure a default row limit that is applied whenever
+``row_limit`` is omitted. A ``row_limit`` value passed explicitly by the caller is
+always honored as given, regardless of this setting.
+
+.. code-block:: json
+
+    {
+        "default_row_limit": 1000
+    }
+
 Enable table summarization
 --------------------------
 
@@ -316,6 +332,7 @@ The following JSON shows the default settings.
         "enable_find_tools": true,
         "enable_read_query": false,
         "enable_write_query": false,
+        "default_row_limit": null,
         "enable_summarize_table": false,
         "enable_query_profiling": false,
         "enable_preprocessor_tools": true,

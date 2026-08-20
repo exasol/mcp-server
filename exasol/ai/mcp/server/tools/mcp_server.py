@@ -139,7 +139,8 @@ RowLimitArg = Annotated[
     Field(
         description=(
             "If specified, wraps the query in SELECT * FROM (<query>) LIMIT <row_limit> "
-            "to preview a sample of results without fetching all rows."
+            "to preview a sample of results without fetching all rows. If omitted, the "
+            "server's configured default_row_limit setting (if any) is applied instead."
         ),
         default=None,
         ge=1,
@@ -766,8 +767,13 @@ class ExasolMCPServer(FastMCP):
             raise RuntimeError("Query execution is disabled.")
         if not verify_query(query):
             raise ValueError("The query is invalid or not a SELECT statement.")
+        effective_row_limit = (
+            row_limit if row_limit is not None else self.config.default_row_limit
+        )
         effective_query = (
-            _build_preview_query(query, row_limit) if row_limit is not None else query
+            _build_preview_query(query, effective_row_limit)
+            if effective_row_limit is not None
+            else query
         )
         return self.connection.execute_query(
             effective_query, snapshot=False, fetch=fetch

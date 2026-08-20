@@ -300,7 +300,9 @@ execute_exasol_query
     The query should not modify the data. SELECT INTO command is not allowed.
     An optional ``row_limit`` parameter can be used to preview a sample of results
     without fetching all rows. The query is then wrapped in
-    ``SELECT * FROM (<query>) LIMIT <row_limit>``.
+    ``SELECT * FROM (<query>) LIMIT <row_limit>``. If ``row_limit`` is omitted, the
+    server's configured ``default_row_limit`` setting (see :doc:`tool_setup`), if
+    any, is applied instead.
 
 :Returns:
     - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting

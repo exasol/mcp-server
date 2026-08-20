@@ -2,6 +2,8 @@
 
 ## Features
 
+* #279: Added a `default_row_limit` server setting that caps the rows returned by
+  `execute_exasol_query`.
 * #277: Added the `enable_dialect_tools` setting to allow hiding the tools that
   provide information about the Exasol SQL dialect.
 * #274: Renamed the `describe_exasol_*` tools (plural forms) and changed them to
