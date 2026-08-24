@@ -9,10 +9,7 @@ from exasol.ai.mcp.server.connection.db_connection import (
     DbConnection,
     fetchall,
 )
-from exasol.ai.mcp.server.setup.server_settings import (
-    McpServerSettings,
-    MetaSettings,
-)
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.meta_query import (
     ExasolMetaQuery,
     MetaType,
@@ -40,13 +37,25 @@ FUNCTION_EMITS = "FUNCTION_EMIT"
 
 
 class ParameterParser(ABC):
-    def __init__(self, connection: DbConnection, conf: MetaSettings) -> None:
+    def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
         self.connection = connection
-        self.conf = conf
+        self.conf = settings.parameters
+        self._meta_query = ExasolMetaQuery(settings)
         self._parameter_extract_pattern: re.Pattern | None = None
 
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
         return self.connection.execute_query(query=query, fetch=fetchall)
+
+    def _normalize_name(self, name: str) -> str:
+        return self._meta_query.config.normalize_name(name)
+
+    def get_func_query(self, schema_name: str, func_names: list[str]) -> str:
+        """
+        Builds a query requesting metadata for one or more functions or scripts.
+        """
+        return self._meta_query.get_object_metadata(
+            self.meta_type, schema_name, func_names
+        )
 
     def describe(
         self,
@@ -56,17 +65,44 @@ class ParameterParser(ABC):
         """
         Requests and parses metadata for the specified function or script.
         """
+        return self.describe_many(schema_name, [func_name])[0]
+
+    def describe_many(
+        self, schema_name: str, func_names: list[str]
+    ) -> list[DBFunction]:
+        """
+        Requests and parses metadata for the specified functions or scripts, all in
+        the same schema, in a single query. If any name is not found, or its text
+        fails to parse, the whole batch fails with a single ValueError aggregating
+        all the individual messages.
+        """
+        if not func_names:
+            return []
         if not self.conf.enable:
             raise RuntimeError("Parameter listing is disabled.")
 
-        query = self.get_func_query(schema_name, func_name)
-        result = self._execute_query(query=query)
-        if not result:
-            raise ValueError(
-                f"The function or script {schema_name}.{func_name} not found."
-            )
-        script_info = result[0]
-        return self.extract_parameters(script_info)
+        query = self.get_func_query(schema_name, func_names)
+        rows_by_name = {
+            self._normalize_name(row[f"{self.meta_type.value}_NAME"]): row
+            for row in self._execute_query(query=query)
+        }
+
+        results: list[DBFunction] = []
+        errors: list[str] = []
+        for func_name in func_names:
+            row = rows_by_name.get(self._normalize_name(func_name))
+            if row is None:
+                errors.append(
+                    f"The function or script {schema_name}.{func_name} not found."
+                )
+                continue
+            try:
+                results.append(self.extract_parameters(row))
+            except ValueError as e:
+                errors.append(str(e))
+        if errors:
+            raise ValueError("; ".join(errors))
+        return results
 
     @property
     def parameter_extract_pattern(self) -> re.Pattern:
@@ -117,10 +153,11 @@ class ParameterParser(ABC):
             for m in self.parameter_extract_pattern.finditer(params)
         ]
 
+    @property
     @abstractmethod
-    def get_func_query(self, schema_name: str, func_name: str) -> str:
+    def meta_type(self) -> MetaType:
         """
-        Builds a query requesting metadata for a given function or script.
+        The type of metadata (FUNCTION or SCRIPT) this parser describes.
         """
 
     @abstractmethod
@@ -144,14 +181,12 @@ class ParameterParser(ABC):
 class FuncParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings.parameters)
+        super().__init__(connection, settings)
         self._func_pattern: re.Pattern | None = None
-        self._meta_query = ExasolMetaQuery(settings)
 
-    def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return self._meta_query.get_object_metadata(
-            MetaType.FUNCTION, schema_name, func_name
-        )
+    @property
+    def meta_type(self) -> MetaType:
+        return MetaType.FUNCTION
 
     @property
     def func_pattern(self) -> re.Pattern:
@@ -193,15 +228,13 @@ class FuncParameterParser(ParameterParser):
 class ScriptParameterParser(ParameterParser):
 
     def __init__(self, connection: DbConnection, settings: McpServerSettings) -> None:
-        super().__init__(connection, settings.parameters)
+        super().__init__(connection, settings)
         self._emit_pattern: re.Pattern | None = None
         self._return_pattern: re.Pattern | None = None
-        self._meta_query = ExasolMetaQuery(settings)
 
-    def get_func_query(self, schema_name: str, func_name: str) -> str:
-        return self._meta_query.get_object_metadata(
-            MetaType.SCRIPT, schema_name, func_name
-        )
+    @property
+    def meta_type(self) -> MetaType:
+        return MetaType.SCRIPT
 
     def _udf_pattern(self, emits: bool) -> re.Pattern:
         """Compiles a pattern for parsing a UDF script."""

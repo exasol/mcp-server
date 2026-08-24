@@ -491,26 +491,36 @@ class ExasolMCPServer(FastMCP):
             result = remove_info_column(result)
         return [model_cls.model_validate(row) for row in result]
 
-    @staticmethod
-    def _describe_many(
-        schema_name: str, names: list[str], describe_one: Callable[[str, str], T]
-    ) -> list[T]:
+    def _normalize_name(self, name: str) -> str:
+        return self.config.normalize_name(name)
+
+    def _index_by_name(
+        self, objects: list[QualifiedDBObject]
+    ) -> dict[str, QualifiedDBObject]:
         """
-        Calls `describe_one(schema_name, name)` for every name in `names`, in order.
-        If any call raises a ValueError (e.g. object not found or failed to parse),
-        the whole batch fails with a single ValueError aggregating all the individual
-        messages.
+        Builds a dict from a normalized object name to the object itself.
+        On a duplicate normalized name, the first occurrence wins.
         """
-        results = []
-        errors = []
-        for name in names:
-            try:
-                results.append(describe_one(schema_name, name))
-            except ValueError as e:
-                errors.append(str(e))
-        if errors:
-            raise ValueError("; ".join(errors))
-        return results
+        result: dict[str, QualifiedDBObject] = {}
+        for obj in objects:
+            result.setdefault(self._normalize_name(obj.name), obj)
+        return result
+
+    def _group_rows_by_table(
+        self, rows: list[dict[str, Any]], table_column: str, model_cls: type[M]
+    ) -> dict[str, list[M]]:
+        """
+        Groups raw metadata rows by the (normalized) value of `table_column`,
+        validating each row into `model_cls`. `table_column` itself is not part
+        of the model and is dropped before validation.
+        """
+        result: dict[str, list[M]] = {}
+        for row in rows:
+            table_name = row.pop(table_column)
+            result.setdefault(self._normalize_name(table_name), []).append(
+                model_cls.model_validate(row)
+            )
+        return result
 
     def list_schemas(self) -> list[DBObject]:
         if not self.config.schemas.enable:
@@ -582,50 +592,38 @@ class ExasolMCPServer(FastMCP):
         query = self.meta_query.get_metadata(MetaType.SCRIPT, schema_name)
         return self._execute_meta_query(query, QualifiedDBObject, keywords)
 
-    def describe_columns(
-        self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> list[DBColumn]:
+    def _fetch_columns(
+        self, schema_name: str, table_names: list[str]
+    ) -> dict[str, list[DBColumn]]:
         """
-        Returns the list of columns in the given table. Currently, this is a part of
-        the `describe_tables` tool, but it can be used independently in the future.
+        Fetches columns for one or more tables in a single query, grouped by
+        normalized table name. A table with no rows in the result is simply
+        absent from the returned dict.
         """
         if not self.config.columns.enable:
             raise RuntimeError("The column listing is disabled.")
+        query = self.meta_query.describe_columns(schema_name, table_names)
+        return self._group_rows_by_table(
+            self.connection.execute_query(query, fetch=fetchall),
+            "COLUMN_TABLE",
+            DBColumn,
+        )
 
-        query = self.meta_query.describe_columns(schema_name, table_name)
-        return self._execute_meta_query(query, DBColumn)
-
-    def describe_constraints(
-        self, schema_name: SchemaNameArg, table_name: TableNameArg
-    ) -> list[DBConstraint]:
+    def _fetch_constraints(
+        self, schema_name: str, table_names: list[str]
+    ) -> dict[str, list[DBConstraint]]:
         """
-        Returns the list of constraints in the given table. Currently, this is a part
-        of the `describe_tables` tool, but it can be used independently in the future.
+        Fetches constraints for one or more tables in a single query, grouped by
+        normalized table name. A table with no rows in the result is simply
+        absent from the returned dict.
         """
         if not self.config.columns.enable:
             raise RuntimeError("The constraint listing is disabled.")
-
-        query = self.meta_query.describe_constraints(schema_name, table_name)
-        return self._execute_meta_query(query, DBConstraint)
-
-    def _describe_one_table(self, schema_name: str, table_name: str) -> DBTable:
-        system_table = is_system_schema(schema_name)
-        if system_table:
-            query = self.meta_query.get_system_tables(schema_name, table_name)
-        else:
-            query = self.meta_query.describe_table(schema_name, table_name)
-        table_meta = self._execute_meta_query(query, QualifiedDBObject)
-        if not table_meta:
-            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
-
-        return DBTable(
-            **table_meta[0].model_dump(),
-            columns=self.describe_columns(schema_name, table_name),
-            constraints=(
-                None
-                if system_table
-                else self.describe_constraints(schema_name, table_name)
-            ),
+        query = self.meta_query.describe_constraints(schema_name, table_names)
+        return self._group_rows_by_table(
+            self.connection.execute_query(query, fetch=fetchall),
+            "CONSTRAINT_TABLE",
+            DBConstraint,
         )
 
     def describe_tables(
@@ -636,13 +634,62 @@ class ExasolMCPServer(FastMCP):
         table or view you need in a single call instead of calling this tool
         once per name.
         """
-        return self._describe_many(schema_name, table_names, self._describe_one_table)
+        if not table_names:
+            return []
+        if not self.config.columns.enable:
+            raise RuntimeError("The column listing is disabled.")
+
+        system_table = is_system_schema(schema_name)
+        if system_table:
+            meta_query = self.meta_query.get_system_tables(schema_name, table_names)
+        else:
+            meta_query = self.meta_query.describe_table(schema_name, table_names)
+        meta_by_name = self._index_by_name(
+            self._execute_meta_query(meta_query, QualifiedDBObject)
+        )
+        columns_by_name = self._fetch_columns(schema_name, table_names)
+        constraints_by_name = (
+            {} if system_table else self._fetch_constraints(schema_name, table_names)
+        )
+
+        results: list[DBTable] = []
+        errors: list[str] = []
+        for table_name in table_names:
+            key = self._normalize_name(table_name)
+            meta = meta_by_name.get(key)
+            if meta is None:
+                errors.append(
+                    f"The table or view {schema_name}.{table_name} not found."
+                )
+                continue
+            # A table or view in Exasol always has at least one column, so an
+            # empty result here indicates something went wrong, not that the
+            # table or view legitimately has no columns.
+            columns = columns_by_name.get(key)
+            if not columns:
+                errors.append(
+                    f"Failed to retrieve columns for the table or view "
+                    f"{schema_name}.{table_name}."
+                )
+                continue
+            results.append(
+                DBTable(
+                    **meta.model_dump(),
+                    columns=columns,
+                    constraints=(
+                        None if system_table else constraints_by_name.get(key, [])
+                    ),
+                )
+            )
+        if errors:
+            raise ValueError("; ".join(errors))
+        return results
 
     def _get_table_comment(self, schema_name: str, table_name: str) -> str | None:
         if is_system_schema(schema_name):
-            query = self.meta_query.get_system_tables(schema_name, table_name)
+            query = self.meta_query.get_system_tables(schema_name, [table_name])
         else:
-            query = self.meta_query.describe_table(schema_name, table_name)
+            query = self.meta_query.describe_table(schema_name, [table_name])
         table_meta = self._execute_meta_query(query, QualifiedDBObject)
         if not table_meta:
             raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
@@ -667,7 +714,9 @@ class ExasolMCPServer(FastMCP):
     ) -> tuple[str | None, int, list[DBColumnSummary], list[dict[str, Any]]]:
         if not self.config.enable_summarize_table:
             raise RuntimeError("The table summarization is disabled.")
-        columns = self.describe_columns(schema_name, table_name)
+        columns = self._fetch_columns(schema_name, [table_name]).get(
+            self._normalize_name(table_name), []
+        )
         comment = self._get_table_comment(schema_name, table_name)
         table_ref = exp.Table(
             this=exp.Identifier(this=table_name, quoted=True),
@@ -743,8 +792,9 @@ class ExasolMCPServer(FastMCP):
         per name.
         """
         parser = FuncParameterParser(connection=self.connection, settings=self.config)
-        describe_one = cast(Callable[[str, str], DBReturnFunction], parser.describe)
-        return self._describe_many(schema_name, func_names, describe_one)
+        return cast(
+            list[DBReturnFunction], parser.describe_many(schema_name, func_names)
+        )
 
     def describe_scripts(
         self, schema_name: SchemaNameArg, func_names: FunctionNamesArg
@@ -755,10 +805,10 @@ class ExasolMCPServer(FastMCP):
         once per name.
         """
         parser = ScriptParameterParser(connection=self.connection, settings=self.config)
-        describe_one = cast(
-            Callable[[str, str], DBReturnFunction | DBEmitFunction], parser.describe
+        return cast(
+            list[DBReturnFunction | DBEmitFunction],
+            parser.describe_many(schema_name, func_names),
         )
-        return self._describe_many(schema_name, func_names, describe_one)
 
     def _execute_select_query(
         self, query: str, row_limit: int | None, fetch: Callable[[ExaStatement], T]
@@ -867,10 +917,10 @@ class ExasolMCPServer(FastMCP):
         return self._list_system_tables(SysInfoType.STATISTICS)
 
     def describe_system_table(self, table_name: TableNameArg) -> DBTable:
-        return self._describe_one_table(SysInfoType.SYSTEM.value, table_name)
+        return self.describe_tables(SysInfoType.SYSTEM.value, [table_name])[0]
 
     def describe_statistics_table(self, table_name: TableNameArg) -> DBTable:
-        return self._describe_one_table(SysInfoType.STATISTICS.value, table_name)
+        return self.describe_tables(SysInfoType.STATISTICS.value, [table_name])[0]
 
     def list_keywords(
         self,

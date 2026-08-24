@@ -3,7 +3,12 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+from pyexasol import ExaConnection
 
+from exasol.ai.mcp.server.setup.server_settings import (
+    McpServerSettings,
+    MetaSettings,
+)
 from exasol.ai.mcp.server.tools.parameter_parser import FuncParameterParser
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBColumn,
@@ -519,3 +524,87 @@ def test_describe_invalid_data(mock_execute_query, func_parameter_parser):
     ]
     with pytest.raises(ValueError, match="Failed to parse"):
         func_parameter_parser.describe(schema_name="MySchema", func_name="Func1")
+
+
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
+def test_describe_many_returns_list_in_order(mock_execute_query, func_parameter_parser):
+    # Rows are returned in the opposite order of the request, to confirm the
+    # output order follows the requested names, not the DB result order.
+    mock_execute_query.return_value = [
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": "Second",
+            "FUNCTION_COMMENT": None,
+            "FUNCTION_TEXT": dedent("""
+                FUNCTION "Second"()
+                RETURN BOOL
+                BEGIN ... END;
+            """),
+        },
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": "First",
+            "FUNCTION_COMMENT": None,
+            "FUNCTION_TEXT": dedent("""
+                FUNCTION "First"()
+                RETURN BOOL
+                BEGIN ... END;
+            """),
+        },
+    ]
+    result = func_parameter_parser.describe_many("MySchema", ["First", "Second"])
+    assert [f.name for f in result] == ["First", "Second"]
+
+
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
+def test_describe_many_missing_name_raises(mock_execute_query, func_parameter_parser):
+    mock_execute_query.return_value = []
+    with pytest.raises(ValueError, match="MySchema.Missing not found"):
+        func_parameter_parser.describe_many("MySchema", ["Missing"])
+
+
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
+def test_describe_many_parse_error_aggregated_with_missing(
+    mock_execute_query, func_parameter_parser
+):
+    mock_execute_query.return_value = [
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": "Bad",
+            "FUNCTION_COMMENT": None,
+            "FUNCTION_TEXT": "not a function",
+        },
+    ]
+    with pytest.raises(ValueError) as exc_info:
+        func_parameter_parser.describe_many("MySchema", ["Bad", "Missing"])
+    message = str(exc_info.value)
+    assert "Failed to parse" in message
+    assert "MySchema.Missing not found" in message
+
+
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
+def test_describe_many_empty_list_returns_empty_no_query(
+    mock_execute_query, func_parameter_parser
+):
+    result = func_parameter_parser.describe_many("MySchema", [])
+    assert result == []
+    mock_execute_query.assert_not_called()
+
+
+def test_describe_many_disabled_raises_even_with_names():
+    settings = McpServerSettings(
+        parameters=MetaSettings(enable=False), case_sensitive=False
+    )
+    parser = FuncParameterParser(
+        connection=mock.create_autospec(ExaConnection), settings=settings
+    )
+    with pytest.raises(RuntimeError, match="disabled"):
+        parser.describe_many("MySchema", ["F1"])
