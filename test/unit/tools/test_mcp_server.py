@@ -425,6 +425,8 @@ def test_describe_tables_batch_issues_three_queries():
     column_rows = [_column_row(name) for name in table_names]
     server, connection = _make_table_batch_server(meta_rows, column_rows, [])
     server.describe_tables("MY_SCHEMA", table_names)
+    # One batched query each for table/view metadata, columns, and constraints,
+    # regardless of the number of tables requested.
     assert connection.execute_query.call_count == 3
 
 
@@ -433,6 +435,8 @@ def test_describe_tables_batch_system_schema_issues_two_queries():
     column_rows = [_column_row("T1")]
     server, connection = _make_table_batch_server(meta_rows, column_rows, None)
     result = server.describe_tables("SYS", ["T1"])
+    # Only metadata and columns are queried; constraints aren't tracked for
+    # system schemas, so describe_tables skips that query entirely.
     assert connection.execute_query.call_count == 2
     assert result[0].constraints is None
 
@@ -602,12 +606,16 @@ def test_describe_scripts_batch_missing_name_raises():
             server.describe_scripts("MY_SCHEMA", ["S1", "MISSING"])
 
 
-def test_describe_scripts_batch_issues_one_query():
+def test_describe_scripts_batch_all_names_missing_issues_one_query():
+    # No rows come back for any of the requested names, so every one of them
+    # is "missing" and describe_scripts must raise -- but the single batched
+    # metadata query should still have been issued only once for all three
+    # names, not once per name.
     connection = _mock_connection()
     connection.execute_query.return_value.fetchall.return_value = []
     config = McpServerSettings()
     server = ExasolMCPServer(connection=connection, config=config)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="MY_SCHEMA.S1 not found"):
         server.describe_scripts("MY_SCHEMA", ["S1", "S2", "S3"])
     assert connection.execute_query.call_count == 1
 
