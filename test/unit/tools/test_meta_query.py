@@ -39,6 +39,14 @@ def _column_predicate(column: str, value: str, case_sensitive: bool) -> str:
     return f"""UPPER("{column}") = '{value.upper()}'"""
 
 
+def _in_predicate(column: str, values: list[str], case_sensitive: bool) -> str:
+    if case_sensitive:
+        value_list = ", ".join(f"'{value}'" for value in values)
+        return f""""{column}" IN ({value_list})"""
+    value_list = ", ".join(f"'{value.upper()}'" for value in values)
+    return f"""UPPER("{column}") IN ({value_list})"""
+
+
 @dataclass
 class MetaParams:
     schema_name: str = ""
@@ -262,15 +270,39 @@ def test_get_object_metadata(case_sensitive) -> None:
     config = McpServerSettings(case_sensitive=case_sensitive)
     meta_query = ExasolMetaQuery(config)
     query = collapse_spaces(
-        meta_query.get_object_metadata(MetaType.FUNCTION, "my_schema", "my_table")
+        meta_query.get_object_metadata(MetaType.FUNCTION, "my_schema", ["my_table"])
     )
     expected_query = collapse_spaces(f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
         WHERE
             {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
-            {_column_predicate("FUNCTION_NAME", 'my_table', case_sensitive)}
+            {_in_predicate("FUNCTION_NAME", ['my_table'], case_sensitive)}
         """)
     assert query == expected_query
+
+
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_get_object_metadata_multiple_names(case_sensitive) -> None:
+    config = McpServerSettings(case_sensitive=case_sensitive)
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(
+        meta_query.get_object_metadata(
+            MetaType.FUNCTION, "my_schema", ["my_table1", "my_table2"]
+        )
+    )
+    expected_query = collapse_spaces(f"""
+        SELECT * FROM SYS.EXA_ALL_FUNCTIONS
+        WHERE
+            {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
+            {_in_predicate("FUNCTION_NAME", ['my_table1', 'my_table2'], case_sensitive)}
+        """)
+    assert query == expected_query
+
+
+def test_get_object_metadata_empty_names_raises() -> None:
+    meta_query = ExasolMetaQuery(McpServerSettings())
+    with pytest.raises(ValueError):
+        meta_query.get_object_metadata(MetaType.FUNCTION, "my_schema", [])
 
 
 @pytest.mark.parametrize(
@@ -503,26 +535,54 @@ def test_find_tables_and_views(meta_params) -> None:
 @pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_columns(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
-    query = collapse_spaces(meta_query.describe_columns("my'_schema", "my'_table"))
+    query = collapse_spaces(meta_query.describe_columns("my'_schema", ["my'_table"]))
     expected_query = collapse_spaces(f"""
         SELECT
+            "COLUMN_TABLE",
             "COLUMN_NAME" AS "{NAME_FIELD}",
             "COLUMN_TYPE" AS "{SQL_TYPE_FIELD}",
             "COLUMN_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
             {_column_predicate("COLUMN_SCHEMA", "my''_schema", case_sensitive)} AND
-            {_column_predicate("COLUMN_TABLE", "my''_table", case_sensitive)}
+            {_in_predicate("COLUMN_TABLE", ["my''_table"], case_sensitive)}
         """)
     assert query == expected_query
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
-def test_describe_constraints(case_sensitive) -> None:
+def test_describe_columns_multiple_names(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(_column_config(case_sensitive))
-    query = collapse_spaces(meta_query.describe_constraints("my_schema", "my_table"))
+    query = collapse_spaces(
+        meta_query.describe_columns("my_schema", ["t1", "t1", "t2"])
+    )
     expected_query = collapse_spaces(f"""
         SELECT
+            "COLUMN_TABLE",
+            "COLUMN_NAME" AS "{NAME_FIELD}",
+            "COLUMN_TYPE" AS "{SQL_TYPE_FIELD}",
+            "COLUMN_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_COLUMNS
+        WHERE
+            {_column_predicate("COLUMN_SCHEMA", "my_schema", case_sensitive)} AND
+            {_in_predicate("COLUMN_TABLE", ["t1", "t1", "t2"], case_sensitive)}
+        """)
+    assert query == expected_query
+
+
+def test_describe_columns_empty_names_raises() -> None:
+    meta_query = ExasolMetaQuery(_column_config(False))
+    with pytest.raises(ValueError):
+        meta_query.describe_columns("my_schema", [])
+
+
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_constraints(case_sensitive) -> None:
+    meta_query = ExasolMetaQuery(_column_config(case_sensitive))
+    query = collapse_spaces(meta_query.describe_constraints("my_schema", ["my_table"]))
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "CONSTRAINT_TABLE",
             FIRST_VALUE("CONSTRAINT_TYPE") AS "{CONSTRAINT_TYPE_FIELD}",
             CASE LEFT("CONSTRAINT_NAME", 4) WHEN 'SYS_' THEN NULL
                 ELSE "CONSTRAINT_NAME" END AS "{CONSTRAINT_NAME_FIELD}",
@@ -535,16 +595,47 @@ def test_describe_constraints(case_sensitive) -> None:
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
             {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
-            {_column_predicate("CONSTRAINT_TABLE", "my_table", case_sensitive)}
-        GROUP BY "CONSTRAINT_NAME"
+            {_in_predicate("CONSTRAINT_TABLE", ["my_table"], case_sensitive)}
+        GROUP BY "CONSTRAINT_TABLE", "CONSTRAINT_NAME"
         """)
     assert query == expected_query
 
 
 @pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_constraints_multiple_names(case_sensitive) -> None:
+    meta_query = ExasolMetaQuery(_column_config(case_sensitive))
+    query = collapse_spaces(meta_query.describe_constraints("my_schema", ["t1", "t2"]))
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "CONSTRAINT_TABLE",
+            FIRST_VALUE("CONSTRAINT_TYPE") AS "{CONSTRAINT_TYPE_FIELD}",
+            CASE LEFT("CONSTRAINT_NAME", 4) WHEN 'SYS_' THEN NULL
+                ELSE "CONSTRAINT_NAME" END AS "{CONSTRAINT_NAME_FIELD}",
+            GROUP_CONCAT(DISTINCT "COLUMN_NAME" ORDER BY "ORDINAL_POSITION")
+                AS "{CONSTRAINT_COLUMNS_FIELD}",
+            FIRST_VALUE("REFERENCED_SCHEMA") AS "{REFERENCED_SCHEMA_FIELD}",
+            FIRST_VALUE("REFERENCED_TABLE") AS "{REFERENCED_TABLE_FIELD}",
+            GROUP_CONCAT(DISTINCT "REFERENCED_COLUMN" ORDER BY "ORDINAL_POSITION")
+                AS "{REFERENCED_COLUMNS_FIELD}"
+        FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
+        WHERE
+            {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
+            {_in_predicate("CONSTRAINT_TABLE", ["t1", "t2"], case_sensitive)}
+        GROUP BY "CONSTRAINT_TABLE", "CONSTRAINT_NAME"
+        """)
+    assert query == expected_query
+
+
+def test_describe_constraints_empty_names_raises() -> None:
+    meta_query = ExasolMetaQuery(_column_config(False))
+    with pytest.raises(ValueError):
+        meta_query.describe_constraints("my_schema", [])
+
+
+@pytest.mark.parametrize("case_sensitive", [True, False])
 def test_describe_table(case_sensitive) -> None:
     meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
-    query = collapse_spaces(meta_query.describe_table("my_schema", "my_table"))
+    query = collapse_spaces(meta_query.describe_table("my_schema", ["my_table"]))
     expected_query = collapse_spaces(f"""
         SELECT
             "TABLE_SCHEMA" AS "{SCHEMA_FIELD}",
@@ -553,7 +644,7 @@ def test_describe_table(case_sensitive) -> None:
         FROM SYS.EXA_ALL_TABLES
         WHERE
             {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
-            {_column_predicate("TABLE_NAME", "my_table", case_sensitive)}
+            {_in_predicate("TABLE_NAME", ["my_table"], case_sensitive)}
         UNION
         SELECT
             "VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
@@ -562,10 +653,41 @@ def test_describe_table(case_sensitive) -> None:
         FROM SYS.EXA_ALL_VIEWS
         WHERE
             {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
-            {_column_predicate("VIEW_NAME", "my_table", case_sensitive)}
-        LIMIT 1
+            {_in_predicate("VIEW_NAME", ["my_table"], case_sensitive)}
         """)
     assert query == expected_query
+
+
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_table_multiple_names(case_sensitive) -> None:
+    meta_query = ExasolMetaQuery(McpServerSettings(case_sensitive=case_sensitive))
+    query = collapse_spaces(meta_query.describe_table("my_schema", ["t1", "t2"]))
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "TABLE_SCHEMA" AS "{SCHEMA_FIELD}",
+            "TABLE_NAME" AS "{NAME_FIELD}",
+            "TABLE_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_TABLES
+        WHERE
+            {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
+            {_in_predicate("TABLE_NAME", ["t1", "t2"], case_sensitive)}
+        UNION
+        SELECT
+            "VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
+            "VIEW_NAME" AS "{NAME_FIELD}",
+            "VIEW_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_VIEWS
+        WHERE
+            {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
+            {_in_predicate("VIEW_NAME", ["t1", "t2"], case_sensitive)}
+        """)
+    assert query == expected_query
+
+
+def test_describe_table_empty_names_raises() -> None:
+    meta_query = ExasolMetaQuery(McpServerSettings())
+    with pytest.raises(ValueError):
+        meta_query.describe_table("my_schema", [])
 
 
 def test_get_sql_types() -> None:
@@ -600,7 +722,9 @@ def test_get_system_table_list(info_type) -> None:
 def test_get_system_table_details(info_type) -> None:
     config = McpServerSettings()
     meta_query = ExasolMetaQuery(config)
-    query = collapse_spaces(meta_query.get_system_tables(info_type.value, "the_table"))
+    query = collapse_spaces(
+        meta_query.get_system_tables(info_type.value, ["the_table"])
+    )
     expected_query = collapse_spaces(f"""
         SELECT
             "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
@@ -608,9 +732,34 @@ def test_get_system_table_details(info_type) -> None:
             "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
         WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
-        AND UPPER("OBJECT_NAME") = 'THE_TABLE'
+        AND UPPER("OBJECT_NAME") IN ('THE_TABLE')
     """)
     assert query == expected_query
+
+
+@pytest.mark.parametrize("info_type", [SysInfoType.SYSTEM, SysInfoType.STATISTICS])
+def test_get_system_table_details_multiple_names(info_type) -> None:
+    config = McpServerSettings()
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(
+        meta_query.get_system_tables(info_type.value, ["table1", "table2"])
+    )
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "SCHEMA_NAME" AS "{SCHEMA_FIELD}",
+            "OBJECT_NAME" AS "{NAME_FIELD}",
+            "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_SYSCAT
+        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
+        AND UPPER("OBJECT_NAME") IN ('TABLE1', 'TABLE2')
+    """)
+    assert query == expected_query
+
+
+def test_get_system_tables_empty_list_raises() -> None:
+    meta_query = ExasolMetaQuery(McpServerSettings())
+    with pytest.raises(ValueError):
+        meta_query.get_system_tables(SysInfoType.SYSTEM.value, [])
 
 
 @pytest.mark.parametrize("reserved", [True, False])

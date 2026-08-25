@@ -180,10 +180,30 @@ class ExasolMetaQuery:
         Builds an expression of a text column equality, considering the
         case sensitivity setting.
         """
+        normalized_value = self.config.normalize_name(value)
         if self.config.case_sensitive:
-            return exp.column(column, table=table).eq(exp.Literal.string(value))
+            return exp.column(column, table=table).eq(
+                exp.Literal.string(normalized_value)
+            )
         return exp.func("UPPER", exp.column(column, table=table)).eq(
-            exp.Literal.string(value.upper())
+            exp.Literal.string(normalized_value)
+        )
+
+    def _get_column_in_predicate(
+        self, column: str, values: list[str], table: str | None = None
+    ) -> exp.Predicate:
+        """
+        Builds an expression of a text column membership in a list of values,
+        considering the case sensitivity setting. This is the batched analog of
+        `_get_column_eq_predicate`.
+        """
+        if not values:
+            raise ValueError("The list of values must not be empty.")
+        normalized_values = [self.config.normalize_name(value) for value in values]
+        if self.config.case_sensitive:
+            return exp.column(column, table=table).isin(*normalized_values)
+        return exp.func("UPPER", exp.column(column, table=table)).isin(
+            *normalized_values
         )
 
     def get_metadata(self, meta_type: MetaType, schema_name: str | None = None) -> str:
@@ -233,10 +253,11 @@ class ExasolMetaQuery:
         return query.sql(dialect="exasol", identify=True)
 
     def get_object_metadata(
-        self, meta_type: MetaType, schema_name: str, obj_name: str
+        self, meta_type: MetaType, schema_name: str, obj_names: list[str]
     ) -> str:
         """
-        Builds a query requesting metadata for a given database object.
+        Builds a query requesting metadata for one or more database objects of the
+        given type, all in the same schema.
         """
         meta_name = meta_type.value
         query = (
@@ -246,7 +267,7 @@ class ExasolMetaQuery:
             .where(
                 exp.and_(
                     self._get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
-                    self._get_column_eq_predicate(f"{meta_name}_NAME", obj_name),
+                    self._get_column_in_predicate(f"{meta_name}_NAME", obj_names),
                 )
             )
         )
@@ -372,9 +393,11 @@ class ExasolMetaQuery:
         query_sql = query.sql(dialect="exasol", identify=True)
         return _fix_group_concat(query_sql, separator=", ")
 
-    def describe_columns(self, schema_name: str, table_name: str) -> str:
+    def describe_columns(self, schema_name: str, table_names: list[str]) -> str:
         """
-        Gathers a list of columns in a given table.
+        Gathers a list of columns in one or more tables. The result includes the
+        unaliased "COLUMN_TABLE" column, so that rows can be regrouped by table
+        name when more than one table is requested.
         """
         # The table where the colum information should be pulled from is different for
         # user tables and system tables.
@@ -384,6 +407,7 @@ class ExasolMetaQuery:
         query = (
             exp.Select()
             .select(
+                exp.column("COLUMN_TABLE"),
                 exp.column("COLUMN_NAME").as_(NAME_FIELD),
                 exp.column("COLUMN_TYPE").as_(SQL_TYPE_FIELD),
                 exp.column("COLUMN_COMMENT").as_(COMMENT_FIELD),
@@ -392,19 +416,22 @@ class ExasolMetaQuery:
             .where(
                 exp.and_(
                     self._get_column_eq_predicate("COLUMN_SCHEMA", schema_name),
-                    self._get_column_eq_predicate("COLUMN_TABLE", table_name),
+                    self._get_column_in_predicate("COLUMN_TABLE", table_names),
                 )
             )
         )
         return query.sql(dialect="exasol", identify=True)
 
-    def describe_constraints(self, schema_name: str, table_name: str) -> str:
+    def describe_constraints(self, schema_name: str, table_names: list[str]) -> str:
         """
-        Gathers a list of constraints for a given table.
+        Gathers a list of constraints for one or more tables. The result includes
+        the unaliased "CONSTRAINT_TABLE" column, so that rows can be regrouped by
+        table name when more than one table is requested.
         """
         query = (
             exp.Select()
             .select(
+                exp.column("CONSTRAINT_TABLE"),
                 exp.FirstValue(this=exp.column("CONSTRAINT_TYPE")).as_(
                     CONSTRAINT_TYPE_FIELD
                 ),
@@ -433,22 +460,21 @@ class ExasolMetaQuery:
             .where(
                 exp.and_(
                     self._get_column_eq_predicate("CONSTRAINT_SCHEMA", schema_name),
-                    self._get_column_eq_predicate("CONSTRAINT_TABLE", table_name),
+                    self._get_column_in_predicate("CONSTRAINT_TABLE", table_names),
                 )
             )
-            .group_by("CONSTRAINT_NAME")
+            .group_by("CONSTRAINT_TABLE", "CONSTRAINT_NAME")
         )
         query_sql = query.sql(dialect="exasol", identify=True)
         return _fix_group_concat(query_sql)
 
-    def describe_table(self, schema_name: str, table_name: str) -> str:
+    def describe_table(self, schema_name: str, table_names: list[str]) -> str:
         """
-        The query returns a single row with the schema, name and comment
-        for a given table or view.
+        The query returns a row with the schema, name and comment for each
+        requested table or view.
         """
-        # `table_name` can be the name of a table or a view.
-        # This query tries both possibilities. The UNION clause collapses
-        # the result into a single non-NULL distinct value.
+        # Each requested name can be the name of a table or a view.
+        # This query tries both possibilities for all the requested names at once.
         queries = [
             exp.Select()
             .select(
@@ -460,12 +486,12 @@ class ExasolMetaQuery:
             .where(
                 exp.and_(
                     self._get_column_eq_predicate(f"{meta_name}_SCHEMA", schema_name),
-                    self._get_column_eq_predicate(f"{meta_name}_NAME", table_name),
+                    self._get_column_in_predicate(f"{meta_name}_NAME", table_names),
                 )
             )
             for meta_name in ["TABLE", "VIEW"]
         ]
-        query = exp.Union(this=queries[0], expression=queries[1]).limit(1)
+        query = exp.Union(this=queries[0], expression=queries[1])
         return query.sql(dialect="exasol", identify=True)
 
     @staticmethod
@@ -485,14 +511,17 @@ class ExasolMetaQuery:
         )
         return query.sql(dialect="exasol", identify=True)
 
-    def get_system_tables(self, schema_name: str, table_name: str | None = None) -> str:
+    def get_system_tables(
+        self, schema_name: str, table_names: list[str] | None = None
+    ) -> str:
         """
         Collects names and comments for the system or statistics tables and views.
-        The output will be restricted to one table if it's name is specified.
+        The output will be restricted to the given tables if their names are
+        specified.
         """
         predicates = [self._get_column_eq_predicate("SCHEMA_NAME", schema_name)]
-        if table_name:
-            predicates.append(self._get_column_eq_predicate("OBJECT_NAME", table_name))
+        if table_names is not None:
+            predicates.append(self._get_column_in_predicate("OBJECT_NAME", table_names))
         query = (
             exp.Select()
             .select(
