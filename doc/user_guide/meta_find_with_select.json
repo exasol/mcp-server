@@ -1,0 +1,9 @@
+{
+    "views": {
+        "enable": true
+    },
+    "enable_list_tools": false,
+    "enable_read_query": true,
+    "enable_preprocessor_tools": false,
+    "enable_dialect_tools": false
+}
