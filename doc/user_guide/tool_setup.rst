@@ -160,6 +160,11 @@ queries, you can download one of the following ready-made configuration files
 instead of writing your own. Both configurations enable ``enable_read_query``,
 keep only one of the ``list_xxx``/``find_xxx`` tool pairs, and disable the
 preprocessor and SQL dialect tools, which are not needed for this use case.
+Trimming the tools this way saves token space: every registered tool's schema
+is sent to the model, so leaving out the ones that are not needed keeps the
+tool list lean. This matters even more for the ``find_xxx`` tools, since a
+keyword search also returns only the matching database objects instead of the
+full inventory, saving tokens on every query result too.
 
 * :download:`meta_find_with_select.json` keeps the ``find_xxx`` tools, which
   perform a keyword search over object names and comments. Choose this if the
