@@ -11,7 +11,7 @@ on:
 jobs:
   create-docker-image:
     name: Docker Deployment
-    uses: ./.github/workflows/create-docker-image.yml
+    uses: $/.github/workflows/create-docker-image.yml
     permissions:
       contents: write
     secrets:
