@@ -145,3 +145,12 @@ class McpServerSettings(BaseModel):
     parameters provided to these tools, e.g. a schema name, are used in case sensitive
     or case insensitive way.
     """
+
+    def normalize_name(self, name: str) -> str:
+        """
+        Normalizes a database object name according to the `case_sensitive` setting,
+        so that names originating from different sources (e.g. a caller-provided
+        name and a name read back from the database) can be compared or used as a
+        lookup key consistently.
+        """
+        return name if self.case_sensitive else name.upper()

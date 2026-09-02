@@ -17,7 +17,7 @@ jobs:
 
   build-matrix:
     name: Build Matrix
-    uses: ./.github/workflows/matrix.yml
+    uses: $/.github/workflows/matrix.yml
     needs:
       - approve-run-slow-tests-saas
     permissions:

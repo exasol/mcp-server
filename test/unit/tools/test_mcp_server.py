@@ -8,6 +8,7 @@ from unittest.mock import (
 import pytest
 import sqlglot.expressions as exp
 
+from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.mcp_server import (
     ExasolMCPServer,
     _build_column_summaries,
@@ -356,51 +357,128 @@ def test_health_check_unhealthy():
     assert b'"status":"unhealthy"' in response.body
 
 
-def test_describe_many_success():
-    result = ExasolMCPServer._describe_many(
-        "MY_SCHEMA", ["a", "b"], lambda schema, name: f"described-{schema}-{name}"
-    )
-    assert result == ["described-MY_SCHEMA-a", "described-MY_SCHEMA-b"]
+def _column_row(table_name: str, name: str = "COL1") -> dict:
+    return {
+        "COLUMN_TABLE": table_name,
+        "name": name,
+        "type": "INTEGER",
+        "comment": None,
+    }
 
 
-def test_describe_many_aggregates_errors():
-    def describe_one(schema_name: str, name: str) -> str:
-        if name == "bad":
-            raise ValueError(f"{schema_name}.{name} not found.")
-        return name
-
-    with pytest.raises(ValueError, match="MY_SCHEMA.bad not found"):
-        ExasolMCPServer._describe_many("MY_SCHEMA", ["good", "bad"], describe_one)
-
-
-def _make_describe_tables_server() -> ExasolMCPServer:
+def _make_table_batch_server(
+    meta_rows: list[dict], column_rows: list[dict], constraint_rows: list[dict] | None
+) -> tuple[ExasolMCPServer, MagicMock]:
+    """
+    A server whose mocked connection answers up to 3 sequential `fetchall()` calls
+    (table/view metadata, columns, and -- unless `constraint_rows` is None, meaning
+    a system schema where constraints aren't queried -- constraints) with the given
+    rows, in that order.
+    """
     connection = _mock_connection()
-    config = MagicMock()
+    statement = connection.execute_query.return_value
+    fetch_results = [meta_rows, column_rows]
+    if constraint_rows is not None:
+        fetch_results.append(constraint_rows)
+    statement.fetchall.side_effect = fetch_results
+    config = McpServerSettings()
     server = ExasolMCPServer(connection=connection, config=config)
-
-    def describe_one(schema_name: str, table_name: str) -> DBTable:
-        if table_name == "MISSING":
-            raise ValueError(f"The table or view {schema_name}.{table_name} not found.")
-        return DBTable(schema=schema_name, name=table_name, comment=None, columns=[])
-
-    server._describe_one_table = describe_one
-    return server
+    return server, connection
 
 
 def test_describe_tables_batch_returns_list_in_order():
-    server = _make_describe_tables_server()
+    # DB rows come back in the opposite order of the request, to confirm the
+    # output order follows the requested names, not the DB result order.
+    meta_rows = [
+        {"schema": "MY_SCHEMA", "name": "T2", "comment": None},
+        {"schema": "MY_SCHEMA", "name": "T1", "comment": None},
+    ]
+    column_rows = [_column_row("T1"), _column_row("T2")]
+    server, _ = _make_table_batch_server(meta_rows, column_rows, [])
     result = server.describe_tables("MY_SCHEMA", ["T1", "T2"])
     assert [t.name for t in result] == ["T1", "T2"]
 
 
 def test_describe_tables_batch_missing_name_raises():
-    server = _make_describe_tables_server()
+    meta_rows = [{"schema": "MY_SCHEMA", "name": "T1", "comment": None}]
+    column_rows = [_column_row("T1")]
+    server, _ = _make_table_batch_server(meta_rows, column_rows, [])
     with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
         server.describe_tables("MY_SCHEMA", ["T1", "MISSING"])
 
 
+def test_describe_tables_batch_no_columns_raises():
+    # Exasol tables always have at least one column, so an empty columns
+    # result for a table that was found must surface as an error, not be
+    # silently treated as a table with zero columns.
+    meta_rows = [{"schema": "MY_SCHEMA", "name": "T1", "comment": None}]
+    server, _ = _make_table_batch_server(meta_rows, [], [])
+    with pytest.raises(ValueError, match="Failed to retrieve columns .* MY_SCHEMA.T1"):
+        server.describe_tables("MY_SCHEMA", ["T1"])
+
+
+def test_describe_tables_batch_issues_three_queries():
+    table_names = [f"T{i}" for i in range(5)]
+    meta_rows = [
+        {"schema": "MY_SCHEMA", "name": name, "comment": None} for name in table_names
+    ]
+    column_rows = [_column_row(name) for name in table_names]
+    server, connection = _make_table_batch_server(meta_rows, column_rows, [])
+    server.describe_tables("MY_SCHEMA", table_names)
+    # One batched query each for table/view metadata, columns, and constraints,
+    # regardless of the number of tables requested.
+    assert connection.execute_query.call_count == 3
+
+
+def test_describe_tables_batch_system_schema_issues_two_queries():
+    meta_rows = [{"schema": "SYS", "name": "T1", "comment": None}]
+    column_rows = [_column_row("T1")]
+    server, connection = _make_table_batch_server(meta_rows, column_rows, None)
+    result = server.describe_tables("SYS", ["T1"])
+    # Only metadata and columns are queried; constraints aren't tracked for
+    # system schemas, so describe_tables skips that query entirely.
+    assert connection.execute_query.call_count == 2
+    assert result[0].constraints is None
+
+
+def test_describe_tables_empty_list_returns_empty_no_query():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.describe_tables("MY_SCHEMA", [])
+    assert result == []
+    connection.execute_query.assert_not_called()
+
+
+def test_describe_tables_batch_duplicate_name_in_request():
+    meta_rows = [{"schema": "MY_SCHEMA", "name": "T1", "comment": None}]
+    column_rows = [_column_row("T1")]
+    server, _ = _make_table_batch_server(meta_rows, column_rows, [])
+    result = server.describe_tables("MY_SCHEMA", ["T1", "T1"])
+    assert [t.name for t in result] == ["T1", "T1"]
+
+
+def test_describe_tables_batch_preserves_stored_casing():
+    connection = _mock_connection()
+    statement = connection.execute_query.return_value
+    statement.fetchall.side_effect = [
+        [{"schema": "MY_SCHEMA", "name": "T1", "comment": None}],
+        [_column_row("T1")],
+        [],
+    ]
+    server = ExasolMCPServer(
+        connection=connection, config=McpServerSettings(case_sensitive=False)
+    )
+    result = server.describe_tables("MY_SCHEMA", ["t1"])
+    assert [t.name for t in result] == ["T1"]
+
+
 def test_describe_system_table_returns_single_object():
-    server = _make_describe_tables_server()
+    # describe_system_table/describe_statistics_table delegate to describe_tables,
+    # so a system schema means constraints aren't queried (constraint_rows=None).
+    meta_rows = [{"schema": "SYS", "name": "EXA_ALL_COLUMNS", "comment": None}]
+    column_rows = [_column_row("EXA_ALL_COLUMNS")]
+    server, _ = _make_table_batch_server(meta_rows, column_rows, None)
     result = server.describe_system_table("EXA_ALL_COLUMNS")
     assert isinstance(result, DBTable)
     assert result.schema == "SYS"
@@ -408,11 +486,21 @@ def test_describe_system_table_returns_single_object():
 
 
 def test_describe_statistics_table_returns_single_object():
-    server = _make_describe_tables_server()
+    meta_rows = [
+        {"schema": "EXA_STATISTICS", "name": "EXA_DBA_SESSIONS", "comment": None}
+    ]
+    column_rows = [_column_row("EXA_DBA_SESSIONS")]
+    server, _ = _make_table_batch_server(meta_rows, column_rows, None)
     result = server.describe_statistics_table("EXA_DBA_SESSIONS")
     assert isinstance(result, DBTable)
     assert result.schema == "EXA_STATISTICS"
     assert result.name == "EXA_DBA_SESSIONS"
+
+
+def test_describe_system_table_not_found_raises():
+    server, _ = _make_table_batch_server([], [], None)
+    with pytest.raises(ValueError, match="SYS.MISSING not found"):
+        server.describe_system_table("MISSING")
 
 
 def test_describe_functions_batch_returns_list_in_order():
@@ -420,19 +508,20 @@ def test_describe_functions_batch_returns_list_in_order():
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
 
-    def describe(schema_name: str, func_name: str) -> DBReturnFunction:
-        return DBReturnFunction(
-            schema=schema_name,
-            name=func_name,
-            comment=None,
-            input=[],
-            returns="INTEGER",
-        )
+    def describe_many(
+        schema_name: str, func_names: list[str]
+    ) -> list[DBReturnFunction]:
+        return [
+            DBReturnFunction(
+                schema=schema_name, name=name, comment=None, input=[], returns="INTEGER"
+            )
+            for name in func_names
+        ]
 
     with patch(
         "exasol.ai.mcp.server.tools.mcp_server.FuncParameterParser"
     ) as parser_cls:
-        parser_cls.return_value.describe.side_effect = describe
+        parser_cls.return_value.describe_many.side_effect = describe_many
         result = server.describe_functions("MY_SCHEMA", ["F1", "F2"])
 
     assert [f.name for f in result] == ["F1", "F2"]
@@ -443,25 +532,36 @@ def test_describe_functions_batch_missing_name_raises():
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
 
-    def describe(schema_name: str, func_name: str) -> DBReturnFunction:
-        if func_name == "MISSING":
-            raise ValueError(
-                f"The function or script {schema_name}.{func_name} not found."
-            )
-        return DBReturnFunction(
-            schema=schema_name,
-            name=func_name,
-            comment=None,
-            input=[],
-            returns="INTEGER",
-        )
+    def describe_many(
+        schema_name: str, func_names: list[str]
+    ) -> list[DBReturnFunction]:
+        raise ValueError(f"The function or script {schema_name}.MISSING not found.")
 
     with patch(
         "exasol.ai.mcp.server.tools.mcp_server.FuncParameterParser"
     ) as parser_cls:
-        parser_cls.return_value.describe.side_effect = describe
+        parser_cls.return_value.describe_many.side_effect = describe_many
         with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
             server.describe_functions("MY_SCHEMA", ["F1", "MISSING"])
+
+
+def test_describe_functions_batch_issues_one_query():
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = []
+    config = McpServerSettings()
+    server = ExasolMCPServer(connection=connection, config=config)
+    with pytest.raises(ValueError):
+        server.describe_functions("MY_SCHEMA", ["F1", "F2", "F3"])
+    assert connection.execute_query.call_count == 1
+
+
+def test_describe_functions_empty_list_returns_empty_no_query():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.describe_functions("MY_SCHEMA", [])
+    assert result == []
+    connection.execute_query.assert_not_called()
 
 
 def test_describe_scripts_batch_returns_list_in_order():
@@ -469,19 +569,20 @@ def test_describe_scripts_batch_returns_list_in_order():
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
 
-    def describe(schema_name: str, func_name: str) -> DBReturnFunction | DBEmitFunction:
-        return DBReturnFunction(
-            schema=schema_name,
-            name=func_name,
-            comment=None,
-            input=[],
-            returns="INTEGER",
-        )
+    def describe_many(
+        schema_name: str, func_names: list[str]
+    ) -> list[DBReturnFunction | DBEmitFunction]:
+        return [
+            DBReturnFunction(
+                schema=schema_name, name=name, comment=None, input=[], returns="INTEGER"
+            )
+            for name in func_names
+        ]
 
     with patch(
         "exasol.ai.mcp.server.tools.mcp_server.ScriptParameterParser"
     ) as parser_cls:
-        parser_cls.return_value.describe.side_effect = describe
+        parser_cls.return_value.describe_many.side_effect = describe_many
         result = server.describe_scripts("MY_SCHEMA", ["S1", "S2"])
 
     assert [s.name for s in result] == ["S1", "S2"]
@@ -492,25 +593,40 @@ def test_describe_scripts_batch_missing_name_raises():
     config = MagicMock()
     server = ExasolMCPServer(connection=connection, config=config)
 
-    def describe(schema_name: str, func_name: str) -> DBReturnFunction | DBEmitFunction:
-        if func_name == "MISSING":
-            raise ValueError(
-                f"The function or script {schema_name}.{func_name} not found."
-            )
-        return DBReturnFunction(
-            schema=schema_name,
-            name=func_name,
-            comment=None,
-            input=[],
-            returns="INTEGER",
-        )
+    def describe_many(
+        schema_name: str, func_names: list[str]
+    ) -> list[DBReturnFunction | DBEmitFunction]:
+        raise ValueError(f"The function or script {schema_name}.MISSING not found.")
 
     with patch(
         "exasol.ai.mcp.server.tools.mcp_server.ScriptParameterParser"
     ) as parser_cls:
-        parser_cls.return_value.describe.side_effect = describe
+        parser_cls.return_value.describe_many.side_effect = describe_many
         with pytest.raises(ValueError, match="MY_SCHEMA.MISSING not found"):
             server.describe_scripts("MY_SCHEMA", ["S1", "MISSING"])
+
+
+def test_describe_scripts_batch_all_names_missing_issues_one_query():
+    # No rows come back for any of the requested names, so every one of them
+    # is "missing" and describe_scripts must raise -- but the single batched
+    # metadata query should still have been issued only once for all three
+    # names, not once per name.
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = []
+    config = McpServerSettings()
+    server = ExasolMCPServer(connection=connection, config=config)
+    with pytest.raises(ValueError, match="MY_SCHEMA.S1 not found"):
+        server.describe_scripts("MY_SCHEMA", ["S1", "S2", "S3"])
+    assert connection.execute_query.call_count == 1
+
+
+def test_describe_scripts_empty_list_returns_empty_no_query():
+    connection = _mock_connection()
+    config = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=config)
+    result = server.describe_scripts("MY_SCHEMA", [])
+    assert result == []
+    connection.execute_query.assert_not_called()
 
 
 def _make_summarize_server() -> tuple[ExasolMCPServer, MagicMock]:
@@ -519,11 +635,10 @@ def _make_summarize_server() -> tuple[ExasolMCPServer, MagicMock]:
     statement.fetchone.return_value = {"ROW_COUNT": 2}
     statement.fetchcol.return_value = [1, 2]
     statement.fetchall.return_value = [{"id": 1}, {"id": 2}]
-    config = MagicMock()
-    config.enable_summarize_table = True
+    config = McpServerSettings(enable_summarize_table=True)
     server = ExasolMCPServer(connection=connection, config=config)
     columns = [DBColumn(name="id", type="DECIMAL(18,0)", comment=None)]
-    server.describe_columns = MagicMock(return_value=columns)
+    server._fetch_columns = MagicMock(return_value={"MY_TABLE": columns})
     server._get_table_comment = MagicMock(return_value="a comment")
     return server, connection
 

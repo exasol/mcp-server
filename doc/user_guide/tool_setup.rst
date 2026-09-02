@@ -152,6 +152,31 @@ tools so the agent is guided toward keyword search instead:
 
 Both settings default to ``true``.
 
+Example: minimal configuration for browsing and querying
+----------------------------------------------------------
+
+If the agent only needs to browse the database metadata and run read-only SQL
+queries, you can download one of the following ready-made configuration files
+instead of writing your own. Both configurations enable ``enable_read_query``,
+keep only one of the ``list_xxx``/``find_xxx`` tool pairs, and disable the
+preprocessor and SQL dialect tools, which are not needed for this use case.
+Trimming the tools this way saves token space: every registered tool's schema
+is sent to the model, so leaving out the ones that are not needed keeps the
+tool list lean. This matters even more for the ``find_xxx`` tools, since a
+keyword search also returns only the matching database objects instead of the
+full inventory, saving tokens on every query result too.
+
+* :download:`meta_find_with_select.json` keeps the ``find_xxx`` tools, which
+  perform a keyword search over object names and comments. Choose this if the
+  database objects have descriptive names and comments to search.
+* :download:`meta_list_with_select.json` keeps the ``list_xxx`` tools, which
+  return everything that matches the filter in the settings. Choose this if
+  the database is small and well-known.
+
+Download whichever file suits your use case and point ``EXA_MCP_SETTINGS`` at
+its path, as described in
+:ref:`add-server-configuration-to-mcp-client-configuration`.
+
 Enable BucketFS I/O
 --------------------
 
@@ -260,6 +285,8 @@ the configuration setting ``case_sensitive`` should be set to true, as in the ex
     {
         "case_sensitive": true
     }
+
+.. _add-server-configuration-to-mcp-client-configuration:
 
 Add the server configuration to the MCP Client configuration
 ------------------------------------------------------------

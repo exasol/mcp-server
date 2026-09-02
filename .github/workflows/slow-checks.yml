@@ -6,6 +6,6 @@ on:
 jobs:
   run-slow-checks-itde:
     name: Run Slow Checks with ITDE
-    uses: ./.github/workflows/slow-checks-itde.yml
+    uses: $/.github/workflows/slow-checks-itde.yml
     permissions:
       contents: read
