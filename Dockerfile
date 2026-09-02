@@ -21,7 +21,8 @@ COPY --from=build app/dist dist
 
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
-RUN WHEEL=$(ls dist/*.whl) && pip install "${WHEEL}[dynamodb,redis,mongodb]"
+RUN WHEEL=$(ls dist/*.whl) && pip install "${WHEEL}[dynamodb,redis,mongodb]" \
+    && pip uninstall -y pip
 
 
 # Set entrypoint
