@@ -10,6 +10,7 @@ from pyexasol import (
     ExaAuthError,
     ExaCommunicationError,
     ExaConnection,
+    ExaConnectionError,
     ExaError,
     ExaQueryError,
     ExaRuntimeError,
@@ -21,6 +22,24 @@ logger = logging.getLogger(__name__)
 GENERIC_DB_ERROR_MESSAGE = (
     "A database error occurred. Please try again later or contact "
     "your administrator if the problem persists."
+)
+
+# The two failure categories a client can actually act on get a message that
+# names the category - and nothing else. Neither carries a host, a port, a user
+# name or a session id, so the sanitization contract of `execute_query` holds:
+# the original exception stays server-side, in the log and as `__cause__`.
+#
+# Without this, a database that is simply not running was reported with the
+# generic message above, and the agent driving the tool had no better move than
+# "try again later" against a server that was never going to answer.
+CONNECTION_ERROR_MESSAGE = (
+    "Could not connect to the database: it is not running or not reachable. "
+    "Start it or check that it is reachable, then try again."
+)
+
+AUTH_ERROR_MESSAGE = (
+    "The database rejected the login of the configured MCP user. "
+    "Check the credentials the MCP server was started with."
 )
 
 QUERY_ERROR_PREFIX = "The database rejected the query: "
@@ -120,10 +139,13 @@ class DbConnection:
           `ExaQueryAbortError`) - raised for actual SQL EXECUTE failures such as
           syntax errors or references to non-existent objects - the `RuntimeError`
           message includes the original `.message` text, which is safe to expose.
-        - For every other `ExaError` subtype (authentication, connection,
-          communication or concurrency errors) a fixed, fully generic message is
-          used instead, since these categories can embed connection/session details
-          directly in `.message`.
+        - For `ExaConnectionError`/`ExaCommunicationError` (the database cannot be
+          reached) and `ExaAuthError` (the login was rejected) a fixed message that
+          names only the CATEGORY is used, so a client can tell "start the
+          database" from "fix the credentials" without seeing the connection/session
+          details these exceptions embed in `.message`.
+        - For every other `ExaError` subtype (concurrency, client-side runtime
+          errors) a fixed, fully generic message is used instead.
 
         Non-pyexasol exceptions (i.e. bugs in our own code, such as a `TypeError`)
         are not caught here and propagate unmodified.
@@ -149,6 +171,14 @@ class DbConnection:
                 "Query execution failed with a database error", exc_info=True
             )
             raise RuntimeError(f"{QUERY_ERROR_PREFIX}{ex.message}") from ex
+        except (ExaConnectionError, ExaCommunicationError) as ex:
+            logger.warning(
+                "Could not connect to or communicate with the database", exc_info=True
+            )
+            raise RuntimeError(CONNECTION_ERROR_MESSAGE) from ex
+        except ExaAuthError as ex:
+            logger.warning("The database rejected the login", exc_info=True)
+            raise RuntimeError(AUTH_ERROR_MESSAGE) from ex
         except ExaError as ex:
             logger.warning(
                 "A pyexasol error occurred while executing a query", exc_info=True

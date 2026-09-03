@@ -22,6 +22,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_top_values_query,
     _is_numeric_type,
     _statement_to_tabular,
+    query_rejection_reason,
     remove_info_column,
     verify_query,
 )
@@ -198,6 +199,47 @@ def test_verify_query(query, expected_result):
     in this case is that such queries are not recognised as valid SQL statements.
     """
     assert verify_query(query) == expected_result
+
+
+@pytest.mark.parametrize(
+    ["query", "expected_fragments"],
+    [
+        (sample_select_query(), None),
+        (sample_select_udf_emits_query(), None),
+        (
+            sample_insert_query(),
+            ["Only a single SELECT statement is accepted", "INSERT"],
+        ),
+        (sample_select_into_query(), ["SELECT INTO writes data"]),
+        ("SELECT TOP 3 * FROM T", ["could not be parsed", "LIMIT <n>", "not with TOP"]),
+        (sample_invalid_query(), ["could not be parsed"]),
+    ],
+    ids=[
+        "select",
+        "select-udf-emits",
+        "insert",
+        "select-into",
+        "select-top",
+        "invalid",
+    ],
+)
+def test_query_rejection_reason(query, expected_fragments):
+    """
+    A refused query says WHY. The single "invalid or not a SELECT statement" text
+    covered a non-SELECT, an unparseable SELECT (`SELECT TOP n`, which Exasol
+    does not support) and a SELECT INTO alike, so a client that had just sent a
+    SELECT could not tell which it was. `verify_query` keeps its boolean contract.
+    """
+    reason = query_rejection_reason(query)
+    if expected_fragments is None:
+        assert reason is None
+        assert verify_query(query) is True
+        return
+    assert reason is not None
+    assert verify_query(query) is False
+    for fragment in expected_fragments:
+        assert fragment in reason
+    assert "TOP" not in reason or "LIMIT" in reason
 
 
 def test_remove_info_column():

@@ -11,6 +11,8 @@ import pyexasol
 import pytest
 
 from exasol.ai.mcp.server.connection.db_connection import (
+    AUTH_ERROR_MESSAGE,
+    CONNECTION_ERROR_MESSAGE,
     GENERIC_DB_ERROR_MESSAGE,
     QUERY_ERROR_PREFIX,
     DbConnection,
@@ -150,8 +152,9 @@ def test_db_connection_execute_retry_success(snapshot):
 def test_db_connection_execute_retry_failure(snapshot):
     """
     Tests that after retries are exhausted, the last error (ExaAuthError) is
-    sanitized to a generic connection-tier RuntimeError, with the original
-    exception preserved as __cause__.
+    sanitized to the fixed authentication message - one that names the category
+    and nothing about the connection - with the original exception preserved as
+    __cause__.
     """
     results = [
         pyexasol.ExaCommunicationError,
@@ -162,7 +165,7 @@ def test_db_connection_execute_retry_failure(snapshot):
     db_connection = DbConnection(factory, num_retries=2)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == AUTH_ERROR_MESSAGE
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaAuthError)
 
 
@@ -245,7 +248,7 @@ def test_db_connection_fetch_error_is_sanitized(snapshot):
 
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == CONNECTION_ERROR_MESSAGE
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaCommunicationError)
 
 
@@ -300,3 +303,38 @@ def test_db_connection_execute_error_is_logged_with_full_detail(snapshot, caplog
     assert factory.connection.options["user"] in logged_detail
     assert factory.connection.options["dsn"] not in str(exc_info.value)
     assert factory.connection.options["user"] not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "ex_type", [pyexasol.ExaConnectionError, pyexasol.ExaCommunicationError]
+)
+def test_db_connection_unreachable_database_names_the_category(ex_type, snapshot):
+    """
+    A database that cannot be reached is the one failure the caller can act on
+    (start it, or fix the address), so it is reported as exactly that - and still
+    without the dsn, user or session id the original exception carries.
+    """
+    factory = FakeConnectionFactory(
+        results=[ex_type, ex_type, ex_type], snapshot=snapshot
+    )
+    db_connection = DbConnection(factory, num_retries=3)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == CONNECTION_ERROR_MESSAGE
+    assert isinstance(exc_info.value.__cause__, ex_type)
+    for secret in ("mock-dsn", "mock-user"):
+        assert secret not in str(exc_info.value)
+
+
+def test_db_connection_other_errors_stay_generic(snapshot):
+    """
+    Everything that is neither a query error nor one of the two actionable
+    categories keeps the fully generic message.
+    """
+    factory = FakeConnectionFactory(
+        results=[pyexasol.ExaConcurrencyError], snapshot=snapshot
+    )
+    db_connection = DbConnection(factory, num_retries=1)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
