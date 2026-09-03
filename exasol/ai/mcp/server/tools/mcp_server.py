@@ -177,10 +177,25 @@ def _get_emits_pattern() -> re.Pattern:
     return re.compile(pattern, flags=regex_flags)
 
 
-def verify_query(query: str) -> bool:
+QUERY_REJECTED_PREFIX = "The query was not run. "
+
+_PAGING_HINT = (
+    "Exasol pages result sets with LIMIT <n> [OFFSET <m>], "
+    "not with TOP or FETCH FIRST."
+)
+
+
+def query_rejection_reason(query: str) -> str | None:
     """
-    Verifies that the query is a valid SELECT query.
-    Declines any other types of statements including the SELECT INTO.
+    Returns None when the query is a plain SELECT that may be executed, otherwise
+    the reason it is refused, worded for the caller to act on.
+
+    The single message "The query is invalid or not a SELECT statement" covered
+    three different situations - a statement that is not a SELECT, a SELECT the
+    parser could not read (`SELECT TOP 3 ...`, which Exasol does not support),
+    and a SELECT INTO - and an agent that had just sent a SELECT could not tell
+    which one it was in. Declines any other type of statement, including SELECT
+    INTO.
     """
 
     # Here is a fix for the SQLGlot deficiency in understanding the syntax of variadic
@@ -190,11 +205,34 @@ def verify_query(query: str) -> bool:
 
     try:
         ast = parse_one(query, read="exasol")
-        if isinstance(ast, exp.Select):
-            return "into" not in ast.args
-        return False
-    except ParseError:
-        return False
+    except ParseError as ex:
+        reason = f"{QUERY_REJECTED_PREFIX}It could not be parsed as Exasol SQL"
+        detail = str(ex).splitlines()[0].strip().rstrip(".") if str(ex).strip() else ""
+        if detail:
+            reason = f"{reason}: {detail}"
+        if re.search(r"\b(TOP|FETCH\s+FIRST)\b", query, flags=re.IGNORECASE):
+            reason = f"{reason}. {_PAGING_HINT}"
+        return reason
+    if not isinstance(ast, exp.Select):
+        kind = type(ast).__name__.upper()
+        return (
+            f"{QUERY_REJECTED_PREFIX}Only a single SELECT statement is accepted; "
+            f"this is {kind}."
+        )
+    if "into" in ast.args:
+        return (
+            f"{QUERY_REJECTED_PREFIX}SELECT INTO writes data; "
+            "only a plain SELECT is accepted."
+        )
+    return None
+
+
+def verify_query(query: str) -> bool:
+    """
+    Verifies that the query is a valid SELECT query.
+    Declines any other types of statements including the SELECT INTO.
+    """
+    return query_rejection_reason(query) is None
 
 
 def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -815,8 +853,9 @@ class ExasolMCPServer(FastMCP):
     ) -> T:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
-        if not verify_query(query):
-            raise ValueError("The query is invalid or not a SELECT statement.")
+        rejection = query_rejection_reason(query)
+        if rejection is not None:
+            raise ValueError(rejection)
         effective_row_limit = (
             row_limit if row_limit is not None else self.config.default_row_limit
         )
@@ -842,8 +881,9 @@ class ExasolMCPServer(FastMCP):
     def _run_profile_query(self, query: str, fetch: Callable[[ExaStatement], T]) -> T:
         if not self.config.enable_query_profiling:
             raise RuntimeError("Query profiling is disabled.")
-        if not verify_query(query):
-            raise ValueError("The query is invalid or not a SELECT statement.")
+        rejection = query_rejection_reason(query)
+        if rejection is not None:
+            raise ValueError(rejection)
         profile_already_on = (
             self.connection.execute_query(
                 _build_profile_status_query(),
