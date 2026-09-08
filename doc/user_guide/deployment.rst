@@ -59,7 +59,7 @@ Now create and run the Docker container.
         -e EXA_AUTH_BASE_URL=my_mcp_server \
         -e EXA_MCP_SETTINGS=/app/settings.json \
         -v local_path_to_settings.json:/app/settings.json \
-        exadockerci4/exasol-mcp-server:latest
+        exasol/mcp-server:latest
         --port 4896
 
 In this example, the server is configured to use the generic OAuth Proxy provider.
