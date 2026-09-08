@@ -17,10 +17,14 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock README.rst ./
 COPY exasol/ ./exasol/
 
-# Build the wheel and install it, with its extras, into the venv
+# Build the wheel and install it, with its extras, into the venv. Then
+# remove pip itself: `python -m venv` installs its own copy of pip into
+# the venv, and pip vendors its own copies of other packages (e.g.
+# msgpack, setuptools) that can carry known vulnerabilities.
 RUN poetry build \
     && WHEEL=$(ls dist/*.whl) \
-    && /venv/bin/pip install --disable-pip-version-check "${WHEEL}[dynamodb,redis,mongodb]"
+    && /venv/bin/pip install --disable-pip-version-check "${WHEEL}[dynamodb,redis,mongodb]" \
+    && /venv/bin/pip uninstall -y pip
 
 # This distroless base image has no shell, no package manager, and no pip.
 FROM gcr.io/distroless/python3-debian13:nonroot
