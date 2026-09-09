@@ -1,29 +1,35 @@
-# Use Python base image
-FROM python:3.13-slim AS build
+# Build a virtual environment using the Debian version that matches the
+# distroless image below, so the venv still works once copied over.
+# See https://github.com/GoogleContainerTools/distroless/blob/main/python3/README.md
+FROM python:3.13-slim-trixie AS build
 
-# Install Poetry
-RUN pip install poetry
+# The distroless image's Python is at /usr/bin/python, but this builder
+# image's Python is at /usr/local/bin/python. Add a matching /usr/bin/python
+# link here so the virtual environment we create points to a path that will
+# also exist in the final image.
+RUN pip install poetry \
+    && ln -s /usr/local/bin/python /usr/bin/python \
+    && /usr/bin/python -m venv /venv
 
-# Set working directory
 WORKDIR /app
 
 # Copy project files
 COPY pyproject.toml poetry.lock README.rst ./
 COPY exasol/ ./exasol/
 
-# Build and install the wheel
-RUN poetry build
+# Build the wheel and install it, with its extras, into the venv. Then
+# remove pip itself: `python -m venv` installs its own copy of pip into
+# the venv, and pip vendors its own copies of other packages (e.g.
+# msgpack, setuptools) that can carry known vulnerabilities.
+RUN poetry build \
+    && WHEEL=$(ls dist/*.whl) \
+    && /venv/bin/pip install --disable-pip-version-check "${WHEEL}[dynamodb,redis,mongodb]" \
+    && /venv/bin/pip uninstall -y pip
 
-FROM python:3.13-slim
-
+# This distroless base image has no shell, no package manager, and no pip.
+FROM gcr.io/distroless/python3-debian13:nonroot
 WORKDIR /app
-COPY --from=build app/dist dist
-
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
-
-RUN WHEEL=$(ls dist/*.whl) && pip install "${WHEEL}[dynamodb,redis,mongodb]" \
-    && pip uninstall -y pip
-
+COPY --from=build --chown=nonroot:nonroot /venv /venv
 
 # Set entrypoint
-ENTRYPOINT ["exasol-mcp-server-http"]
+ENTRYPOINT ["/venv/bin/exasol-mcp-server-http"]
