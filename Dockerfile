@@ -1,7 +1,7 @@
 # Build a virtual environment using the Debian version that matches the
 # distroless image below, so the venv still works once copied over.
 # See https://github.com/GoogleContainerTools/distroless/blob/main/python3/README.md
-FROM python:3.13-slim-trixie AS build
+FROM python:3.14-slim-trixie AS build
 
 # The distroless image's Python is at /usr/bin/python, but this builder
 # image's Python is at /usr/local/bin/python. Add a matching /usr/bin/python
