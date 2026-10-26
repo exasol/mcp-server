@@ -5,18 +5,6 @@ from collections.abc import (
 )
 from contextlib import contextmanager
 from dataclasses import dataclass
-from test.utils.db_objects import (
-    ExaBfsDir,
-    ExaBfsFile,
-    ExaBfsObject,
-)
-from test.utils.result_utils import (
-    ToolHints,
-    get_result_content,
-    get_result_json,
-    get_tool_hints,
-    list_tools,
-)
 from unittest.mock import (
     create_autospec,
     patch,
@@ -44,6 +32,18 @@ from exasol.ai.mcp.server.setup.server_settings import (
 from exasol.ai.mcp.server.tools.bucketfs_tools import (
     PathStatus,
     get_path_warning,
+)
+from test.utils.db_objects import (
+    ExaBfsDir,
+    ExaBfsFile,
+    ExaBfsObject,
+)
+from test.utils.result_utils import (
+    ToolHints,
+    get_result_content,
+    get_result_json,
+    get_tool_hints,
+    list_tools,
 )
 
 _human = (

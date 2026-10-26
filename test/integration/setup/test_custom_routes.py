@@ -1,5 +1,4 @@
 import ssl
-from test.utils.multiprocessing_utils import use_fork_start_method
 
 import httpx
 import pytest
@@ -17,6 +16,7 @@ from exasol.ai.mcp.server.connection.connection_factory import (
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from test.utils.multiprocessing_utils import use_fork_start_method
 
 
 @pytest.fixture(autouse=True)

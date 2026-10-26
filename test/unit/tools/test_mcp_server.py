@@ -1,4 +1,3 @@
-from test.utils.text_utils import collapse_spaces
 from textwrap import dedent
 from unittest.mock import (
     MagicMock,
@@ -34,6 +33,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     DBTable,
     QueryResult,
 )
+from test.utils.text_utils import collapse_spaces
 
 
 def _mock_connection() -> MagicMock:

@@ -1,10 +1,3 @@
-from test.utils.result_utils import (
-    get_list_result_json,
-    get_result_json,
-    verify_result_table,
-)
-from test.utils.tool_utils import run_tool
-
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
@@ -20,6 +13,12 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     SQL_TYPE_FIELD,
     USAGE_FIELD,
 )
+from test.utils.result_utils import (
+    get_list_result_json,
+    get_result_json,
+    verify_result_table,
+)
+from test.utils.tool_utils import run_tool
 
 
 def _run_tool(connection: ExaConnection, tool_name: str, **kwargs):

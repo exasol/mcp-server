@@ -1,4 +1,10 @@
 from itertools import chain
+from textwrap import dedent
+
+import exasol.bucketfs as bfs
+import pytest
+from exasol.saas.client.api_access import timestamp_name
+
 from test.utils.db_objects import (
     ExaBfsDir,
     ExaBfsFile,
@@ -12,11 +18,6 @@ from test.utils.db_objects import (
 )
 from test.utils.mcp_oidc_constants import DOCKER_DB_NAME
 from test.utils.sql_utils import format_table_rows
-from textwrap import dedent
-
-import exasol.bucketfs as bfs
-import pytest
-from exasol.saas.client.api_access import timestamp_name
 
 
 def pytest_addoption(parser):
