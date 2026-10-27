@@ -2,6 +2,8 @@
 
 ## Summary
 
+Replaced the Docker image base and updated the SSL certificate.
+
 ## Security Issues
 
 This release fixes vulnerabilities by updating dependencies:
@@ -71,7 +73,8 @@ This release fixes vulnerabilities by updating dependencies:
 
 ## Security
 
-* #295: Replaced the Docker image's base with `gcr.io/distroless/python3-debian13`.
+* #295: Replaced the Docker image's base with `gcr.io/distroless/python3-debian13`
+* #308: Updated SSL certificates signed with eMudhra root certificate
 
 ## Refactorings
 
