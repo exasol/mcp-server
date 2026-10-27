@@ -5,12 +5,11 @@ server internals (DSN, DB/OS username, OS name, driver/client version, session i
 to the MCP client. See GitHub issue #256.
 """
 
-from test.utils.tool_utils import run_tool
-
 import pytest
 from fastmcp.exceptions import ToolError
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from test.utils.tool_utils import run_tool
 
 # Substrings that must never appear in a client-facing error message, regardless
 # of which pyexasol error triggered it.

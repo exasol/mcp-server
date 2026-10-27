@@ -1,5 +1,3 @@
-from test.utils.result_utils import verify_result_table
-
 from exasol.ai.mcp.server.tools.dialect_tools import (
     builtin_function_categories,
     describe_builtin_function,
@@ -12,6 +10,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     NAME_FIELD,
     USAGE_FIELD,
 )
+from test.utils.result_utils import verify_result_table
 
 
 def test_builtin_function_categories() -> None:

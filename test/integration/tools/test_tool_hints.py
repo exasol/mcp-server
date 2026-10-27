@@ -1,13 +1,12 @@
-from test.utils.result_utils import (
-    ToolHints,
-    get_tool_hints,
-    list_tools,
-)
-
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
     MetaSettings,
+)
+from test.utils.result_utils import (
+    ToolHints,
+    get_tool_hints,
+    list_tools,
 )
 
 

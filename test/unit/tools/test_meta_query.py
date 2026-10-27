@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from test.utils.text_utils import collapse_spaces
 
 import pytest
 
@@ -27,6 +26,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     SCHEMA_FIELD,
     SQL_TYPE_FIELD,
 )
+from test.utils.text_utils import collapse_spaces
 
 
 def _column_config(case_sensitive: bool) -> McpServerSettings:

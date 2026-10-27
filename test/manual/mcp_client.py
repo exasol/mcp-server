@@ -4,12 +4,13 @@ It can run with or without the hack shortcutting the authorization UI.
 """
 
 import asyncio
-from test.integration.settings.test_mcp_oidc import OAuthHeadless
 
 import click
 from fastmcp import Client
 from fastmcp.client.auth.oauth import OAuth
 from fastmcp.client.transports import StreamableHttpTransport
+
+from test.integration.settings.test_mcp_oidc import OAuthHeadless
 
 
 async def _run_tool_async(

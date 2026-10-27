@@ -1,23 +1,4 @@
 from itertools import chain
-from test.utils.db_objects import (
-    ExaColumn,
-    ExaConstraint,
-    ExaDbObject,
-    ExaFunction,
-    ExaParameter,
-    ExaSchema,
-    ExaTable,
-)
-from test.utils.result_utils import (
-    get_list_result_json,
-    get_query_result_json,
-    get_result_json,
-    get_sort_result_json_list,
-    list_tools,
-    result_sort_func,
-    to_dicts,
-)
-from test.utils.tool_utils import run_tool
 from typing import Any
 
 import pyexasol
@@ -52,6 +33,25 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     SQL_TYPE_FIELD,
     USAGE_FIELD,
 )
+from test.utils.db_objects import (
+    ExaColumn,
+    ExaConstraint,
+    ExaDbObject,
+    ExaFunction,
+    ExaParameter,
+    ExaSchema,
+    ExaTable,
+)
+from test.utils.result_utils import (
+    get_list_result_json,
+    get_query_result_json,
+    get_result_json,
+    get_sort_result_json_list,
+    list_tools,
+    result_sort_func,
+    to_dicts,
+)
+from test.utils.tool_utils import run_tool
 
 
 def _get_expected_json(db_obj: ExaDbObject, schema_name: str | None) -> dict[str, Any]:

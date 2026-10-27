@@ -1,12 +1,6 @@
 import asyncio
 from collections.abc import Generator
 from contextlib import contextmanager
-from test.utils.db_objects import (
-    ExaColumn,
-    ExaSchema,
-    ExaTable,
-)
-from test.utils.sql_utils import format_table_rows
 
 import pytest
 from fastmcp import Client
@@ -17,6 +11,12 @@ from pyexasol import ExaConnection
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
 from exasol.ai.mcp.server.main import create_mcp_server
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
+from test.utils.db_objects import (
+    ExaColumn,
+    ExaSchema,
+    ExaTable,
+)
+from test.utils.sql_utils import format_table_rows
 
 CORRECT_COMMAND = "INSERT INTO"
 INCORRECT_COMMAND = "INSERT TO"

@@ -62,9 +62,6 @@ from contextlib import (
     ExitStack,
     contextmanager,
 )
-from test.utils.db_objects import ExaSchema
-from test.utils.mcp_oidc_constants import *
-from test.utils.multiprocessing_utils import use_fork_start_method
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -128,6 +125,9 @@ from exasol.ai.mcp.server.setup.server_settings import (
     MetaListSettings,
 )
 from exasol.ai.mcp.server.tools.schema.db_output_schema import NAME_FIELD
+from test.utils.db_objects import ExaSchema
+from test.utils.mcp_oidc_constants import *
+from test.utils.multiprocessing_utils import use_fork_start_method
 
 AUTH_SCOPE = "openid"
 
