@@ -5,7 +5,10 @@ from collections.abc import (
     Callable,
     Generator,
 )
-from contextlib import contextmanager
+from contextlib import (
+    contextmanager,
+    suppress,
+)
 from pathlib import Path
 from typing import (
     Any,
@@ -411,10 +414,30 @@ def get_connection_factory(
                 # If the actual username is known, and it's different from the
                 # username in the connection then impersonate the actual user.
                 query = _build_impersonate_query(user)
-                connection.execute(query)
+                try:
+                    connection.execute(query)
+                except BaseException:
+                    # Don't leave the session open on the server.
+                    with suppress(Exception):
+                        connection.close()
+                    raise
             log_connection(conn_kwargs, user, env)
 
-        yield connection
+        try:
+            yield connection
+        except pyexasol.ExaQueryError:
+            # The database rejected the statement, but the session itself is intact.
+            # Keep it, so that the session state (e.g. the preprocessor) is not lost.
+            if not connection.is_closed:
+                connection_pool.checkin(user, connection)
+            raise
+        except BaseException:
+            # The connection may be in an unknown state. Discard it, making sure
+            # the server-side session is not left open. A failure to close must
+            # not mask the original error.
+            with suppress(Exception):
+                connection.close()
+            raise
 
         # Return the connection back to the pool, unless it has been closed.
         if not connection.is_closed:
