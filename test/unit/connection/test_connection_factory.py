@@ -644,8 +644,9 @@ def test_get_connection_factory_close_error_not_masking(mock_connect) -> None:
     mock_connect.return_value.close.side_effect = ExaCommunicationError(
         None, "close error"
     )
+    error = ValueError("my error")
     with pytest.raises(ValueError, match="my error"):
-        _raise_in_connection_context(factory, ValueError("my error"))
+        _raise_in_connection_context(factory, error)
 
 
 def test_get_connection_factory_early_error() -> None:
