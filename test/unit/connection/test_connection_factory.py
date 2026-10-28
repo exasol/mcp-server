@@ -576,15 +576,21 @@ def _single_user_factory():
     return get_connection_factory(env)
 
 
+def _raise_in_connection_context(factory, error: BaseException) -> None:
+    with factory():
+        raise error
+
+
 def test_get_connection_factory_query_error_keeps_connection(mock_connect) -> None:
     """
     A query rejected by the database doesn't invalidate the session. The connection
     should be returned to the pool, so that the session state is preserved.
     """
     factory = _single_user_factory()
+    connection = mock_connect.return_value
+    error = ExaQueryError(connection, "SELECT", "42000", "syntax error")
     with pytest.raises(ExaQueryError):
-        with factory() as connection:
-            raise ExaQueryError(connection, "SELECT", "42000", "syntax error")
+        _raise_in_connection_context(factory, error)
     connection.close.assert_not_called()
     with factory():
         pass
@@ -596,10 +602,11 @@ def test_get_connection_factory_query_error_closed_connection(mock_connect) -> N
     A connection closed while handling a query error should not be reused.
     """
     factory = _single_user_factory()
+    connection = mock_connect.return_value
+    connection.configure_mock(is_closed=True)
+    error = ExaQueryError(connection, "SELECT", "42000", "syntax error")
     with pytest.raises(ExaQueryError):
-        with factory() as connection:
-            connection.configure_mock(is_closed=True)
-            raise ExaQueryError(connection, "SELECT", "42000", "syntax error")
+        _raise_in_connection_context(factory, error)
     mock_connect.return_value = MagicMock(spec=ExaConnection, is_closed=False)
     with factory():
         pass
@@ -619,9 +626,9 @@ def test_get_connection_factory_other_error_discards_connection(
     not returned to the pool.
     """
     factory = _single_user_factory()
+    connection = mock_connect.return_value
     with pytest.raises(type(error)):
-        with factory() as connection:
-            raise error
+        _raise_in_connection_context(factory, error)
     connection.close.assert_called_once()
     mock_connect.return_value = MagicMock(spec=ExaConnection, is_closed=False)
     with factory():
@@ -638,8 +645,7 @@ def test_get_connection_factory_close_error_not_masking(mock_connect) -> None:
         None, "close error"
     )
     with pytest.raises(ValueError, match="my error"):
-        with factory():
-            raise ValueError("my error")
+        _raise_in_connection_context(factory, ValueError("my error"))
 
 
 def test_get_connection_factory_early_error() -> None:
