@@ -562,6 +562,30 @@ def test_download_file(bucketfs_location, test_case, httpserver) -> None:
         assert content == _home_luminis
 
 
+def test_download_binary_file(bucketfs_location, httpserver) -> None:
+    """
+    Verifies that a downloaded file is uploaded to BucketFS byte for byte. The
+    content is not valid UTF-8 and has line endings that must be preserved.
+    """
+    content = bytes(range(256)) + b"\r\n\n\r"
+    url_path = "/binary_file"
+    path = "humanoids/home-luminis.bin"
+    httpserver.expect_request(url_path).respond_with_data(content)
+    elicitation = [
+        ElicitationData(path_status=PathStatus.Vacant, action="accept", data={})
+    ]
+    bfs_path = bucketfs_location.joinpath(path)
+    with tmp_path_write(bfs_path):
+        _run_tool(
+            bucketfs_location,
+            "download_file",
+            elicitation=elicitation,
+            url=httpserver.url_for(url_path),
+            path=path,
+        )
+        assert b"".join(bfs_path.read()) == content
+
+
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
 def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> None:
     """

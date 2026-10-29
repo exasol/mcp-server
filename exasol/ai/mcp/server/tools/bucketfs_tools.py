@@ -1,4 +1,5 @@
 import asyncio
+import os
 import tempfile
 from collections.abc import Callable
 from contextlib import AsyncExitStack
@@ -325,20 +326,23 @@ class BucketFsTools:
         answer = await self._elicitate(message, ctx, response_type_factory)
         abs_path = self.bfs_location.joinpath(answer.file_path)
 
-        with tempfile.NamedTemporaryFile() as tmp_file:
+        # A file in a temporary directory, rather than a NamedTemporaryFile, can be
+        # reopened by name on Windows.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
+            tmp_file_name = os.path.join(tmp_dir, "download")
             async with AsyncExitStack() as stack:
                 client = await stack.enter_async_context(httpx.AsyncClient(timeout=300))
                 response = await stack.enter_async_context(client.stream("GET", url))
                 response.raise_for_status()
 
                 # Download in chunks
-                afp = await stack.enter_async_context(async_open(tmp_file.name, "wb"))
+                afp = await stack.enter_async_context(async_open(tmp_file_name, "wb"))
                 async for chunk in response.aiter_bytes(262144):
                     await afp.write(chunk)
 
             # At the moment, BucketFS only supports synchronous I/O
             def upload_to_bucketfs():
-                with open(tmp_file.name) as f:
+                with open(tmp_file_name, "rb") as f:
                     abs_path.write(f)
 
             await asyncio.to_thread(upload_to_bucketfs)
