@@ -1,6 +1,7 @@
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
+from contextlib import suppress
 from typing import (
     Generic,
     TypeVar,
@@ -44,11 +45,15 @@ class NamedObjectPool(Generic[T]):
         """
         with self._condition:
             if name in self._available:
-                obj = self._available.pop(name)
-                if self.cleanup is not None:
-                    self.cleanup(obj)
+                obj1 = self._available.pop(name)
+                self._cleanup(obj1)
             while len(self._available) >= self.capacity:
-                _, obj = self._available.popitem(last=False)
-                if self.cleanup is not None:
-                    self.cleanup(obj)
+                _, obj1 = self._available.popitem(last=False)
+                self._cleanup(obj1)
             self._available[name] = obj
+
+    def _cleanup(self, obj: T) -> None:
+        # A failure to clean up a discarded object must not prevent the checkin.
+        if self.cleanup is not None:
+            with suppress(Exception):
+                self.cleanup(obj)

@@ -6,10 +6,18 @@ from typing import (
     Any,
     Optional,
 )
-from unittest.mock import patch
+from unittest.mock import (
+    MagicMock,
+    patch,
+)
 
 import pytest
 from fastmcp.server.auth import AccessToken
+from pyexasol import (
+    ExaCommunicationError,
+    ExaConnection,
+    ExaQueryError,
+)
 
 from exasol.ai.mcp.server.connection.connection_factory import (
     DEFAULT_SAAS_HOST,
@@ -506,6 +514,35 @@ def test_get_connection_factory_oidc_default_user(mock_oidc_user, mock_connect) 
     assert mock_connect.call_count == num_users
 
 
+@patch("exasol.ai.mcp.server.connection.connection_factory.get_oidc_user")
+def test_get_connection_factory_impersonation_error(
+    mock_oidc_user, mock_connect
+) -> None:
+    """
+    If impersonation fails, the new connection should be closed and not pooled.
+    """
+    env = {
+        ENV_DSN: "my.db.dsn",
+        ENV_USER: "my_user_name",
+        ENV_PASSWORD: "my_password",
+        ENV_USERNAME_CLAIM: "username",
+    }
+    mock_oidc_user.return_value = ("other_user", "xyz")
+    connection = mock_connect.return_value
+    connection.execute.side_effect = ExaQueryError(
+        connection, "IMPERSONATE", "42500", "insufficient privileges"
+    )
+    factory = get_connection_factory(env)
+    with pytest.raises(ExaQueryError):
+        with factory():
+            pass
+    connection.close.assert_called_once()
+    mock_connect.return_value = MagicMock(spec=ExaConnection, is_closed=False)
+    with factory():
+        pass
+    assert mock_connect.call_count == 2
+
+
 @pytest.mark.parametrize(
     ["auth_env", "auth_arg"],
     [
@@ -532,6 +569,84 @@ def test_get_connection_factory_single_user(mock_connect, auth_env, auth_arg) ->
     with factory():
         pass
     assert mock_connect.call_count == 1
+
+
+def _single_user_factory():
+    env = {ENV_DSN: "my.db.dsn", ENV_USER: "my_user_name", ENV_PASSWORD: "secret"}
+    return get_connection_factory(env)
+
+
+def _raise_in_connection_context(factory, error: BaseException) -> None:
+    with factory():
+        raise error
+
+
+def test_get_connection_factory_query_error_keeps_connection(mock_connect) -> None:
+    """
+    A query rejected by the database doesn't invalidate the session. The connection
+    should be returned to the pool, so that the session state is preserved.
+    """
+    factory = _single_user_factory()
+    connection = mock_connect.return_value
+    error = ExaQueryError(connection, "SELECT", "42000", "syntax error")
+    with pytest.raises(ExaQueryError):
+        _raise_in_connection_context(factory, error)
+    connection.close.assert_not_called()
+    with factory():
+        pass
+    assert mock_connect.call_count == 1
+
+
+def test_get_connection_factory_query_error_closed_connection(mock_connect) -> None:
+    """
+    A connection closed while handling a query error should not be reused.
+    """
+    factory = _single_user_factory()
+    connection = mock_connect.return_value
+    connection.configure_mock(is_closed=True)
+    error = ExaQueryError(connection, "SELECT", "42000", "syntax error")
+    with pytest.raises(ExaQueryError):
+        _raise_in_connection_context(factory, error)
+    mock_connect.return_value = MagicMock(spec=ExaConnection, is_closed=False)
+    with factory():
+        pass
+    assert mock_connect.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ValueError("my error"), ExaCommunicationError(None, "my error")],
+    ids=["non-pyexasol", "communication"],
+)
+def test_get_connection_factory_other_error_discards_connection(
+    mock_connect, error
+) -> None:
+    """
+    After any error other than a query error the connection should be closed and
+    not returned to the pool.
+    """
+    factory = _single_user_factory()
+    connection = mock_connect.return_value
+    with pytest.raises(type(error)):
+        _raise_in_connection_context(factory, error)
+    connection.close.assert_called_once()
+    mock_connect.return_value = MagicMock(spec=ExaConnection, is_closed=False)
+    with factory():
+        pass
+    assert mock_connect.call_count == 2
+
+
+def test_get_connection_factory_close_error_not_masking(mock_connect) -> None:
+    """
+    A failure to close the discarded connection must not mask the original error.
+    """
+    factory = _single_user_factory()
+    mock_connect.return_value.close.side_effect = ExaCommunicationError(
+        None, "close error"
+    )
+    error = ValueError("my error")
+    with pytest.raises(ValueError, match="my error"):
+        _raise_in_connection_context(factory, error)
 
 
 def test_get_connection_factory_early_error() -> None:
