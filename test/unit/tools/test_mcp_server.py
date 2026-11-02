@@ -21,6 +21,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _build_top_values_query,
     _is_numeric_type,
     _statement_to_tabular,
+    create_query_elicitation_type,
     remove_info_column,
     verify_query,
 )
@@ -916,3 +917,25 @@ def test_build_set_preprocessor_query():
         sql
         == 'ALTER SESSION SET SQL_PREPROCESSOR_SCRIPT = "MY_SCHEMA"."MY_PREPROCESSOR"'
     )
+
+
+def test_create_query_elicitation_type():
+    response_type = create_query_elicitation_type("DROP TABLE T")
+    assert response_type().sql == "DROP TABLE T"
+    assert response_type(sql="DROP TABLE T2").sql == "DROP TABLE T2"
+
+
+@pytest.mark.parametrize(
+    "accepted_query, expected_result",
+    [
+        ("DROP TABLE T", None),
+        ("DROP TABLE T2", "DROP TABLE T2"),
+    ],
+    ids=["unchanged", "changed"],
+)
+def test_execute_accepted_write_query(accepted_query, expected_result):
+    connection = MagicMock()
+    server = ExasolMCPServer(connection=connection, config=MagicMock())
+    result = server._execute_accepted_write_query(accepted_query, "DROP TABLE T")
+    assert result == expected_result
+    connection.execute_query.assert_called_once_with(accepted_query, snapshot=False)
