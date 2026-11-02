@@ -92,6 +92,57 @@ def get_path_warning(
     return PATH_WARNINGS[path_status]
 
 
+def check_answer(
+    accepted_path: str,
+    prev_path: str,
+    path_status: PathStatus,
+    expected_status: PathStatus | None,
+) -> bool:
+    """
+    Decides whether an accepted elicitation can be acted upon, or the elicitation
+    needs to be repeated.
+
+    Args:
+        accepted_path:
+            The path in the accepted elicitation data.
+        prev_path:
+            The path offered to the user in this elicitation.
+        path_status:
+            The status of the accepted path.
+        expected_status:
+            Optional status the path must have, as used by the deletion tools.
+    """
+    if expected_status is None:
+        # A file (but not a directory) may exist at the chosen path,
+        # in which case we need an explicit confirmation for this path.
+        return (path_status == PathStatus.Vacant) or (
+            (path_status == PathStatus.FileExists) and (accepted_path == prev_path)
+        )
+    # The chosen path must point to an existing file or directory,
+    # as per the request.
+    return path_status == expected_status
+
+
+def raise_if_not_accepted(action: str, operation: str) -> None:
+    """
+    Raises an ``InterruptedError`` if the elicitation action is anything other than
+    "accept".
+
+    Args:
+        action:
+            The elicitation action.
+        operation:
+            The name of the operation, used in the error message, e.g. "The file
+            operation".
+    """
+    if action == "accept":
+        return
+    if action == "decline":
+        raise InterruptedError(f"{operation} is declined by the user.")
+    # cancel
+    raise InterruptedError(f"{operation} is cancelled by the user.")
+
+
 class BucketFsTools:
     def __init__(self, bfs_location: bfs.path.PathLike, config: McpServerSettings):
         self.bfs_location = bfs_location
@@ -164,29 +215,13 @@ class BucketFsTools:
                 message=full_message,
                 response_type=response_type,
             )
-            if confirmation.action == "accept":
-                accepted_path, response_type = response_type_factory(confirmation.data)
-                path_status = self._get_path_status(accepted_path)
-                if expected_status is None:
-                    # A file (but not a directory) may exist at the chosen path,
-                    # in which case we need an explicit confirmation for this path.
-                    good_to_go = (path_status == PathStatus.Vacant) or (
-                        (path_status == PathStatus.FileExists)
-                        and (accepted_path == path)
-                    )
-                else:
-                    # The chosen path must point to an existing file or directory,
-                    # as per the request.
-                    good_to_go = path_status == expected_status
-                if not good_to_go:
-                    # At this point, we go for another elicitation.
-                    path = accepted_path
-                    continue
+            raise_if_not_accepted(confirmation.action, "The file operation")
+            accepted_path, response_type = response_type_factory(confirmation.data)
+            path_status = self._get_path_status(accepted_path)
+            if check_answer(accepted_path, path, path_status, expected_status):
                 return confirmation.data
-            elif confirmation.action == "reject":
-                raise InterruptedError("The file operation is declined by the user.")
-            else:  # cancel
-                raise InterruptedError("The file operation is cancelled by the user.")
+            # At this point, we go for another elicitation.
+            path = accepted_path
 
     @staticmethod
     def _create_response_type_factory(path: str):
