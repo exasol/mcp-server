@@ -141,7 +141,9 @@ async def _run_tool_async(
         )
     exa_server = create_mcp_server(db_connection, config, bucketfs_location)
     elicit_handler = elicitation_handler if elicitation is not None else None
-    async with Client(exa_server, elicitation_handler=elicit_handler) as client:
+    async with Client(
+        exa_server, mode="legacy", elicitation_handler=elicit_handler
+    ) as client:
         return await client.call_tool(tool_name, kwargs)
 
 

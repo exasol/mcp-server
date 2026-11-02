@@ -39,7 +39,7 @@ async def _run_tool_async(
         yield connection
 
     async def elicitation_handler(message: str, response_type: type, params, context):
-        sql = params.requestedSchema["properties"]["sql"]["default"]
+        sql = params.requested_schema["properties"]["sql"]["default"]
         new_sql = sql.replace(INCORRECT_COMMAND, CORRECT_COMMAND)
         response_data = response_type(sql=new_sql)
         return ElicitResult(action=action, content=response_data)
@@ -48,7 +48,9 @@ async def _run_tool_async(
     exa_server = create_mcp_server(db_connection, config)
 
     el_handler = elicitation_handler if action else None
-    async with Client(exa_server, elicitation_handler=el_handler) as client:
+    async with Client(
+        exa_server, mode="legacy", elicitation_handler=el_handler
+    ) as client:
         return await client.call_tool("execute_exasol_write_query", {"query": query})
 
 

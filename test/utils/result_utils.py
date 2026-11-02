@@ -121,9 +121,9 @@ def get_tool_hints(tool: Tool) -> ToolHints:
         return ToolHints(tool.name)
     return ToolHints(
         tool_name=tool.name,
-        read_only=tool.annotations.readOnlyHint,
-        destructive=tool.annotations.destructiveHint,
-        idempotent=tool.annotations.idempotentHint,
+        read_only=tool.annotations.read_only_hint,
+        destructive=tool.annotations.destructive_hint,
+        idempotent=tool.annotations.idempotent_hint,
     )
 
 
