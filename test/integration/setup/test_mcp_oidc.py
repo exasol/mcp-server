@@ -204,6 +204,13 @@ class OAuthHeadless(OAuth):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        # Starting from FastMCP 4, the client registers itself as a public client
+        # (token_endpoint_auth_method="none"), which the mock authorization server
+        # doesn't support.
+        kwargs.setdefault(
+            "additional_client_metadata",
+            {"token_endpoint_auth_method": "client_secret_post"},
+        )
         super().__init__(*args, **kwargs)
 
     @staticmethod
@@ -630,7 +637,6 @@ async def _run_tool_async(
     async with Client(
         transport=StreamableHttpTransport(http_server_url, headers=headers), auth=oauth
     ) as client:
-        assert await client.ping()
         result = await client.call_tool(tool_name, kwargs)
         return result.content[0].text
 

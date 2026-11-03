@@ -223,6 +223,8 @@ OAuth Proxy
 |                                          |          | Defaults to ``/auth/callback``.                                              |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
 | EXA_AUTH_ISSUER_URL                      |    no    | Issuer URL for OAuth metadata. Defaults to EXA_AUTH_BASE_URL.                |
+|                                          |          | It is also used as the ``iss`` claim of the issued tokens. Changing it       |
+|                                          |          | invalidates existing tokens, so all clients need to re-authorize.            |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
 | EXA_AUTH_SERVICE_DOCUMENTATION_URL       |    no    | Optional service documentation URL.                                          |
 +------------------------------------------+----------+------------------------------------------------------------------------------+
