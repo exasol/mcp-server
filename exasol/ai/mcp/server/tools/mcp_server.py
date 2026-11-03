@@ -33,7 +33,10 @@ from exasol.ai.mcp.server.connection.db_connection import (
     fetchval,
 )
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
-from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
+from exasol.ai.mcp.server.tools.bucketfs_tools import (
+    BucketFsTools,
+    raise_if_not_accepted,
+)
 from exasol.ai.mcp.server.tools.meta_query import (
     INFO_COLUMN,
     ExasolMetaQuery,
@@ -169,6 +172,25 @@ TopValuesArg = Annotated[
 
 M = TypeVar("M", bound=BaseModel)
 T = TypeVar("T")
+
+WRITE_QUERY_MESSAGE = (
+    "The following Data Definition or Data Manipulation query will be "
+    "executed if permitted. Please review the query carefully to ensure "
+    "it will not cause unintended changes in the data. Modify the query "
+    "if need. Finally, accept or decline the query execution."
+)
+
+
+def create_query_elicitation_type(query: str) -> type[BaseModel]:
+    """
+    Creates the response type for the write query elicitation, with the query
+    as the default value of its only field.
+    """
+
+    class QueryElicitation(BaseModel):
+        sql: str = Field(default=query)
+
+    return QueryElicitation
 
 
 @cache
@@ -877,28 +899,24 @@ class ExasolMCPServer(FastMCP):
             self.connection.execute_query(query, snapshot=False)
             return None
 
-        class QueryElicitation(BaseModel):
-            sql: str = Field(default=query)
-
         confirmation = await ctx.elicit(
-            message=(
-                "The following Data Definition or Data Manipulation query will be "
-                "executed if permitted. Please review the query carefully to ensure "
-                "it will not cause unintended changes in the data. Modify the query "
-                "if need. Finally, accept or decline the query execution."
-            ),
-            response_type=QueryElicitation,
+            message=WRITE_QUERY_MESSAGE,
+            response_type=create_query_elicitation_type(query),
         )
-        if confirmation.action == "accept":
-            accepted_query = confirmation.data.sql
-            self.connection.execute_query(accepted_query, snapshot=False)
-            if accepted_query != query:
-                return accepted_query
-            return None
-        elif confirmation.action == "reject":
-            raise InterruptedError("The query execution is declined by the user.")
-        else:  # cancel
-            raise InterruptedError("The query execution is cancelled by the user.")
+        raise_if_not_accepted(confirmation.action, "The query execution")
+        return self._execute_accepted_write_query(confirmation.data.sql, query)
+
+    def _execute_accepted_write_query(
+        self, accepted_query: str, query: str
+    ) -> str | None:
+        """
+        Executes the write query accepted in elicitation. Returns the accepted query
+        if it differs from the original one, otherwise None.
+        """
+        self.connection.execute_query(accepted_query, snapshot=False)
+        if accepted_query != query:
+            return accepted_query
+        return None
 
     def list_sql_types(self) -> list[SQLTypeInfo]:
         query = ExasolMetaQuery.get_sql_types()

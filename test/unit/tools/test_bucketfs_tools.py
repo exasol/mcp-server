@@ -3,7 +3,9 @@ import pytest
 from exasol.ai.mcp.server.tools.bucketfs_tools import (
     PATH_WARNINGS,
     PathStatus,
+    check_answer,
     get_path_warning,
+    raise_if_not_accepted,
 )
 
 
@@ -35,3 +37,60 @@ from exasol.ai.mcp.server.tools.bucketfs_tools import (
 )
 def test_get_path_warning(status, expected_status, expected_warning) -> None:
     assert get_path_warning(status, expected_status) == expected_warning
+
+
+@pytest.mark.parametrize(
+    ["path_changed", "status", "expected_status", "expected_result"],
+    [
+        (False, PathStatus.Vacant, None, True),
+        (True, PathStatus.Vacant, None, True),
+        (False, PathStatus.FileExists, None, True),
+        (True, PathStatus.FileExists, None, False),
+        (False, PathStatus.DirExists, None, False),
+        (True, PathStatus.DirExists, None, False),
+        (False, PathStatus.Invalid, None, False),
+        (True, PathStatus.Invalid, None, False),
+        (False, PathStatus.Vacant, PathStatus.FileExists, False),
+        (True, PathStatus.Vacant, PathStatus.FileExists, False),
+        (False, PathStatus.FileExists, PathStatus.FileExists, True),
+        (True, PathStatus.FileExists, PathStatus.FileExists, True),
+        (False, PathStatus.DirExists, PathStatus.FileExists, False),
+        (True, PathStatus.DirExists, PathStatus.FileExists, False),
+        (False, PathStatus.Invalid, PathStatus.FileExists, False),
+        (False, PathStatus.Vacant, PathStatus.DirExists, False),
+        (True, PathStatus.Vacant, PathStatus.DirExists, False),
+        (False, PathStatus.FileExists, PathStatus.DirExists, False),
+        (True, PathStatus.FileExists, PathStatus.DirExists, False),
+        (False, PathStatus.DirExists, PathStatus.DirExists, True),
+        (True, PathStatus.DirExists, PathStatus.DirExists, True),
+        (False, PathStatus.Invalid, PathStatus.DirExists, False),
+    ],
+    ids=lambda p: (
+        p.name
+        if isinstance(p, PathStatus)
+        else {True: "changed", False: "unchanged"}.get(p, "")
+    ),
+)
+def test_check_answer(path_changed, status, expected_status, expected_result) -> None:
+    prev_path = "dir/file.txt"
+    accepted_path = "dir/other.txt" if path_changed else prev_path
+    assert (
+        check_answer(accepted_path, prev_path, status, expected_status)
+        == expected_result
+    )
+
+
+def test_raise_if_not_accepted_accept() -> None:
+    raise_if_not_accepted("accept", "The operation")
+
+
+@pytest.mark.parametrize(
+    ["action", "expected_message"],
+    [
+        ("decline", "The operation is declined by the user."),
+        ("cancel", "The operation is cancelled by the user."),
+    ],
+)
+def test_raise_if_not_accepted_interrupts(action, expected_message) -> None:
+    with pytest.raises(InterruptedError, match=expected_message):
+        raise_if_not_accepted(action, "The operation")
