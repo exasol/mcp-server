@@ -13,6 +13,7 @@ from fastmcp import (
     Context,
     FastMCP,
 )
+from mcp.types import InputRequiredResult
 from pydantic import (
     BaseModel,
     Field,
@@ -33,9 +34,12 @@ from exasol.ai.mcp.server.connection.db_connection import (
     fetchval,
 )
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
-from exasol.ai.mcp.server.tools.bucketfs_tools import (
-    BucketFsTools,
+from exasol.ai.mcp.server.tools.bucketfs_tools import BucketFsTools
+from exasol.ai.mcp.server.tools.elicitation import (
+    is_input_required_era,
     raise_if_not_accepted,
+    read_input,
+    request_input,
 )
 from exasol.ai.mcp.server.tools.meta_query import (
     INFO_COLUMN,
@@ -888,7 +892,9 @@ class ExasolMCPServer(FastMCP):
     def profile_query_tabular(self, query: QueryArg) -> QueryResult:
         return self._run_profile_query(query, _statement_to_tabular)
 
-    async def execute_write_query(self, query: QueryArg, ctx: Context) -> str | None:
+    async def execute_write_query(
+        self, query: QueryArg, ctx: Context
+    ) -> str | None | InputRequiredResult:
         if not self.config.enable_write_query:
             raise RuntimeError(
                 "The execution of Data Definition and "
@@ -899,9 +905,17 @@ class ExasolMCPServer(FastMCP):
             self.connection.execute_query(query, snapshot=False)
             return None
 
+        response_type = create_query_elicitation_type(query)
+        if is_input_required_era(ctx):
+            user_input = read_input(ctx, response_type)
+            if user_input is None:
+                return request_input(WRITE_QUERY_MESSAGE, response_type)
+            raise_if_not_accepted(user_input.action, "The query execution")
+            return self._execute_accepted_write_query(user_input.data.sql, query)
+
         confirmation = await ctx.elicit(
             message=WRITE_QUERY_MESSAGE,
-            response_type=create_query_elicitation_type(query),
+            response_type=response_type,
         )
         raise_if_not_accepted(confirmation.action, "The query execution")
         return self._execute_accepted_write_query(confirmation.data.sql, query)

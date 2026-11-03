@@ -5,7 +5,6 @@ from contextlib import contextmanager
 import pytest
 from fastmcp import Client
 from fastmcp.client.elicitation import ElicitResult
-from fastmcp.exceptions import ToolError
 from pyexasol import ExaConnection
 
 from exasol.ai.mcp.server.connection.db_connection import DbConnection
@@ -17,19 +16,28 @@ from test.utils.db_objects import (
     ExaTable,
 )
 from test.utils.sql_utils import format_table_rows
+from test.utils.tool_utils import (
+    CLIENT_MODES,
+    expect_not_accepted,
+)
 
 CORRECT_COMMAND = "INSERT INTO"
 INCORRECT_COMMAND = "INSERT TO"
 
 
 async def _run_tool_async(
-    connection: ExaConnection, config: McpServerSettings, action: str | None, query: str
+    connection: ExaConnection,
+    config: McpServerSettings,
+    action: str | None,
+    query: str,
+    mode: str,
 ):
     """
     Runs the `execute_exasol_write_query`, returning the specified action from what
     would be a user elicitation input. If the action is None, the elicitation handler
     is not registered. This can be used to test the case when a client application
-    does not support elicitation.
+    does not support elicitation. The mode selects the client protocol, see
+    ``CLIENT_MODES``.
     """
 
     @contextmanager
@@ -48,16 +56,18 @@ async def _run_tool_async(
     exa_server = create_mcp_server(db_connection, config)
 
     el_handler = elicitation_handler if action else None
-    async with Client(
-        exa_server, mode="legacy", elicitation_handler=el_handler
-    ) as client:
+    async with Client(exa_server, mode=mode, elicitation_handler=el_handler) as client:
         return await client.call_tool("execute_exasol_write_query", {"query": query})
 
 
 def _run_tool(
-    connection: ExaConnection, config: McpServerSettings, action: str | None, query: str
+    connection: ExaConnection,
+    config: McpServerSettings,
+    action: str | None,
+    query: str,
+    mode: str,
 ):
-    return asyncio.run(_run_tool_async(connection, config, action, query))
+    return asyncio.run(_run_tool_async(connection, config, action, query, mode))
 
 
 def _validate_table_creation(
@@ -67,6 +77,7 @@ def _validate_table_creation(
     action: str | None,
     schema: ExaSchema,
     table: ExaTable,
+    mode: str = "auto",
 ) -> None:
     """
     Validates that it is possible to create a table and insert some rows into
@@ -83,13 +94,13 @@ def _validate_table_creation(
 
     try:
         create_query = f"CREATE OR REPLACE TABLE {table.decl(schema.name)}"
-        result = _run_tool(connection, config, action, query=create_query)
+        result = _run_tool(connection, config, action, query=create_query, mode=mode)
         assert result.data is None
         insert_query = create_insert_query(command)
         expected_result = (
             None if command == CORRECT_COMMAND else create_insert_query(CORRECT_COMMAND)
         )
-        result = _run_tool(connection, config, action, query=insert_query)
+        result = _run_tool(connection, config, action, query=insert_query, mode=mode)
         assert result.data == expected_result
 
         select_query = f'SELECT * FROM "{schema.name}"."{table.name}"'
@@ -119,11 +130,12 @@ def new_table() -> ExaTable:
     )
 
 
+@pytest.mark.parametrize("mode", CLIENT_MODES)
 @pytest.mark.parametrize(
     "command", [CORRECT_COMMAND, INCORRECT_COMMAND], ids=["non-modified", "modified"]
 )
 def test_execute_write_query(
-    pyexasol_connection, setup_database, db_schemas, new_table, command
+    pyexasol_connection, setup_database, db_schemas, new_table, command, mode
 ) -> None:
     config = McpServerSettings(enable_write_query=True)
     for schema in db_schemas:
@@ -134,16 +146,18 @@ def test_execute_write_query(
             action="accept",
             schema=schema,
             table=new_table,
+            mode=mode,
         )
 
 
+@pytest.mark.parametrize("mode", CLIENT_MODES)
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
 def test_execute_write_query_not_accepted(
-    pyexasol_connection, setup_database, db_schemas, new_table, action
+    pyexasol_connection, setup_database, db_schemas, new_table, action, mode
 ) -> None:
     config = McpServerSettings(enable_write_query=True)
     for schema in db_schemas:
-        with pytest.raises(ToolError):
+        with expect_not_accepted(mode, action):
             _validate_table_creation(
                 connection=pyexasol_connection,
                 config=config,
@@ -151,6 +165,7 @@ def test_execute_write_query_not_accepted(
                 action=action,
                 schema=schema,
                 table=new_table,
+                mode=mode,
             )
 
 

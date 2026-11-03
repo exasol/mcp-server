@@ -5,7 +5,6 @@ from exasol.ai.mcp.server.tools.bucketfs_tools import (
     PathStatus,
     check_answer,
     get_path_warning,
-    raise_if_not_accepted,
 )
 
 
@@ -78,19 +77,3 @@ def test_check_answer(path_changed, status, expected_status, expected_result) ->
         check_answer(accepted_path, prev_path, status, expected_status)
         == expected_result
     )
-
-
-def test_raise_if_not_accepted_accept() -> None:
-    raise_if_not_accepted("accept", "The operation")
-
-
-@pytest.mark.parametrize(
-    ["action", "expected_message"],
-    [
-        ("decline", "The operation is declined by the user."),
-        ("cancel", "The operation is cancelled by the user."),
-    ],
-)
-def test_raise_if_not_accepted_interrupts(action, expected_message) -> None:
-    with pytest.raises(InterruptedError, match=expected_message):
-        raise_if_not_accepted(action, "The operation")

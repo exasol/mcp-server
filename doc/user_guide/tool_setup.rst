@@ -218,6 +218,27 @@ To disable elicitation, add the following line:
         "disable_elicitation": true
     }
 
+Elicitation and the MCP protocol version
+----------------------------------------
+
+The way the elicitation works depends on the version of the MCP protocol negotiated with
+the client application. Both ways are supported.
+
+With protocol versions up to ``2025-11-25``, the server sends an elicitation request to the
+client while the tool is running.
+
+From the protocol version ``2026-07-28``, the tool instead returns a request for the user
+input. The client application collects the input and calls the tool again. When a BucketFS
+operation needs another confirmation, for example because the user has chosen a path with an
+existing file, this round trip repeats. The server passes a sealed request state between the
+rounds, which carries the data offered to the user and ties every round to the original tool
+call. Please note the following:
+
+- The user has 10 minutes to respond, after which the request state expires and the tool call
+  fails.
+- The request state is sealed with a key generated when the server starts. If the HTTP server
+  runs as several replicas, all rounds of a tool call must reach the same replica.
+
 Set DB object listing filters
 -----------------------------
 

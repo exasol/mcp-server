@@ -240,12 +240,20 @@ def _register_read_file(mcp_server: ExasolMCPServer) -> None:
         )
 
 
+# FastMCP derives an output schema from the residual of a guard return type. For
+# `None | InputRequiredResult` the residual is `NoneType`, which, unlike a plain
+# `None` annotation, yields a wrapped `{"result": null}` schema. The tools that
+# return nothing pass this explicitly, to stay without an output schema.
+NO_OUTPUT_SCHEMA = None
+
+
 def _register_write_text_to_file(mcp_server: ExasolMCPServer) -> None:
     if mcp_server.bucketfs_tools is not None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.write_text_to_file,
             name="write_text_to_bucketfs_file",
             annotations=ToolAnnotations(destructive_hint=True),
+            output_schema=NO_OUTPUT_SCHEMA,
         )
 
 
@@ -258,6 +266,7 @@ def _register_download_file(mcp_server: ExasolMCPServer) -> None:
                 "The file will overwrite an existing file."
             ),
             annotations=ToolAnnotations(destructive_hint=True),
+            output_schema=NO_OUTPUT_SCHEMA,
         )
 
 
@@ -267,6 +276,7 @@ def _register_delete_file(mcp_server: ExasolMCPServer) -> None:
             mcp_server.bucketfs_tools.delete_file,
             name="delete_bucketfs_file",
             annotations=ToolAnnotations(destructive_hint=True),
+            output_schema=NO_OUTPUT_SCHEMA,
         )
 
 
@@ -277,6 +287,7 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
             name="delete_bucketfs_directory",
             description="Will recursively delete all files and all subdirectories.",
             annotations=ToolAnnotations(destructive_hint=True),
+            output_schema=NO_OUTPUT_SCHEMA,
         )
 
 
