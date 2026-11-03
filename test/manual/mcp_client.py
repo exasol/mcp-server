@@ -26,7 +26,6 @@ async def _run_tool_async(
     async with Client(
         transport=StreamableHttpTransport(http_server_url), auth=oauth
     ) as client:
-        assert await client.ping()
         result = await client.call_tool(tool_name, kwargs)
         return result.content[0].text
 

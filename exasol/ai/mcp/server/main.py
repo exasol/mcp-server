@@ -55,7 +55,7 @@ def _register_list_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_schemas,
         name="list_exasol_schemas",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -63,7 +63,7 @@ def _register_find_schemas(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_schemas,
         name="find_exasol_schemas",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -71,7 +71,7 @@ def _register_list_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_tables,
         name="list_exasol_tables_and_views",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -79,7 +79,7 @@ def _register_find_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_tables,
         name="find_exasol_tables_and_views",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -87,7 +87,7 @@ def _register_list_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_functions,
         name="list_exasol_custom_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -95,7 +95,7 @@ def _register_find_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_functions,
         name="find_exasol_custom_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -103,7 +103,7 @@ def _register_list_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_scripts,
         name="list_exasol_user_defined_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -111,7 +111,7 @@ def _register_find_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.find_scripts,
         name="find_exasol_user_defined_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -119,7 +119,7 @@ def _register_describe_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_tables,
         name="describe_exasol_tables_and_views",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -133,7 +133,7 @@ def _register_summarize_table(mcp_server: ExasolMCPServer) -> None:
         fn,
         name="summarize_exasol_table",
         description="Column statistics (distinct count, numeric min/max) and a row sample.",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -141,7 +141,7 @@ def _register_describe_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_functions,
         name="describe_exasol_custom_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -149,7 +149,7 @@ def _register_describe_scripts(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_scripts,
         name="describe_exasol_user_defined_functions",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -165,7 +165,7 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
         description=(
             "The query must be a SELECT statement. Returns data selected by the query."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -182,7 +182,7 @@ def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
             "Runs the query with profiling enabled and returns a breakdown of the "
             "execution plan. Use this to understand why a query is slow."
         ),
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -194,7 +194,7 @@ def _register_execute_write_query(mcp_server: ExasolMCPServer) -> None:
             "Executes DML or DDL query. Returns modified query "
             "in case it was altered by the user, otherwise none."
         ),
-        annotations=ToolAnnotations(destructiveHint=True),
+        annotations=ToolAnnotations(destructive_hint=True),
     )
 
 
@@ -204,7 +204,7 @@ def _register_list_directories(mcp_server: ExasolMCPServer) -> None:
             mcp_server.bucketfs_tools.list_directories,
             name="list_bucketfs_directories",
             description="Returns subdirectories of a specified directory.",
-            annotations=ToolAnnotations(readOnlyHint=True),
+            annotations=ToolAnnotations(read_only_hint=True),
         )
 
 
@@ -214,7 +214,7 @@ def _register_list_files(mcp_server: ExasolMCPServer) -> None:
             mcp_server.bucketfs_tools.list_files,
             name="list_bucketfs_files",
             description="Returns files in a specified directory.",
-            annotations=ToolAnnotations(readOnlyHint=True),
+            annotations=ToolAnnotations(read_only_hint=True),
         )
 
 
@@ -227,7 +227,7 @@ def _register_find_files(mcp_server: ExasolMCPServer) -> None:
                 "Performs a keyword search of files in a specified directory "
                 "and all descendant subdirectories."
             ),
-            annotations=ToolAnnotations(readOnlyHint=True),
+            annotations=ToolAnnotations(read_only_hint=True),
         )
 
 
@@ -236,7 +236,7 @@ def _register_read_file(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.read_file,
             name="read_bucketfs_text_file",
-            annotations=ToolAnnotations(readOnlyHint=True),
+            annotations=ToolAnnotations(read_only_hint=True),
         )
 
 
@@ -245,7 +245,7 @@ def _register_write_text_to_file(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.write_text_to_file,
             name="write_text_to_bucketfs_file",
-            annotations=ToolAnnotations(destructiveHint=True),
+            annotations=ToolAnnotations(destructive_hint=True),
         )
 
 
@@ -257,7 +257,7 @@ def _register_download_file(mcp_server: ExasolMCPServer) -> None:
                 "Downloads a file from a given url and saves it in the BucketFS. "
                 "The file will overwrite an existing file."
             ),
-            annotations=ToolAnnotations(destructiveHint=True),
+            annotations=ToolAnnotations(destructive_hint=True),
         )
 
 
@@ -266,7 +266,7 @@ def _register_delete_file(mcp_server: ExasolMCPServer) -> None:
         mcp_server.tool(
             mcp_server.bucketfs_tools.delete_file,
             name="delete_bucketfs_file",
-            annotations=ToolAnnotations(destructiveHint=True),
+            annotations=ToolAnnotations(destructive_hint=True),
         )
 
 
@@ -276,7 +276,7 @@ def _register_delete_directory(mcp_server: ExasolMCPServer) -> None:
             mcp_server.bucketfs_tools.delete_directory,
             name="delete_bucketfs_directory",
             description="Will recursively delete all files and all subdirectories.",
-            annotations=ToolAnnotations(destructiveHint=True),
+            annotations=ToolAnnotations(destructive_hint=True),
         )
 
 
@@ -284,7 +284,7 @@ def _register_list_preprocessors(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_preprocessors,
         name="list_exasol_preprocessors",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
 
 
@@ -304,7 +304,7 @@ def _register_list_sql_types(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_sql_types,
         name="list_exasol_sql_types",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -312,7 +312,7 @@ def _register_list_system_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_system_tables,
         name="list_exasol_system_tables",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -320,7 +320,7 @@ def _register_describe_system_table(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_system_table,
         name="describe_exasol_system_table",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -328,7 +328,7 @@ def _register_list_statistics_tables(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_statistics_tables,
         name="list_exasol_statistics_tables",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -336,7 +336,7 @@ def _register_describe_statistics_table(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.describe_statistics_table,
         name="describe_exasol_statistics_table",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -344,7 +344,7 @@ def _register_list_keywords(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         mcp_server.list_keywords,
         name="list_exasol_keywords",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -352,7 +352,7 @@ def _register_builtin_function_categories(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         builtin_function_categories,
         name="list_exasol_built_in_function_categories",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -360,7 +360,7 @@ def _register_list_builtin_functions(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         list_builtin_functions,
         name="list_exasol_built_in_functions",
-        annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
@@ -368,7 +368,7 @@ def _register_describe_builtin_function(mcp_server: ExasolMCPServer) -> None:
     mcp_server.tool(
         describe_builtin_function,
         name="describe_exasol_built_in_function",
-        annotations={"readOnlyHint": True, "idempotentHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True),
     )
 
 
