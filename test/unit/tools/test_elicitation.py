@@ -202,8 +202,9 @@ def test_execute_write_query_guard_accepted() -> None:
 def test_execute_write_query_guard_not_accepted(action) -> None:
     server = _create_write_query_server()
     ctx = _make_ctx(ElicitResult(action=action))
+    tool_call = server.execute_write_query("DROP TABLE T", ctx)
     with pytest.raises(InterruptedError):
-        asyncio.run(server.execute_write_query("DROP TABLE T", ctx))
+        asyncio.run(tool_call)
     server.connection.execute_query.assert_not_called()
 
 
@@ -308,6 +309,7 @@ def test_bucketfs_guard_expected_status(path_status, expected_deletion) -> None:
 @pytest.mark.parametrize("action", ["decline", "cancel"])
 def test_bucketfs_guard_not_accepted(action) -> None:
     tools = _create_bucketfs_tools({"a/b": PathStatus.FileExists})
+    ctx = _make_ctx(ElicitResult(action=action))
     with pytest.raises(InterruptedError):
-        _delete_file(tools, _make_ctx(ElicitResult(action=action)))
+        _delete_file(tools, ctx)
     tools.bfs_location.joinpath.assert_not_called()
