@@ -13,6 +13,7 @@ import exasol.bucketfs as bfs
 import httpx
 from aiofile import async_open
 from fastmcp import Context
+from mcp.types import InputRequiredResult
 from pathvalidate import (
     ValidationError,
     validate_filepath,
@@ -24,6 +25,13 @@ from pydantic import (
 
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
+)
+from exasol.ai.mcp.server.tools.elicitation import (
+    is_input_required_era,
+    raise_if_not_accepted,
+    read_input,
+    read_request_state,
+    request_input,
 )
 from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
 
@@ -92,6 +100,16 @@ def get_path_warning(
     return PATH_WARNINGS[path_status]
 
 
+def compose_message(
+    message: str, path_status: PathStatus, expected_status: PathStatus | None
+) -> str:
+    """
+    Appends the elicitation message with a possible warning regarding the path.
+    """
+    warning = get_path_warning(path_status, expected_status)
+    return f"{message} {warning}" if warning else message
+
+
 def check_answer(
     accepted_path: str,
     prev_path: str,
@@ -121,26 +139,6 @@ def check_answer(
     # The chosen path must point to an existing file or directory,
     # as per the request.
     return path_status == expected_status
-
-
-def raise_if_not_accepted(action: str, operation: str) -> None:
-    """
-    Raises an ``InterruptedError`` if the elicitation action is anything other than
-    "accept".
-
-    Args:
-        action:
-            The elicitation action.
-        operation:
-            The name of the operation, used in the error message, e.g. "The file
-            operation".
-    """
-    if action == "accept":
-        return
-    if action == "decline":
-        raise InterruptedError(f"{operation} is declined by the user.")
-    # cancel
-    raise InterruptedError(f"{operation} is cancelled by the user.")
 
 
 class BucketFsTools:
@@ -177,7 +175,7 @@ class BucketFsTools:
         ctx: Context,
         response_type_factory,
         expected_status: PathStatus | None = None,
-    ):
+    ) -> BaseModel | InputRequiredResult:
         """
         Calls the MCP elicitation one or more times. The elicitation is required for
         data modifying tools, such as writing and deleting files. A mandatory field in
@@ -201,18 +199,28 @@ class BucketFsTools:
             expected_status:
                 Optional parameter used by the deletion tools. For these tools, the
                 chosen path must point to an existing file or directory.
+
+        Returns the accepted elicitation data. On the 2026-07-28 protocol, it can
+        instead return an ``InputRequiredResult``, which the tool must return as is.
         """
         path, response_type = response_type_factory()
         if self.config.disable_elicitation:
             # If elicitation is disabled, then emulate the acceptance of the
             # default data.
             return response_type()
+        if is_input_required_era(ctx):
+            return self._elicitate_with_guard(
+                message,
+                ctx,
+                response_type_factory,
+                path,
+                response_type,
+                expected_status,
+            )
         path_status = self._get_path_status(path)
         while True:
-            warning = get_path_warning(path_status, expected_status)
-            full_message = f"{message} {warning}" if warning else message
             confirmation = await ctx.elicit(
-                message=full_message,
+                message=compose_message(message, path_status, expected_status),
                 response_type=response_type,
             )
             raise_if_not_accepted(confirmation.action, "The file operation")
@@ -222,6 +230,49 @@ class BucketFsTools:
                 return confirmation.data
             # At this point, we go for another elicitation.
             path = accepted_path
+
+    def _elicitate_with_guard(
+        self,
+        message: str,
+        ctx: Context,
+        response_type_factory,
+        path: str,
+        response_type: type[BaseModel],
+        expected_status: PathStatus | None,
+    ) -> BaseModel | InputRequiredResult:
+        """
+        The guard pattern version of the elicitation loop in ``_elicitate``. Each
+        round of the loop is a separate call of the tool, with the same arguments.
+        If the elicitation needs to be repeated, the data offered to the user is saved
+        in the request state, from where it is restored in the next round. The path
+        status is checked again in every round.
+
+        The path and response type are the initial ones, created by the
+        ``response_type_factory`` from the tool arguments.
+        """
+        offered_data = read_request_state(ctx)
+        if offered_data:
+            path, response_type = response_type_factory(
+                response_type.model_validate(offered_data)
+            )
+        user_input = read_input(ctx, response_type)
+        if user_input is None:
+            path_status = self._get_path_status(path)
+            return request_input(
+                compose_message(message, path_status, expected_status),
+                response_type,
+                offered_data,
+            )
+        raise_if_not_accepted(user_input.action, "The file operation")
+        accepted_path, response_type = response_type_factory(user_input.data)
+        path_status = self._get_path_status(accepted_path)
+        if check_answer(accepted_path, path, path_status, expected_status):
+            return user_input.data
+        return request_input(
+            compose_message(message, path_status, expected_status),
+            response_type,
+            user_input.data.model_dump(),
+        )
 
     @staticmethod
     def _create_response_type_factory(path: str):
@@ -300,7 +351,7 @@ class BucketFsTools:
         path: NewFileArg,
         content: Annotated[str, Field(description="File textual content")],
         ctx: Context,
-    ) -> None:
+    ) -> None | InputRequiredResult:
         """
         Writes a piece of text to a file at the provided path in BucketFS.
         The path is relative to the root location. An existing file will be overwritten.
@@ -333,6 +384,8 @@ class BucketFsTools:
         )
 
         answer = await self._elicitate(message, ctx, response_type_factory)
+        if isinstance(answer, InputRequiredResult):
+            return answer
         abs_path = self.bfs_location.joinpath(answer.file_path)
         byte_content = answer.file_content.encode(encoding="utf-8")
         abs_path.write(byte_content)
@@ -344,7 +397,7 @@ class BucketFsTools:
             str, Field(description="URL where the file should be downloaded from")
         ],
         ctx: Context,
-    ) -> None:
+    ) -> None | InputRequiredResult:
         """
         Downloads a file from a given url and writes to a file at the provided path in
         BucketFS. The path is relative to the root location. The same rules apply in
@@ -359,6 +412,8 @@ class BucketFsTools:
         )
 
         answer = await self._elicitate(message, ctx, response_type_factory)
+        if isinstance(answer, InputRequiredResult):
+            return answer
         abs_path = self.bfs_location.joinpath(answer.file_path)
 
         # A file in a temporary directory, rather than a NamedTemporaryFile, can be
@@ -382,7 +437,9 @@ class BucketFsTools:
 
             await asyncio.to_thread(upload_to_bucketfs)
 
-    async def delete_file(self, path: FileArg, ctx: Context) -> None:
+    async def delete_file(
+        self, path: FileArg, ctx: Context
+    ) -> None | InputRequiredResult:
         """
         Deletes a BucketFS file at the specified path.
         """
@@ -395,10 +452,14 @@ class BucketFsTools:
         answer = await self._elicitate(
             message, ctx, response_type_factory, expected_status=PathStatus.FileExists
         )
+        if isinstance(answer, InputRequiredResult):
+            return answer
         abs_path = self.bfs_location.joinpath(answer.file_path)
         abs_path.rm()
 
-    async def delete_directory(self, path: DirectoryArg, ctx: Context) -> None:
+    async def delete_directory(
+        self, path: DirectoryArg, ctx: Context
+    ) -> None | InputRequiredResult:
         """
         Deletes a BucketFS directory at the specified path.
         """
@@ -411,5 +472,7 @@ class BucketFsTools:
         answer = await self._elicitate(
             message, ctx, response_type_factory, expected_status=PathStatus.DirExists
         )
+        if isinstance(answer, InputRequiredResult):
+            return answer
         abs_path = self.bfs_location.joinpath(answer.file_path)
         abs_path.rmdir(recursive=True)

@@ -16,7 +16,10 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.elicitation import ElicitResult
 from fastmcp.exceptions import ToolError
-from tenacity import retry
+from tenacity import (
+    retry,
+    retry_if_exception_message,
+)
 from tenacity.stop import stop_after_attempt
 from tenacity.wait import wait_exponential
 
@@ -44,6 +47,10 @@ from test.utils.result_utils import (
     get_result_json,
     get_tool_hints,
     list_tools,
+)
+from test.utils.tool_utils import (
+    CLIENT_MODES,
+    expect_not_accepted,
 )
 
 _human = (
@@ -110,6 +117,7 @@ async def _run_tool_async(
     elicitation: list[ElicitationData] | None,
     expected_status: PathStatus | None,
     config: McpServerSettings | None,
+    mode: str,
     **kwargs,
 ):
     elicit_count = 0
@@ -140,9 +148,13 @@ async def _run_tool_async(
             enable_read_bucketfs=True, enable_write_bucketfs=True
         )
     exa_server = create_mcp_server(db_connection, config, bucketfs_location)
-    elicit_handler = elicitation_handler if elicitation is not None else None
+    # The action None in the first elicitation means the client application does
+    # not support elicitation, so the handler is not registered.
+    elicit_handler = (
+        elicitation_handler if elicitation and elicitation[0].action else None
+    )
     async with Client(
-        exa_server, mode="legacy", elicitation_handler=elicit_handler
+        exa_server, mode=mode, elicitation_handler=elicit_handler
     ) as client:
         return await client.call_tool(tool_name, kwargs)
 
@@ -153,13 +165,35 @@ def _run_tool(
     elicitation: list[ElicitationData] | None = None,
     expected_status: PathStatus | None = None,
     config: McpServerSettings | None = None,
+    mode: str = "auto",
     **kwargs,
 ):
     return asyncio.run(
         _run_tool_async(
-            bucketfs_location, tool_name, elicitation, expected_status, config, **kwargs
+            bucketfs_location,
+            tool_name,
+            elicitation,
+            expected_status,
+            config,
+            mode,
+            **kwargs,
         )
     )
+
+
+@retry(
+    reraise=True,
+    retry=retry_if_exception_message(match=".*Couldn't upload file.*"),
+    wait=wait_exponential(multiplier=1, min=1, max=15),
+    stop=stop_after_attempt(7),
+)
+def _run_upload_tool(*args, **kwargs):
+    """
+    Runs a tool that creates a file. BucketFS locks a path for a few seconds after
+    the file at this path is deleted. This happens when a test runs the same case in
+    another client mode, right after the previous run deleted the created file.
+    """
+    return _run_tool(*args, **kwargs)
 
 
 def _get_expected_list(items: dict[str, ExaBfsObject]) -> list[str]:
@@ -433,12 +467,14 @@ def test_read_file(bucketfs_location, bfs_data) -> None:
         "directory",
     ],
 )
-def test_write_text_to_file(bucketfs_location, test_case) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_write_text_to_file(bucketfs_location, test_case, mode) -> None:
     with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
-        _run_tool(
+        _run_upload_tool(
             bucketfs_location,
             "write_text_to_bucketfs_file",
             elicitation=test_case.elicitations,
+            mode=mode,
             path=test_case.path,
             content=test_case.content,
         )
@@ -450,7 +486,8 @@ def test_write_text_to_file(bucketfs_location, test_case) -> None:
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_write_text_to_file_not_accepted(bucketfs_location, action, mode) -> None:
     """
     Verifies the case when the file writing is rejected in elicitation.
     """
@@ -458,11 +495,12 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
     elicitation = [
         ElicitationData(path_status=PathStatus.Vacant, action=action, data={}),
     ]
-    with pytest.raises(ToolError):
+    with expect_not_accepted(mode, action):
         _run_tool(
             bucketfs_location,
             "write_text_to_bucketfs_file",
             elicitation=elicitation,
+            mode=mode,
             path=path,
             content=_home_luminis,
         )
@@ -546,14 +584,16 @@ def test_write_text_to_file_not_accepted(bucketfs_location, action) -> None:
         "directory",
     ],
 )
-def test_download_file(bucketfs_location, test_case, httpserver) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_download_file(bucketfs_location, test_case, httpserver, mode) -> None:
     url_path = "/fake_science"
     httpserver.expect_request(url_path).respond_with_data(_home_luminis)
     with tmp_path_write(bucketfs_location.joinpath(test_case.expected_path)):
-        _run_tool(
+        _run_upload_tool(
             bucketfs_location,
             "download_file",
             elicitation=test_case.elicitations,
+            mode=mode,
             url=httpserver.url_for(url_path),
             path=test_case.path,
         )
@@ -564,7 +604,8 @@ def test_download_file(bucketfs_location, test_case, httpserver) -> None:
         assert content == _home_luminis
 
 
-def test_download_binary_file(bucketfs_location, httpserver) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_download_binary_file(bucketfs_location, httpserver, mode) -> None:
     """
     Verifies that a downloaded file is uploaded to BucketFS byte for byte. The
     content is not valid UTF-8 and has line endings that must be preserved.
@@ -578,10 +619,11 @@ def test_download_binary_file(bucketfs_location, httpserver) -> None:
     ]
     bfs_path = bucketfs_location.joinpath(path)
     with tmp_path_write(bfs_path):
-        _run_tool(
+        _run_upload_tool(
             bucketfs_location,
             "download_file",
             elicitation=elicitation,
+            mode=mode,
             url=httpserver.url_for(url_path),
             path=path,
         )
@@ -589,7 +631,10 @@ def test_download_binary_file(bucketfs_location, httpserver) -> None:
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_download_file_not_accepted(
+    bucketfs_location, action, httpserver, mode
+) -> None:
     """
     Verifies the case when the file downloading is rejected in elicitation.
     """
@@ -599,11 +644,12 @@ def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> No
     elicitation = [
         ElicitationData(path_status=PathStatus.Vacant, action=action, data={}),
     ]
-    with pytest.raises(ToolError):
+    with expect_not_accepted(mode, action):
         _run_tool(
             bucketfs_location,
             "download_file",
             elicitation=elicitation,
+            mode=mode,
             url=httpserver.url_for(url_path),
             path=path,
         )
@@ -611,7 +657,8 @@ def test_download_file_not_accepted(bucketfs_location, action, httpserver) -> No
     assert not bfs_path.exists()
 
 
-def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_download_file_invalid_url(bucketfs_location, httpserver, mode) -> None:
     """
     Verifies the case when the provided url doesn't exist.
     """
@@ -626,6 +673,7 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
             bucketfs_location,
             "download_file",
             elicitation=elicitation,
+            mode=mode,
             url=httpserver.url_for("/true_science"),
             path=path,
         )
@@ -698,7 +746,8 @@ def test_download_file_invalid_url(bucketfs_location, httpserver) -> None:
         "directory",
     ],
 )
-def test_delete_file(bucketfs_location, test_case) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_delete_file(bucketfs_location, test_case, mode) -> None:
     abs_path = bucketfs_location.joinpath(test_case.expected_path)
     assert abs_path.exists()
     with tmp_path_write(abs_path):
@@ -706,6 +755,7 @@ def test_delete_file(bucketfs_location, test_case) -> None:
             bucketfs_location,
             "delete_bucketfs_file",
             elicitation=test_case.elicitations,
+            mode=mode,
             expected_status=PathStatus.FileExists,
             path=test_case.path,
         )
@@ -713,7 +763,8 @@ def test_delete_file(bucketfs_location, test_case) -> None:
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_delete_file_not_accepted(bucketfs_location, action) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_delete_file_not_accepted(bucketfs_location, action, mode) -> None:
     """
     Verifies the case when the file deletion is rejected in elicitation.
     """
@@ -721,11 +772,13 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
     elicitation = [
         ElicitationData(path_status=PathStatus.FileExists, action=action, data={}),
     ]
-    with pytest.raises(ToolError):
+    with expect_not_accepted(mode, action):
         _run_tool(
             bucketfs_location,
             "delete_bucketfs_file",
             elicitation=elicitation,
+            mode=mode,
+            expected_status=PathStatus.FileExists,
             path=path,
         )
     bfs_path = bucketfs_location.joinpath(path)
@@ -796,7 +849,8 @@ def test_delete_file_not_accepted(bucketfs_location, action) -> None:
         "file",
     ],
 )
-def test_delete_directory(bucketfs_location, test_case) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_delete_directory(bucketfs_location, test_case, mode) -> None:
     abs_path = bucketfs_location.joinpath(test_case.expected_path)
     assert abs_path.exists()
     with tmp_path_write(abs_path):
@@ -804,6 +858,7 @@ def test_delete_directory(bucketfs_location, test_case) -> None:
             bucketfs_location,
             "delete_bucketfs_directory",
             elicitation=test_case.elicitations,
+            mode=mode,
             expected_status=PathStatus.DirExists,
             path=test_case.path,
         )
@@ -811,7 +866,8 @@ def test_delete_directory(bucketfs_location, test_case) -> None:
 
 
 @pytest.mark.parametrize("action", ["decline", "cancel", None])
-def test_delete_directory_not_accepted(bucketfs_location, action) -> None:
+@pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_delete_directory_not_accepted(bucketfs_location, action, mode) -> None:
     """
     Verifies the case when the directory deletion is rejected in elicitation.
     """
@@ -819,11 +875,13 @@ def test_delete_directory_not_accepted(bucketfs_location, action) -> None:
     elicitation = [
         ElicitationData(path_status=PathStatus.DirExists, action=action, data={}),
     ]
-    with pytest.raises(ToolError):
+    with expect_not_accepted(mode, action):
         _run_tool(
             bucketfs_location,
             "delete_bucketfs_directory",
             elicitation=elicitation,
+            mode=mode,
+            expected_status=PathStatus.DirExists,
             path=path,
         )
     bfs_path = bucketfs_location.joinpath(path)

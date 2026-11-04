@@ -3,7 +3,12 @@
 ## Summary
 
 Upgraded to FastMCP 4. OAuth proxy deployments with `EXA_AUTH_ISSUER_URL` different
-from `EXA_AUTH_BASE_URL` require all clients to re-authorize once.
+from `EXA_AUTH_BASE_URL` require all clients to re-authorize once. The write tools
+support elicitation on the MCP `2026-07-28` protocol.
+
+## Features
+
+* #324: Supported elicitation on the MCP `2026-07-28` protocol
 
 ## Bug Fixes
 
