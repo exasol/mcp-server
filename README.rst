@@ -135,7 +135,7 @@ This command provides a simple way to verify the setup for a remote MCP Server d
 For the production environment, one might consider using an ASGI server like Unicorn. The
 most flexible approach is implementing a wrapper for the Exasol MCP server that will
 provide the desired control options. For further information and ideas, please check the
-`HTTP Deployment <https://gofastmcp.com/deployment/http>`__ in the FastMCP documentation.
+`HTTP Deployment <https://gofastmcp.com/docs/deployment/http>`__ in the FastMCP documentation.
 
 Here is an example code creating the Exasol MCP server from a wrapper.
 

@@ -30,7 +30,7 @@ We test three FastMCP options for the OpenID setup. In two of them the server
 orchestrates the OpenID authentication/authorization. One - Remote OAuth - is a
 preferred choice if the authorization server supports the Dynamic Client Registration
 (DCR). Another one - OAuth Proxy - emulates the DCR for the servers that do not
-support it. Please check https://gofastmcp.com/servers/auth/authentication for details.
+support it. Please check https://gofastmcp.com/docs/servers/auth/authentication for details.
 
 We also test the case when the MCP server only verifies an externally provided
 access token - bearer token mode. In this mode the client application takes the
@@ -545,7 +545,7 @@ def saas_env(
 def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that supports DCR.
-    https://gofastmcp.com/servers/auth/remote-oauth
+    https://gofastmcp.com/docs/servers/auth/remote-oauth
     """
     _set_auth_type(monkeypatch, RemoteAuthProvider)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")
@@ -561,7 +561,7 @@ def mcp_server_with_remote_oauth(oidc_server, oidc_env, monkeypatch):
 def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server using an external identity provider that doesn't support DCR.
-    https://gofastmcp.com/servers/auth/oauth-proxy
+    https://gofastmcp.com/docs/servers/auth/oauth-proxy
     The mock authorization server does support DCR, but in this scenario we will not use
     this feature.
     Tests using this fixture can only run in a manual mode, i.e. not from a CI.
@@ -591,7 +591,7 @@ def mcp_server_with_oauth_proxy(started_manually, oidc_server, oidc_env, monkeyp
 def mcp_server_with_token_verifier(oidc_server, oidc_env, monkeypatch):
     """
     Starts the MCP server that only verifies externally provided tokens
-    https://gofastmcp.com/servers/auth/token-verification
+    https://gofastmcp.com/docs/servers/auth/token-verification
     """
     _set_auth_type(monkeypatch, JWTVerifier)
     _set_auth_param(monkeypatch, "jwks_uri", f"{oidc_server}/jwks")

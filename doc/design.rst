@@ -17,7 +17,7 @@ It exposes database metadata and query execution as MCP tools so that an LLM-pow
 agent can explore the database schema and retrieve data without requiring direct
 database credentials in the client application.
 
-The server is built on top of `FastMCP <https://gofastmcp.com/getting-started/welcome>`_
+The server is built on top of `FastMCP <https://gofastmcp.com/docs/getting-started/welcome>`_
 and `pyexasol <https://github.com/exasol/pyexasol>`_. It supports both the
 on-premises and SaaS Exasol deployments.
 
