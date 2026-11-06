@@ -1,7 +1,6 @@
 import re
 from collections.abc import Callable
 from functools import cache
-from importlib.metadata import version
 from typing import (
     Annotated,
     Any,
@@ -76,6 +75,7 @@ from exasol.ai.mcp.server.tools.schema.db_output_schema import (
     SQLTypeInfo,
 )
 from exasol.ai.mcp.server.utils.keyword_search import keyword_filter
+from exasol.ai.mcp.server.version import __version__
 
 SchemaNameArg = Annotated[str, Field(description="Name of the database schema")]
 
@@ -488,9 +488,7 @@ class ExasolMCPServer(FastMCP):
         bucketfs_location: bfs.path.PathLike | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(
-            name="exasol-mcp", version=version("exasol-mcp-server"), **kwargs
-        )
+        super().__init__(name="exasol-mcp", version=__version__, **kwargs)
         self.connection = connection
         self.bucketfs_tools = (
             BucketFsTools(bucketfs_location, config)

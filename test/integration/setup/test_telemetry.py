@@ -1,6 +1,4 @@
 import json
-import logging
-from importlib.metadata import version
 
 import pytest
 from exasol.telemetry import client as telemetry
@@ -15,6 +13,7 @@ from exasol.ai.mcp.server.main import (
     _PROJECT_SHORT_TAG,
     setup_telemetry,
 )
+from exasol.ai.mcp.server.version import __version__
 
 
 def _reset_telemetry() -> None:
@@ -42,11 +41,11 @@ def test_setup_telemetry_sends_started_event(httpserver, monkeypatch) -> None:
     monkeypatch.delenv(ENV_CI, raising=False)
     httpserver.expect_request("/telemetry", method="POST").respond_with_json({})
 
-    setup_telemetry(logging.getLogger("test_setup_telemetry"))
+    setup_telemetry()
     telemetry.shutdown(flush_buffers=True)
 
     request, _ = httpserver.log[0]
     message = json.loads(request.get_data())
     assert message["category"] == _PROJECT_SHORT_TAG
-    assert message["productVersion"] == version("exasol-mcp-server")
+    assert message["productVersion"] == __version__
     assert "started" in message["features"]

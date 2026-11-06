@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from importlib.metadata import version
 from logging.handlers import RotatingFileHandler
 from typing import Any
 from unittest.mock import (
@@ -49,6 +48,7 @@ from exasol.ai.mcp.server.setup.generic_auth import (
 )
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
+from exasol.ai.mcp.server.version import __version__
 
 
 def _set_fake_conn(monkeypatch: MonkeyPatch) -> None:
@@ -403,22 +403,18 @@ def test_register_respects_query_result_format(
 
 
 def test_setup_telemetry_uses_project_short_tag() -> None:
-    logger = logging.getLogger("test_setup_telemetry_ok")
     with patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track:
-        setup_telemetry(logger)
-        mock_track.assert_called_once_with(
-            _PROJECT_SHORT_TAG, version("exasol-mcp-server"), "started"
-        )
+        setup_telemetry()
+        mock_track.assert_called_once_with(_PROJECT_SHORT_TAG, __version__, "started")
 
 
-def test_setup_telemetry_error_is_logged(caplog) -> None:
-    logger = logging.getLogger("test_setup_telemetry_error")
+def test_setup_telemetry_error_is_suppressed() -> None:
     with patch(
         "exasol.ai.mcp.server.main.telemetry.track",
         side_effect=RuntimeError("no telemetry"),
-    ):
-        setup_telemetry(logger)
-    assert "no telemetry" in caplog.text
+    ) as mock_track:
+        setup_telemetry()
+    mock_track.assert_called_once()
 
 
 async def _get_server_version_async() -> str:
@@ -428,7 +424,7 @@ async def _get_server_version_async() -> str:
 
 
 def test_server_reports_package_version() -> None:
-    assert asyncio.run(_get_server_version_async()) == version("exasol-mcp-server")
+    assert asyncio.run(_get_server_version_async()) == __version__
 
 
 @patch("fastmcp.FastMCP.run")

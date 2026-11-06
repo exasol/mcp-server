@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-from importlib.metadata import version
+from contextlib import suppress
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -33,6 +33,7 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
     list_builtin_functions,
 )
 from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
+from exasol.ai.mcp.server.version import __version__
 
 _SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -598,15 +599,12 @@ _PROJECT_SHORT_TAG = "EMCP"
 _TELEMETRY_STARTED = "started"
 
 
-def setup_telemetry(logger: logging.Logger):
+def setup_telemetry():
     # Send the "started" event. The telemetry library sets itself up on the first
     # call, sends the data in a background thread and registers a shutdown hook.
-    try:
-        telemetry.track(
-            _PROJECT_SHORT_TAG, version("exasol-mcp-server"), _TELEMETRY_STARTED
-        )
-    except Exception as e:  # pylint: disable=broad-except
-        logger.warning("Telemetry init error: %s", str(e))
+    # A telemetry failure must not prevent the server from starting.
+    with suppress(Exception):
+        telemetry.track(_PROJECT_SHORT_TAG, __version__, _TELEMETRY_STARTED)
 
 
 def mcp_server() -> ExasolMCPServer:
@@ -615,7 +613,7 @@ def mcp_server() -> ExasolMCPServer:
     """
     env = get_env()
     logger = setup_logger(env)
-    setup_telemetry(logger)
+    setup_telemetry()
     mcp_settings = get_mcp_settings(env)
     auth_kwargs = get_auth_kwargs()
     connection_factory = cf.get_connection_factory(env)
