@@ -2078,14 +2078,14 @@ types-requests = ">=2.31.0.6,<3.0.0.0"
 
 [[package]]
 name = "exasol-telemetry-client"
-version = "0.1.6"
+version = "0.2.1"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "exasol_telemetry_client-0.1.6-py3-none-any.whl", hash = "sha256:699858a0c8b0be544295c148e41f2a89d1cb6d61ff1a0a51d2bcfc53cd199565"},
-    {file = "exasol_telemetry_client-0.1.6.tar.gz", hash = "sha256:736b2464905b26c6c7b163a2cd4ec1f84f1799cdc01db6f8d5f20387f2da3784"},
+    {file = "exasol_telemetry_client-0.2.1-py3-none-any.whl", hash = "sha256:ea7b36ce2313ec7143716134ef96861626e26f92f82f884bddf38db4ee2ab2ed"},
+    {file = "exasol_telemetry_client-0.2.1.tar.gz", hash = "sha256:3c690658e49307c981018f3d0e5dc23de70acc93386e7fa12663875e914ac465"},
 ]
 
 [package.dependencies]
@@ -8961,4 +8961,4 @@ redis = ["redis"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.15"
-content-hash = "4fe6d4f1887237ce6a01d4522ea1b86bd7836ec8c06bd7821ea3cbe117c2ceaf"
+content-hash = "e320b8d84a9a3d42751bd28890e233449863c93f3e85e61d2d51b2b55c24e666"

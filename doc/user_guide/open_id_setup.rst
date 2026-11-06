@@ -32,7 +32,7 @@ OAuth in FastMCP
 ----------------
 
 The implementation of Exasol MCP Server is based on FastMCP package, hence its
-authentication layer is based on `FastMCP Authentication <https://gofastmcp.com/servers/auth/authentication>`__.
+authentication layer is based on `FastMCP Authentication <https://gofastmcp.com/docs/servers/auth/authentication>`__.
 Exasol MCP Server supports all authentication mechanisms provided by FastMCP at the
 moment of the release. However, the FastMCP authentication is currently in active
 development.
@@ -42,7 +42,7 @@ FastMCP Integration with Identity Providers
 
 FastMCP provides integrations with several popular OAuth identity providers. For the
 current list of supported providers and the configurable parameters for each, refer to
-the `FastMCP v3 documentation <https://gofastmcp.com/servers/auth/authentication>`__.
+the `FastMCP v3 documentation <https://gofastmcp.com/docs/servers/auth/authentication>`__.
 
 Exasol MCP Server restores the environment variable-based provider configuration that
 was available in FastMCP v2. Any FastMCP ``AuthProvider`` subclass can be selected and
@@ -88,18 +88,18 @@ FastMCP Generic OAuth Providers
 
 The FastMCP also provides three generic ways to configure the OAuth2 authentication.
 
-* `Remote OAuth <https://gofastmcp.com/servers/auth/remote-oauth>`__,
+* `Remote OAuth <https://gofastmcp.com/docs/servers/auth/remote-oauth>`__,
     to work with identity servers supporting Dynamic Client Registration (DCR).
-* `OAuth Proxy <https://gofastmcp.com/servers/auth/oauth-proxy>`__,
+* `OAuth Proxy <https://gofastmcp.com/docs/servers/auth/oauth-proxy>`__,
     to work with identity servers that do not support DCR.
-* `Token Verification <https://gofastmcp.com/servers/auth/token-verification>`__,
+* `Token Verification <https://gofastmcp.com/docs/servers/auth/token-verification>`__,
     for the case when the MCP server only verifies a bearer token, not being concerned about
     how this token is acquired.
 
 If the chosen identity provider is not in the above list, it should still be possible to
 configure the MCP server authentication using one of those generic providers. Please use
-`Remote OAuth <https://gofastmcp.com/servers/auth/remote-oauth>`__ if the provider supports
-DCR, and `OAuth Proxy <https://gofastmcp.com/servers/auth/oauth-proxy>`__ if it doesn't.
+`Remote OAuth <https://gofastmcp.com/docs/servers/auth/remote-oauth>`__ if the provider supports
+DCR, and `OAuth Proxy <https://gofastmcp.com/docs/servers/auth/oauth-proxy>`__ if it doesn't.
 
 Currently, FastMCP does not define environment variables for generic providers. Exasol
 MCP Server fills the gap by providing its own set of variables in a similar fashion.
@@ -121,20 +121,20 @@ Exasol MCP Server.
 Token Verification
 ^^^^^^^^^^^^^^^^^^
 
-Both *Remote OAuth* and *OAuthProxy* require a `Token Verifier <https://gofastmcp.com/servers/auth/token-verification>`__.
+Both *Remote OAuth* and *OAuthProxy* require a `Token Verifier <https://gofastmcp.com/docs/servers/auth/token-verification>`__.
 The choice of the token verifier depends on the token verification model supported by a
 particular identity provider.
 
 FastMCP v3 offers two types of verification -
-`JWT Token Verification <https://gofastmcp.com/servers/auth/token-verification#jwt-token-verification>`__
-and `Opaque Token Verification <https://gofastmcp.com/servers/auth/token-verification#opaque-token-verification>`__.
+`JWT Token Verification <https://gofastmcp.com/docs/servers/auth/token-verification#jwt-token-verification>`__
+and `Opaque Token Verification <https://gofastmcp.com/docs/servers/auth/token-verification#opaque-token-verification>`__.
 The variation of the former is
-`Static Public Key Verification <https://gofastmcp.com/servers/auth/token-verification#static-public-key-verification>`__.
+`Static Public Key Verification <https://gofastmcp.com/docs/servers/auth/token-verification#static-public-key-verification>`__.
 
 A token verifier provider may be the only module needed if the MCP Authentication uses
 an externally supplied bearer token. However, this guide doesn't give any details on how
 such a system could be configured. Also, in this scenario, we recommend using FastMCP's
-`environment variables <https://gofastmcp.com/servers/auth/token-verification>`__, not the Exasol ones.
+`environment variables <https://gofastmcp.com/docs/servers/auth/token-verification>`__, not the Exasol ones.
 
 JWT Token Verification
 ++++++++++++++++++++++
@@ -292,10 +292,10 @@ OAuth Proxy
 OAuth State Storage Backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-OAuth providers such as `OAuth Proxy <https://gofastmcp.com/servers/auth/oauth-proxy>`__
+OAuth providers such as `OAuth Proxy <https://gofastmcp.com/docs/servers/auth/oauth-proxy>`__
 maintain state between requests — active sessions, authorization codes, registered
 clients, and token mappings. FastMCP v3 persists this state using an encrypted
-`FileTreeStore <https://gofastmcp.com/servers/storage-backends>`__ by default: one file
+`FileTreeStore <https://gofastmcp.com/docs/servers/storage-backends>`__ by default: one file
 per entry with atomic writes, which is safe on network filesystems such as AWS EFS or NFS.
 
 Exasol MCP Server exposes the backend selection through the ``EXA_MCP_OAUTH_STORAGE_BACKEND``

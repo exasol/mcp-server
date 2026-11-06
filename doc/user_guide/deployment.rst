@@ -59,12 +59,15 @@ Now create and run the Docker container.
         -e EXA_AUTH_BASE_URL=my_mcp_server \
         -e EXA_MCP_SETTINGS=/app/settings.json \
         -v local_path_to_settings.json:/app/settings.json \
-        exasol/mcp-server:latest
+        exasol/mcp-server:latest \
+        --host 0.0.0.0 \
         --port 4896
 
 In this example, the server is configured to use the generic OAuth Proxy provider.
 The server starts at the Docker container's port 4896, which is published to the
-host port 7766. Normally, the base URL of the MCP server will be a secure address
+host port 7766. The server must listen on all the container's network interfaces
+(``--host 0.0.0.0``). With the default host 127.0.0.1, it is not reachable through
+the published port. Normally, the base URL of the MCP server will be a secure address
 of the server, as described in the next section. For example, if the server is
 deployed in an AWS EC2 instance, the EXA_AUTH_BASE_URL can be set to
 "https://ec2-xx-xxx-xx-xx.my-region.compute.amazonaws.com".

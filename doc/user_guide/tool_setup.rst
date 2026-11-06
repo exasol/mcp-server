@@ -339,9 +339,12 @@ Alternatively, the settings can be written in a json file. In this case, the
             "EXA_DSN": "my-dsn",
             "EXA_USER": "my-user-name",
             "EXA_PASSWORD": "my-password",
-            "EXA_MCP_SETTINGS": "path_to_settings.json"
+            "EXA_MCP_SETTINGS": "/absolute/path/to/settings.json"
         }
     }
+
+The path should be absolute. A relative path is resolved from the directory the server
+was started in, which is often not obvious when an MCP client starts the server.
 
 Default server settings
 -----------------------

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+from contextlib import suppress
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ from exasol.ai.mcp.server.tools.dialect_tools import (
     list_builtin_functions,
 )
 from exasol.ai.mcp.server.tools.mcp_server import ExasolMCPServer
+from exasol.ai.mcp.server.version import __version__
 
 _SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -470,8 +472,17 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
     Return the root logger
     """
     logger = logging.getLogger()
-    log_level = env[ENV_LOG_LEVEL] if ENV_LOG_LEVEL in env else DEFAULT_LOG_LEVEL
-    logger.setLevel(log_level)
+    log_level = (
+        env[ENV_LOG_LEVEL].strip().upper()
+        if ENV_LOG_LEVEL in env
+        else DEFAULT_LOG_LEVEL
+    )
+    try:
+        logger.setLevel(log_level)
+        invalid_log_level = None
+    except ValueError:
+        logger.setLevel(DEFAULT_LOG_LEVEL)
+        invalid_log_level = log_level
 
     # Create formatter if provided
     formatter = (
@@ -521,6 +532,15 @@ def setup_logger(env: dict[str, str]) -> logging.Logger:
             if name:
                 logging.getLogger(name).setLevel(logging.CRITICAL + 1)
 
+    # Report an invalid log level after the handlers are in place.
+    if invalid_log_level is not None:
+        logger.warning(
+            "Invalid log level %s in %s, using %s instead.",
+            invalid_log_level,
+            ENV_LOG_LEVEL,
+            logging.getLevelName(DEFAULT_LOG_LEVEL),
+        )
+
     return logger
 
 
@@ -534,7 +554,7 @@ def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
         settings_text = env.get(ENV_SETTINGS)
         if not settings_text:
             return McpServerSettings()
-        elif re.match(r"^\s*\{.*\}\s*$", settings_text):
+        elif re.match(r"^\s*\{.*\}\s*$", settings_text, re.DOTALL):
             return McpServerSettings.model_validate_json(settings_text)
         elif os.path.isfile(settings_text):
             with open(settings_text) as f:
@@ -542,7 +562,8 @@ def get_mcp_settings(env: dict[str, Any]) -> McpServerSettings:
         raise ValueError(
             "Invalid MCP Server configuration settings. The configuration "
             "environment variable should either contain a json string or "
-            "point to an existing json file."
+            "point to an existing json file. No json file found at "
+            f"{os.path.abspath(settings_text)}."
         )
     except (ValidationError, json.decoder.JSONDecodeError) as config_error:
         raise ValueError("Invalid MCP Server configuration settings.") from config_error
@@ -569,22 +590,21 @@ def create_mcp_server(
     return mcp_server_
 
 
-def get_env() -> dict[str:Any]:
+def get_env() -> dict[str, Any]:
     return os.environ
 
 
 # Matches the "error-tags" key in error_code_config.yml.
 _PROJECT_SHORT_TAG = "EMCP"
+_TELEMETRY_STARTED = "started"
 
 
-def setup_telemetry(logger: logging.Logger):
-    # register telemetry library and shutdown hook, send "started" event
-    try:
-        if not telemetry.was_setup():
-            telemetry.setup()
-            telemetry.track(f"{_PROJECT_SHORT_TAG}.started")
-    except telemetry.TelemetryError as e:
-        logger.warning("Telemetry init error: %s", str(e))
+def setup_telemetry():
+    # Send the "started" event. The telemetry library sets itself up on the first
+    # call, sends the data in a background thread and registers a shutdown hook.
+    # A telemetry failure must not prevent the server from starting.
+    with suppress(Exception):
+        telemetry.track(_PROJECT_SHORT_TAG, __version__, _TELEMETRY_STARTED)
 
 
 def mcp_server() -> ExasolMCPServer:
@@ -593,28 +613,25 @@ def mcp_server() -> ExasolMCPServer:
     """
     env = get_env()
     logger = setup_logger(env)
-    setup_telemetry(logger)
-    try:
-        mcp_settings = get_mcp_settings(env)
-        auth_kwargs = get_auth_kwargs()
-        connection_factory = cf.get_connection_factory(env)
+    setup_telemetry()
+    mcp_settings = get_mcp_settings(env)
+    auth_kwargs = get_auth_kwargs()
+    connection_factory = cf.get_connection_factory(env)
 
-        connection = DbConnection(connection_factory=connection_factory)
-        # Try to get the BucketFS location only if the bucketfs tools are enabled.
-        if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
-            bucketfs_location = cf.get_bucketfs_location(env)
-        else:
-            bucketfs_location = None
+    connection = DbConnection(connection_factory=connection_factory)
+    # Try to get the BucketFS location only if the bucketfs tools are enabled.
+    if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
+        bucketfs_location = cf.get_bucketfs_location(env)
+    else:
+        bucketfs_location = None
 
-        server = create_mcp_server(
-            connection=connection,
-            config=mcp_settings,
-            bucketfs_location=bucketfs_location,
-            **auth_kwargs,
-        )
-        logger.info("Exasol MCP Server created.")
-    finally:
-        telemetry.shutdown()
+    server = create_mcp_server(
+        connection=connection,
+        config=mcp_settings,
+        bucketfs_location=bucketfs_location,
+        **auth_kwargs,
+    )
+    logger.info("Exasol MCP Server created.")
     return server
 
 
