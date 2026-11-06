@@ -55,9 +55,12 @@ should contain the path to this file, e.g.
     {
         "env": {
             "other": "variables",
-            "EXA_MCP_SETTINGS": "path_to_settings.json"
+            "EXA_MCP_SETTINGS": "/absolute/path/to/settings.json"
         }
     }
+
+The path should be absolute. A relative path is resolved from the directory the server
+was started in, which is often not obvious when an MCP client starts the server.
 
 Please see the :doc:`tool_setup` for details on how the MCP Server tools
 can be customised.

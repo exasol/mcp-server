@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 from functools import cache
+from importlib.metadata import version
 from typing import (
     Annotated,
     Any,
@@ -487,7 +488,9 @@ class ExasolMCPServer(FastMCP):
         bucketfs_location: bfs.path.PathLike | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(name="exasol-mcp", **kwargs)
+        super().__init__(
+            name="exasol-mcp", version=version("exasol-mcp-server"), **kwargs
+        )
         self.connection = connection
         self.bucketfs_tools = (
             BucketFsTools(bucketfs_location, config)

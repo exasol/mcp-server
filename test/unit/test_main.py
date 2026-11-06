@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+from importlib.metadata import version
 from logging.handlers import RotatingFileHandler
 from typing import Any
 from unittest.mock import (
@@ -11,6 +13,7 @@ from unittest.mock import (
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
+from fastmcp import Client
 from fastmcp.server.auth import RemoteAuthProvider
 
 from exasol.ai.mcp.server.connection.connection_factory import (
@@ -30,6 +33,7 @@ from exasol.ai.mcp.server.main import (
     _register_execute_query,
     _register_profile_query,
     _register_summarize_table,
+    create_mcp_server,
     get_mcp_settings,
     main_http,
     mcp_server,
@@ -73,6 +77,12 @@ def test_get_mcp_settings_json_str(settings_json) -> None:
     assert result == McpServerSettings.model_validate(settings_json)
 
 
+def test_get_mcp_settings_multiline_json_str(settings_json) -> None:
+    env = {ENV_SETTINGS: json.dumps(settings_json, indent=2)}
+    result = get_mcp_settings(env)
+    assert result == McpServerSettings.model_validate(settings_json)
+
+
 def test_get_mcp_settings_file(settings_json, tmp_path) -> None:
     json_path = tmp_path / "mcp_settings.json"
     with open(json_path, "w") as f:
@@ -100,8 +110,17 @@ def test_get_mcp_settings_invalid_json_file(tmp_path) -> None:
 def test_get_mcp_settings_no_file(tmp_path) -> None:
     json_path = tmp_path / "mcp_settings.json"
     env = {ENV_SETTINGS: str(json_path)}
-    with pytest.raises(ValueError, match="Invalid MCP Server configuration"):
+    with pytest.raises(ValueError, match="Invalid MCP Server configuration") as exc:
         get_mcp_settings(env)
+    assert str(json_path) in str(exc.value)
+
+
+def test_get_mcp_settings_no_file_relative_path(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    env = {ENV_SETTINGS: "mcp_settings.json"}
+    with pytest.raises(ValueError, match="Invalid MCP Server configuration") as exc:
+        get_mcp_settings(env)
+    assert str(tmp_path / "mcp_settings.json") in str(exc.value)
 
 
 def test_setup_logger(tmp_path) -> None:
@@ -134,6 +153,19 @@ def test_setup_logger_to_console(caplog) -> None:
     assert len(caplog.records) == 1
     assert caplog.records[0].message == "Test message"
     assert caplog.records[0].levelname == "INFO"
+
+
+def test_setup_logger_lowercase_level() -> None:
+    env = {ENV_LOG_LEVEL: " info "}
+    logger = setup_logger(env)
+    assert logger.level == logging.INFO
+
+
+def test_setup_logger_invalid_level(caplog) -> None:
+    env = {ENV_LOG_LEVEL: "verbose"}
+    logger = setup_logger(env)
+    assert logger.level == logging.WARNING
+    assert "Invalid log level VERBOSE" in caplog.text
 
 
 def test_setup_logger_ignore(tmp_path) -> None:
@@ -372,13 +404,31 @@ def test_register_respects_query_result_format(
 
 def test_setup_telemetry_uses_project_short_tag() -> None:
     logger = logging.getLogger("test_setup_telemetry_ok")
-    with (
-        patch("exasol.ai.mcp.server.main.telemetry.was_setup", return_value=False),
-        patch("exasol.ai.mcp.server.main.telemetry.setup"),
-        patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track,
+    with patch("exasol.ai.mcp.server.main.telemetry.track") as mock_track:
+        setup_telemetry(logger)
+        mock_track.assert_called_once_with(
+            _PROJECT_SHORT_TAG, version("exasol-mcp-server"), "started"
+        )
+
+
+def test_setup_telemetry_error_is_logged(caplog) -> None:
+    logger = logging.getLogger("test_setup_telemetry_error")
+    with patch(
+        "exasol.ai.mcp.server.main.telemetry.track",
+        side_effect=RuntimeError("no telemetry"),
     ):
         setup_telemetry(logger)
-        mock_track.assert_called_once_with(f"{_PROJECT_SHORT_TAG}.started")
+    assert "no telemetry" in caplog.text
+
+
+async def _get_server_version_async() -> str:
+    server = create_mcp_server(create_autospec(DbConnection), McpServerSettings())
+    async with Client(server) as client:
+        return client.server_info.version
+
+
+def test_server_reports_package_version() -> None:
+    assert asyncio.run(_get_server_version_async()) == version("exasol-mcp-server")
 
 
 @patch("fastmcp.FastMCP.run")

@@ -128,7 +128,8 @@ server. To run the server as a Direct HTTP Server execute the command:
 
     exasol-mcp-server-http --host <server-host> --port <server-port>
 
-The *host* defaults to 0.0.0.0.
+The *host* defaults to 127.0.0.1 (this machine only). To accept connections from
+other machines, set it explicitly, e.g. to 0.0.0.0 (all network interfaces).
 
 This command provides a simple way to verify the setup for a remote MCP Server deployment.
 For the production environment, one might consider using an ASGI server like Unicorn. The
