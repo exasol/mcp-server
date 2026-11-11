@@ -447,6 +447,12 @@ def test_get_common_kwargs_sslopt() -> None:
     assert "websocket_sslopt" in common_args
 
 
+def test_get_common_kwargs_verbose_error() -> None:
+    # The full error detail is needed in the server-side log and in the
+    # verbose_db_errors mode, so it must not depend on the pyexasol default.
+    assert get_common_kwargs({})["verbose_error"] is True
+
+
 def test_get_oidc_user_none() -> None:
     assert get_oidc_user(None) == (None, None)
 

@@ -444,3 +444,28 @@ def test_main_http_no_auth(mock_run, monkeypatch, caplog) -> None:
         (rec.levelname == "WARNING") and ("authentication" in rec.message.lower())
         for rec in caplog.records
     )
+
+
+@pytest.mark.parametrize("verbose_db_errors", [True, False])
+@patch("fastmcp.FastMCP.run")
+def test_main_http_verbose_db_errors_warning(
+    mock_run, monkeypatch, caplog, verbose_db_errors
+) -> None:
+    """
+    Verifies that the HTTP server logs a warning at startup if, and only if, the
+    verbose_db_errors setting is enabled.
+    """
+    _set_fake_conn(monkeypatch)
+    monkeypatch.setenv(ENV_LOG_TO_CONSOLE, "true")
+    monkeypatch.setenv(
+        ENV_SETTINGS, json.dumps({"verbose_db_errors": verbose_db_errors})
+    )
+    caplog.clear()
+    runner = CliRunner()
+    result = runner.invoke(main_http, ["--no-auth"])
+    assert result.exit_code == 0
+    warned = any(
+        (rec.levelname == "WARNING") and ("verbose_db_errors" in rec.message)
+        for rec in caplog.records
+    )
+    assert warned == verbose_db_errors

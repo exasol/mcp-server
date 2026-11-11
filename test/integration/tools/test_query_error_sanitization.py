@@ -78,3 +78,24 @@ def test_execute_query_multi_statement_is_sanitized(pyexasol_connection):
         )
     message = str(exc_info.value)
     _assert_no_sensitive_details(message, pyexasol_connection)
+
+
+def test_execute_query_verbose_db_errors(pyexasol_connection):
+    """
+    With verbose_db_errors enabled, sanitization is switched off on purpose: the
+    client receives the error type and pyexasol's full error text, including the dsn
+    and the user.
+    """
+    config = McpServerSettings(enable_read_query=True, verbose_db_errors=True)
+    with pytest.raises(ToolError) as exc_info:
+        run_tool(
+            pyexasol_connection,
+            config,
+            tool_name="execute_exasol_query",
+            query="SELECT * FROM NONEXISTENT_SCHEMA.NONEXISTENT_TABLE",
+        )
+    message = str(exc_info.value)
+    assert "The database rejected the query: ExaQueryError:" in message
+    assert "NONEXISTENT_TABLE" in message
+    assert pyexasol_connection.options["dsn"] in message
+    assert pyexasol_connection.options["user"] in message

@@ -46,7 +46,9 @@ async def _run_tool_async(
     ) -> Generator[ExaConnection, None, None]:
         yield connection
 
-    db_connection = DbConnection(connection_factory, num_retries=1)
+    db_connection = DbConnection(
+        connection_factory, num_retries=1, verbose_errors=config.verbose_db_errors
+    )
 
     exa_server = create_mcp_server(db_connection, config)
     async with Client(exa_server) as client:

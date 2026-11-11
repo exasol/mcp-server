@@ -11,13 +11,13 @@ import pyexasol
 import pytest
 
 from exasol.ai.mcp.server.connection.db_connection import (
-    GENERIC_DB_ERROR_MESSAGE,
     QUERY_ERROR_PREFIX,
     DbConnection,
     fetchall,
     fetchcol,
     fetchone,
     fetchval,
+    generic_db_error_message,
 )
 
 
@@ -118,7 +118,7 @@ def test_db_connection_execute_success(snapshot):
 def test_db_connection_execute_failure(snapshot):
     """
     Tests that a non-retryable, non-query pyexasol error (ExaRequestError) is
-    sanitized to a generic connection-tier RuntimeError, with the original
+    sanitized to a generic RuntimeError naming the error type, with the original
     exception preserved as __cause__.
     """
     results = [pyexasol.ExaRequestError, 1]
@@ -126,7 +126,7 @@ def test_db_connection_execute_failure(snapshot):
     db_connection = DbConnection(factory, num_retries=2)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == generic_db_error_message(pyexasol.ExaRequestError)
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaRequestError)
 
 
@@ -150,7 +150,7 @@ def test_db_connection_execute_retry_success(snapshot):
 def test_db_connection_execute_retry_failure(snapshot):
     """
     Tests that after retries are exhausted, the last error (ExaAuthError) is
-    sanitized to a generic connection-tier RuntimeError, with the original
+    sanitized to a generic RuntimeError naming the error type, with the original
     exception preserved as __cause__.
     """
     results = [
@@ -162,7 +162,7 @@ def test_db_connection_execute_retry_failure(snapshot):
     db_connection = DbConnection(factory, num_retries=2)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == generic_db_error_message(pyexasol.ExaAuthError)
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaAuthError)
 
 
@@ -182,7 +182,7 @@ def test_db_connection_execute_runtime_error_not_retried(snapshot):
     db_connection = DbConnection(factory, num_retries=3)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == generic_db_error_message(pyexasol.ExaRuntimeError)
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaRuntimeError)
     assert factory.connection.is_closed is True
     assert factory.conn_state == []
@@ -203,7 +203,7 @@ def test_db_connection_execute_runtime_error_survives_close_failure(snapshot):
     db_connection = DbConnection(factory, num_retries=3)
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == generic_db_error_message(pyexasol.ExaRuntimeError)
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaRuntimeError)
 
 
@@ -245,7 +245,9 @@ def test_db_connection_fetch_error_is_sanitized(snapshot):
 
     with pytest.raises(RuntimeError) as exc_info:
         db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
-    assert str(exc_info.value) == GENERIC_DB_ERROR_MESSAGE
+    assert str(exc_info.value) == generic_db_error_message(
+        pyexasol.ExaCommunicationError
+    )
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaCommunicationError)
 
 
@@ -300,3 +302,86 @@ def test_db_connection_execute_error_is_logged_with_full_detail(snapshot, caplog
     assert factory.connection.options["user"] in logged_detail
     assert factory.connection.options["dsn"] not in str(exc_info.value)
     assert factory.connection.options["user"] not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "ex_type",
+    [
+        pyexasol.ExaQueryError,
+        pyexasol.ExaRequestError,
+        pyexasol.ExaRuntimeError,
+        pyexasol.ExaConnectionFailedError,
+    ],
+)
+def test_db_connection_verbose_errors(snapshot, ex_type):
+    """
+    Tests that with `verbose_errors` enabled, the caller receives the error type and
+    the full pyexasol error text (including the dsn and user) for both query and
+    non-query errors, with the original exception preserved as __cause__. Query
+    errors keep the query error prefix.
+    """
+    factory = FakeConnectionFactory(results=[ex_type], snapshot=snapshot)
+    factory.connection.current_schema.return_value = "mock-schema"
+    factory.connection.session_id.return_value = "mock-session"
+    db_connection = DbConnection(factory, num_retries=1, verbose_errors=True)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    message = str(exc_info.value)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ex_type)
+    prefix = QUERY_ERROR_PREFIX if issubclass(ex_type, pyexasol.ExaQueryError) else ""
+    assert message == f"{prefix}{ex_type.__name__}: {str(cause).strip()}"
+    assert factory.connection.options["dsn"] in message
+    assert factory.connection.options["user"] in message
+
+
+@pytest.mark.parametrize(
+    "ex_type",
+    [pyexasol.ExaConnectionFailedError, pyexasol.ExaConnectionDsnError],
+)
+def test_db_connection_generic_message_hides_detail(snapshot, ex_type):
+    """
+    Tests that with `verbose_errors` disabled (the default), the generic message
+    names the error type but carries neither the original `.message` - which for a
+    real connection error can contain the database hostname - nor the dsn/user.
+    """
+    secret_host = "secret-db-host.internal"
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    error = ex_type(factory.connection, f"Could not resolve hostname [{secret_host}]")
+    if snapshot:
+        factory.connection.meta.execute_snapshot.side_effect = error
+    else:
+        factory.connection.execute.side_effect = error
+    db_connection = DbConnection(factory, num_retries=1)
+    with pytest.raises(RuntimeError) as exc_info:
+        db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    message = str(exc_info.value)
+    assert message == generic_db_error_message(ex_type)
+    assert secret_host not in message
+    assert factory.connection.options["dsn"] not in message
+    assert factory.connection.options["user"] not in message
+
+
+@pytest.mark.parametrize(
+    ("ex_type", "log_message"),
+    [
+        (pyexasol.ExaQueryError, "Query execution failed with a database error"),
+        (
+            pyexasol.ExaRequestError,
+            "A pyexasol error occurred while executing a query",
+        ),
+    ],
+)
+def test_db_connection_log_message_by_error_kind(
+    snapshot, caplog, ex_type, log_message
+):
+    """
+    Tests that query errors and other pyexasol errors are logged with different
+    messages, so that the server log can tell SQL mistakes from connection problems.
+    """
+    factory = FakeConnectionFactory(results=[ex_type], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=1)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError):
+            db_connection.execute_query("SELECT 1", snapshot=snapshot)
+    assert [r.getMessage() for r in caplog.records] == [log_message]

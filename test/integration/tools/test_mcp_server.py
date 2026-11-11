@@ -5,7 +5,7 @@ import pyexasol
 import pytest
 from fastmcp.exceptions import ToolError
 
-from exasol.ai.mcp.server.connection.db_connection import GENERIC_DB_ERROR_MESSAGE
+from exasol.ai.mcp.server.connection.db_connection import generic_db_error_message
 from exasol.ai.mcp.server.setup.server_settings import (
     McpServerSettings,
     MetaListSettings,
@@ -1020,9 +1020,9 @@ def test_execute_query_rejects_duplicate_columns(
     with pyexasol.connect(**backend_aware_database_params) as connection:
         with pytest.raises(ToolError) as exc_info:
             run_tool(connection, config, tool_name="execute_exasol_query", query=query)
+    expected = generic_db_error_message(pyexasol.ExaRuntimeError)
     assert (
-        str(exc_info.value)
-        == f"Error calling tool 'execute_exasol_query': {GENERIC_DB_ERROR_MESSAGE}"
+        str(exc_info.value) == f"Error calling tool 'execute_exasol_query': {expected}"
     )
 
 

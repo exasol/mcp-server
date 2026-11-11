@@ -225,6 +225,10 @@ def get_common_kwargs(env: dict[str, Any]) -> dict[str, Any]:
     common_kwargs = {
         "fetch_dict": True,
         "compression": True,
+        # Set explicitly rather than relying on the pyexasol default: the full
+        # error detail is needed in the server-side log, and in the client-facing
+        # error message if the verbose_db_errors setting is enabled.
+        "verbose_error": True,
     }
     ssl_opt = get_ssl_options(env)
     if ssl_opt:

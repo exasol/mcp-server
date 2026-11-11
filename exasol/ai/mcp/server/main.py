@@ -618,7 +618,10 @@ def mcp_server() -> ExasolMCPServer:
     auth_kwargs = get_auth_kwargs()
     connection_factory = cf.get_connection_factory(env)
 
-    connection = DbConnection(connection_factory=connection_factory)
+    connection = DbConnection(
+        connection_factory=connection_factory,
+        verbose_errors=mcp_settings.verbose_db_errors,
+    )
     # Try to get the BucketFS location only if the bucketfs tools are enabled.
     if mcp_settings.enable_read_bucketfs or mcp_settings.enable_write_bucketfs:
         bucketfs_location = cf.get_bucketfs_location(env)
@@ -669,6 +672,13 @@ def main_http(transport, host, port, no_auth) -> None:
             logger.warning(message)
         else:
             raise RuntimeError(message)
+    if server.config.verbose_db_errors:
+        logging.getLogger().warning(
+            "The verbose_db_errors setting is enabled. Database errors returned to "
+            "clients include internal details such as the DSN, database user and "
+            "session id. Do not use this setting on a server accessible to "
+            "untrusted clients."
+        )
     server.run(transport=transport, host=host, port=port)
 
 
