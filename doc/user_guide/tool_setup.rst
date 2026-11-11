@@ -239,6 +239,33 @@ call. Please note the following:
 - The request state is sealed with a key generated when the server starts. If the HTTP server
   runs as several replicas, all rounds of a tool call must reach the same replica.
 
+Enable verbose database errors
+------------------------------
+
+By default, the error message returned to the client for a failed database operation is
+sanitized (see the Error Handling section in :doc:`tool_list`). Errors in the query itself,
+such as a syntax error, include the original database error text. All other database errors,
+for example a failure to connect or to authenticate, are replaced with a generic message that
+only names the error type, e.g. ``ExaConnectionFailedError`` or ``ExaAuthError``. The full
+error details are written to the server log at the WARNING level.
+
+To help with troubleshooting, the error type and the full error text can be returned to
+the client instead:
+
+.. code-block:: json
+
+    {
+        "verbose_db_errors": true
+    }
+
+**Use this option with caution.** The full error text includes internal details: the database
+connection string (DSN), database username, current schema, session id and query text.
+A connection failure may also reveal the database hostname, TLS certificate details or
+the response of a proxy between the server and the database. We recommend enabling this
+option only for a local server (``stdio`` transport) or a deployment where all clients
+are trusted. It should not be enabled on a server accessible to untrusted clients. When
+this option is enabled, the HTTP server logs a warning at startup.
+
 Set DB object listing filters
 -----------------------------
 
@@ -391,6 +418,7 @@ The following JSON shows the default settings.
         "enable_read_bucketfs": false,
         "enable_write_bucketfs": false,
         "disable_elicitation": false,
+        "verbose_db_errors": false,
         "query_result_format": "tabular",
         "language": ""
     }

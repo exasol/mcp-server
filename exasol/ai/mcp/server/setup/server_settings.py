@@ -116,6 +116,14 @@ class McpServerSettings(BaseModel):
     enable_read_bucketfs: bool = False
     enable_write_bucketfs: bool = False
     disable_elicitation: bool = False
+    verbose_db_errors: bool = False
+    """
+    If enabled, database errors are returned to the client in full, as rendered by
+    pyexasol, including the DSN, database user, schema, session id and query text.
+    Intended for troubleshooting and for local or trusted deployments. By default,
+    only query errors (e.g. a syntax error) are returned in detail; other database
+    errors are replaced with a generic message naming the error type.
+    """
 
     query_result_format: Literal["tabular", "dict"] = "tabular"
     """

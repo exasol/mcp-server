@@ -18,12 +18,21 @@ from pyexasol import (
 
 logger = logging.getLogger(__name__)
 
-GENERIC_DB_ERROR_MESSAGE = (
-    "A database error occurred. Please try again later or contact "
-    "your administrator if the problem persists."
+GENERIC_DB_ERROR_TEMPLATE = (
+    "A database error occurred ({error_type}). Contact your administrator if the "
+    "problem persists."
 )
 
 QUERY_ERROR_PREFIX = "The database rejected the query: "
+
+
+def generic_db_error_message(error_type: type[ExaError]) -> str:
+    """
+    The sanitized message returned to the client for a non-query pyexasol error.
+    It names the error type but carries no other detail.
+    """
+    return GENERIC_DB_ERROR_TEMPLATE.format(error_type=error_type.__name__)
+
 
 T = TypeVar("T")
 
@@ -60,7 +69,8 @@ class DbConnection:
 
     Any pyexasol error (`ExaError` subclass) that would otherwise propagate is
     sanitized before it reaches the caller - see `execute_query` for details - so
-    that internal connection/session details are never exposed to an MCP client.
+    that internal connection/session details are not exposed to an MCP client,
+    unless `verbose_errors` is enabled.
 
     Args:
         connection_factory:
@@ -70,15 +80,22 @@ class DbConnection:
             This is what FastMCP expects from a tool.
         num_retries:
             Number of attempts to execute a query before raising an exception.
+        verbose_errors:
+            If True, pyexasol errors are not sanitized: the caller receives the
+            full error text, as rendered by pyexasol, which (with the pyexasol
+            `verbose_error` option on) includes the DSN, user, schema, session id
+            and, for query errors, the query text.
     """
 
     def __init__(
         self,
         connection_factory: Callable[..., ContextManager[ExaConnection]],
         num_retries: int = 2,
+        verbose_errors: bool = False,
     ) -> None:
         self._conn_factory = connection_factory
         self._num_retries = num_retries
+        self._verbose_errors = verbose_errors
 
     def execute_query(
         self,
@@ -112,8 +129,10 @@ class DbConnection:
         `fetch` call) is sanitized before being raised to the caller:
 
         - The full original exception is always logged server-side at WARNING level
-          first (including any DSN, DB/OS username, OS name, driver/client version
-          or session id it may carry), then a `RuntimeError` is raised `from` it, so
+          first (including the DSN, database user, schema, session id and, for
+          query errors, the query text, which pyexasol adds to the exception text
+          when its `verbose_error` option is on), then a `RuntimeError` is raised
+          `from` it, so
           the original exception remains available as `__cause__` for server-side
           debugging, even though it is never shown to the client.
         - For `ExaQueryError` (and its subclasses `ExaQueryTimeoutError`,
@@ -121,9 +140,14 @@ class DbConnection:
           syntax errors or references to non-existent objects - the `RuntimeError`
           message includes the original `.message` text, which is safe to expose.
         - For every other `ExaError` subtype (authentication, connection,
-          communication or concurrency errors) a fixed, fully generic message is
-          used instead, since these categories can embed connection/session details
-          directly in `.message`.
+          communication or concurrency errors) a generic message is used instead,
+          which only names the exception type, since these categories can embed
+          connection/session details directly in `.message`.
+        - If `verbose_errors` was set in the constructor, the `RuntimeError`
+          message is instead the exception type name followed by the full `str()`
+          of the original exception, for every `ExaError` subtype. Query errors
+          keep the `QUERY_ERROR_PREFIX`, so that the client can still tell them
+          apart from other errors.
 
         Non-pyexasol exceptions (i.e. bugs in our own code, such as a `TypeError`)
         are not caught here and propagate unmodified.
@@ -144,16 +168,31 @@ class DbConnection:
                 query, snapshot=snapshot, no_auth=no_auth
             )
             return fetch(statement)
-        except ExaQueryError as ex:
-            logger.warning(
-                "Query execution failed with a database error", exc_info=True
-            )
-            raise RuntimeError(f"{QUERY_ERROR_PREFIX}{ex.message}") from ex
         except ExaError as ex:
-            logger.warning(
-                "A pyexasol error occurred while executing a query", exc_info=True
-            )
-            raise RuntimeError(GENERIC_DB_ERROR_MESSAGE) from ex
+            raise RuntimeError(self._client_error_message(ex)) from ex
+
+    def _client_error_message(self, ex: ExaError) -> str:
+        """
+        Logs a pyexasol error server-side with full detail, and builds the error
+        message returned to the caller (and ultimately to the MCP client). See
+        `execute_query` for the rules.
+        """
+        is_query_error = isinstance(ex, ExaQueryError)
+        logger.warning(
+            (
+                "Query execution failed with a database error"
+                if is_query_error
+                else "A pyexasol error occurred while executing a query"
+            ),
+            exc_info=ex,
+        )
+        prefix = QUERY_ERROR_PREFIX if is_query_error else ""
+        if self._verbose_errors:
+            # pyexasol's verbose text is wrapped in newlines; strip them.
+            return f"{prefix}{type(ex).__name__}: {str(ex).strip()}"
+        if is_query_error:
+            return f"{prefix}{ex.message}"
+        return generic_db_error_message(type(ex))
 
     def _execute_with_retries(
         self, query: str | list[str], snapshot: bool, no_auth: bool

@@ -578,11 +578,16 @@ Error Handling
 --------------
 
 If a database-backed tool (e.g. ``execute_exasol_query``) fails because of an error
-returned by the Exasol server or the underlying driver, the error message returned to
-the client never includes internal connection details such as the DSN, database or OS
-username, OS name, or driver/client version. For errors specific to the query itself
+returned by the Exasol server or the underlying driver, by default the error message
+returned to the client never includes internal connection details such as the DSN,
+database username, schema or session id. For errors specific to the query itself
 (for example a SQL syntax error or a reference to a non-existent object) the message
 includes the original database error text, since that text does not carry any such
 internal information. For all other database-level errors (for example connection or
-authentication failures) a generic message is returned instead; full details are only
-available in the server-side log.
+authentication failures) a generic message is returned instead. This message names the
+error type (e.g. ``ExaConnectionFailedError`` or ``ExaAuthError``) to help with
+troubleshooting. Full details are written to the server-side log at the WARNING level.
+
+To return the full error text to the client instead, enable the ``verbose_db_errors``
+setting (see :doc:`tool_setup`). This exposes the internal details listed above and is
+not recommended for servers accessible to untrusted clients.
