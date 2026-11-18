@@ -1,3 +1,4 @@
+from collections.abc import Generator
 from itertools import chain
 from typing import Any
 
@@ -229,14 +230,33 @@ def test_list_schemas(
             assert expected_json[0] in result_json
 
 
+_META_TYPES = ["tables", "views", "functions", "scripts"]
+
+
+def _enabled_meta_types_config(enabled: list[str], **kwargs) -> McpServerSettings:
+    """
+    Builds the settings where only the listed object types are enabled.
+    """
+    config_dict = {
+        meta_type: {"enable": meta_type in enabled} for meta_type in _META_TYPES
+    }
+    return McpServerSettings.model_validate({**config_dict, **kwargs})
+
+
+@pytest.mark.parametrize(
+    "enabled",
+    [_META_TYPES, ["tables"], ["views"], ["functions"], ["scripts"], []],
+    ids=["all", "tables", "views", "functions", "scripts", "none"],
+)
 @pytest.mark.parametrize("language", ["", "english"])
 def test_find_schemas(
-    pyexasol_connection, setup_database, db_schemas, language
+    pyexasol_connection, setup_database, db_schemas, language, enabled
 ) -> None:
-    config = McpServerSettings(
-        schemas=MetaListSettings(enable=True),
-        language=language,
-    )
+    """
+    Tests the `find_schemas` tool with any number of enabled object types,
+    including just one or none (see issue #337).
+    """
+    config = _enabled_meta_types_config(enabled, language=language)
     for schema in db_schemas:
         # Will test on new schemas only, where the result is more reliable.
         if not schema.is_new:
@@ -247,6 +267,65 @@ def test_find_schemas(
         result_json = get_result_json(result)[0]
         expected_json = {NAME_FIELD: schema.name, COMMENT_FIELD: schema.comment}
         assert result_json == expected_json
+
+
+@pytest.fixture
+def empty_schema(pyexasol_connection) -> Generator[ExaSchema, None, None]:
+    """
+    Creates a schema without any objects in it.
+    """
+    schema = ExaSchema(
+        name="mcp_empty_schema",
+        comment="vacant schema with no database objects",
+        is_new=True,
+        keywords=["mcp_empty_schema", "vacant schema"],
+    )
+    drop_query = f'DROP SCHEMA IF EXISTS "{schema.name}" CASCADE'
+    pyexasol_connection.execute(query=drop_query)
+    current_schema = pyexasol_connection.current_schema()
+    try:
+        try:
+            pyexasol_connection.execute(query=f'CREATE SCHEMA "{schema.name}"')
+            query = f"COMMENT ON SCHEMA \"{schema.name}\" IS '{schema.comment}'"
+            pyexasol_connection.execute(query=query)
+        finally:
+            # Creating a schema opens it, restore the previously opened one.
+            if current_schema:
+                pyexasol_connection.execute(f'OPEN SCHEMA "{current_schema}"')
+            else:
+                pyexasol_connection.execute("CLOSE SCHEMA")
+        pyexasol_connection.execute(query="COMMIT")
+        yield schema
+    finally:
+        pyexasol_connection.execute(query=drop_query)
+        pyexasol_connection.execute(query="COMMIT")
+
+
+@pytest.mark.parametrize(
+    "enabled",
+    [_META_TYPES, ["tables"], []],
+    ids=["all", "tables", "none"],
+)
+def test_find_schemas_empty_schema(
+    pyexasol_connection, setup_database, empty_schema, enabled
+) -> None:
+    """
+    Checks that a schema without visible objects of an enabled type can still be
+    found by its name and comment.
+    """
+    config = _enabled_meta_types_config(enabled)
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        "find_exasol_schemas",
+        keywords=empty_schema.keywords,
+    )
+    result_json = get_result_json(result)[0]
+    expected_json = {
+        NAME_FIELD: empty_schema.name,
+        COMMENT_FIELD: empty_schema.comment,
+    }
+    assert result_json == expected_json
 
 
 @pytest.mark.parametrize(

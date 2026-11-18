@@ -24,3 +24,6 @@ the client.
   * The error for a missing settings file now shows the resolved file path
   * A lowercase or invalid `EXA_MCP_LOG_LEVEL` no longer crashes the server
   * Corrected the default HTTP host in the README
+* #337: Fixed the `find_exasol_schemas` tool:
+  * The tool no longer fails when fewer than two of the tables, views, functions and scripts are enabled
+  * Schemas without visible objects of an enabled type can now be found by their name and comment
