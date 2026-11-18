@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from typing import (
     Any,
     ContextManager,
@@ -106,23 +107,33 @@ class DbConnection:
     ) -> T:
         """
         Will make the set number of attempts to execute the provided query. A repeated
-        attempt may follow an `ExaCommunicationError` or `ExaAuthError`, since these can
-        be transient (a network blip, a briefly stale token) and may succeed on a fresh
-        connection. `ExaRuntimeError` is never retried: pyexasol only raises it for
-        client-side precondition failures (e.g. duplicate column names in the result
-        set, an already-closed connection) that are a function of the query/arguments
-        themselves, not of connection state - retrying would reproduce the identical
-        error while needlessly discarding a connection.
+        attempt may follow an `ExaCommunicationError` or `ExaAuthError` raised during
+        the query execution, since these can be transient (a network blip, a briefly
+        stale token) and may succeed on a fresh connection. `ExaRuntimeError` is never
+        retried: pyexasol only raises it for client-side precondition failures (e.g.
+        duplicate column names in the result set, an already-closed connection) that
+        are a function of the query/arguments themselves, not of connection state -
+        retrying would only reproduce the identical error. The connection is still
+        discarded, out of caution.
 
-        `fetch` is called on the resulting statement while still inside this method's
-        sanitizing try/except, so callers should retrieve rows through it (e.g.
-        `fetch=fetchall`, using the module-level helper below) rather than calling
-        `.fetchall()`/`.fetchval()`/etc. on the returned value afterwards. An `ExaError`
-        raised while fetching - for example a connection failure while pulling a later
-        chunk of a large result set - is sanitized exactly like one raised during query
-        execution; fetching outside this method would let it through unsanitized. The
-        default `fetch` returns the statement unchanged, for callers that only execute
-        a statement for its side effect (e.g. DDL/DML) and never fetch from it.
+        `fetch` is called on the resulting statement while the connection is still
+        checked out of the pool, and inside this method's sanitizing try/except, so
+        callers should retrieve rows through it (e.g. `fetch=fetchall`, using the
+        module-level helper above) rather than calling `.fetchall()`/`.fetchval()`/etc.
+        on the returned value afterwards. A large result set is fetched in chunks, each
+        a separate request over the connection; once the connection is back in the pool
+        another, concurrent, request may be using it.
+
+        An `ExaError` raised while fetching - for example a connection failure while
+        pulling a later chunk of a large result set - is sanitized like one raised
+        during query execution, but it's never retried: the query has already run, and
+        a retry would run it again. The connection is discarded.
+
+        The statement is closed after `fetch`, also while the connection is checked
+        out, whether `fetch` succeeds or not. A failure to close it is ignored. The
+        default `fetch` returns the statement unchanged, already closed, for callers
+        that only execute a statement for its side effect (e.g. DDL/DML) and never
+        fetch from it.
 
         Any `ExaError` that ultimately reaches this method (whether from establishing
         the connection, from an unretried/retry-exhausted query failure, or from the
@@ -132,9 +143,8 @@ class DbConnection:
           first (including the DSN, database user, schema, session id and, for
           query errors, the query text, which pyexasol adds to the exception text
           when its `verbose_error` option is on), then a `RuntimeError` is raised
-          `from` it, so
-          the original exception remains available as `__cause__` for server-side
-          debugging, even though it is never shown to the client.
+          `from` it, so the original exception remains available as `__cause__` for
+          server-side debugging, even though it is never shown to the client.
         - For `ExaQueryError` (and its subclasses `ExaQueryTimeoutError`,
           `ExaQueryAbortError`) - raised for actual SQL EXECUTE failures such as
           syntax errors or references to non-existent objects - the `RuntimeError`
@@ -157,17 +167,17 @@ class DbConnection:
         normal `execute` method.
 
         If a list of queries is provided, all statements are executed in a single
-        session and the result of the last one is returned.
+        session and the result of the last one is returned. The statement of each
+        earlier query is closed before the next query runs.
 
         If no_auth is True, the connection factory will skip the OAuth username claim
         check. This is intended for unauthenticated internal callers such as the health
         check endpoint.
         """
         try:
-            statement = self._execute_with_retries(
-                query, snapshot=snapshot, no_auth=no_auth
+            return self._execute_with_retries(
+                query, snapshot=snapshot, no_auth=no_auth, fetch=fetch
             )
-            return fetch(statement)
         except ExaError as ex:
             raise RuntimeError(self._client_error_message(ex)) from ex
 
@@ -195,15 +205,21 @@ class DbConnection:
         return generic_db_error_message(type(ex))
 
     def _execute_with_retries(
-        self, query: str | list[str], snapshot: bool, no_auth: bool
-    ) -> ExaStatement:
+        self,
+        query: str | list[str],
+        snapshot: bool,
+        no_auth: bool,
+        fetch: Callable[[ExaStatement], T],
+    ) -> T:
         queries = [query] if isinstance(query, str) else query
         attempt = 1
         while True:
             with self._conn_factory(no_auth=no_auth) as connection:
                 connection.options["fetch_dict"] = True
                 try:
-                    return self._run_queries(connection, queries, snapshot=snapshot)
+                    statement = self._run_queries(
+                        connection, queries, snapshot=snapshot
+                    )
                 except ExaRuntimeError:
                     # A client-side precondition failure, not a connection problem.
                     # The same query would fail with the same error on any
@@ -221,16 +237,48 @@ class DbConnection:
                     if attempt == self._num_retries:
                         raise
                     attempt += 1
+                    continue
+
+                # Fetch and close the statement before leaving the `with` block,
+                # which returns the connection to the pool.
+                try:
+                    return fetch(statement)
+                except ExaError:
+                    # The query has run, so it's not retried: that would run it
+                    # again, repeating any side effects. The connection may be in
+                    # an unexpected state, so it's discarded.
+                    with suppress(ExaError):
+                        connection.close()
+                    raise
+                finally:
+                    self._close_statement(statement)
+
+    @staticmethod
+    def _close_statement(statement: ExaStatement) -> None:
+        """
+        Closes the statement, releasing its result set on the server, if it is still
+        open. Otherwise, `ExaStatement.__del__` would do it later, possibly after the
+        connection has been returned to the pool and checked out by another request.
+        This is only cleanup: a failure is ignored, so that it cannot discard a
+        result that has already been fetched, stop the remaining queries in a list
+        from running, or mask the original error.
+        """
+        with suppress(ExaError):
+            statement.close()
 
     @staticmethod
     def _run_queries(
         connection: ExaConnection, queries: list[str], snapshot: bool
     ) -> ExaStatement:
-        result = None
+        statement = None
         for q in queries:
-            result = (
+            # Only the last statement is returned. Close the previous one now, so
+            # that it is not left open if the next query fails.
+            if statement is not None:
+                DbConnection._close_statement(statement)
+            statement = (
                 connection.meta.execute_snapshot(query=q)
                 if snapshot
                 else connection.execute(query=q)
             )
-        return result
+        return statement
