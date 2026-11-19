@@ -352,6 +352,13 @@ execute_exasol_write_query
 Tools for Reading, Writing and Deleting Files in BucketFS
 ---------------------------------------------------------
 
+The BucketFS tools only have access to the files and directories under the base
+directory, which is set by ``EXA_BUCKETFS_PATH`` and defaults to the bucket root
+(see :doc:`bucketfs_setup`). All paths passed to the tools are relative to the base
+directory. The tools reject absolute paths and paths that use ``..`` to point outside
+the base directory. The tools that write or delete files also reject paths that point
+to the base directory itself.
+
 list_bucketfs_directories
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

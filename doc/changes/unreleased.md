@@ -25,3 +25,4 @@ the client.
   * A lowercase or invalid `EXA_MCP_LOG_LEVEL` no longer crashes the server
   * Corrected the default HTTP host in the README
 * #341: Fixed a database connection being returned to the pool before its query result was fetched
+* #343: Prevented the BucketFS tools from accessing paths outside the configured base directory (`EXA_BUCKETFS_PATH`)
