@@ -64,6 +64,10 @@ class FakeConnectionFactory:
         else:
             self.connection.execute.side_effect = side_effect
         self.conn_state = []
+        # True while the connection is checked out, i.e. before it would be
+        # returned to the pool.
+        self.checked_out = False
+        self.statements = [s for s in side_effect if not isinstance(s, Exception)]
 
     def _close(self):
         self.connection.is_closed = True
@@ -71,7 +75,11 @@ class FakeConnectionFactory:
     @contextmanager
     def __call__(self, no_auth: bool = False) -> ContextManager[pyexasol.ExaConnection]:
         self.connection.is_closed = False
-        yield self.connection
+        self.checked_out = True
+        try:
+            yield self.connection
+        finally:
+            self.checked_out = False
         self.conn_state.append(self.connection.is_closed)
 
 
@@ -249,6 +257,127 @@ def test_db_connection_fetch_error_is_sanitized(snapshot):
         pyexasol.ExaCommunicationError
     )
     assert isinstance(exc_info.value.__cause__, pyexasol.ExaCommunicationError)
+
+
+def test_db_connection_fetch_while_checked_out(snapshot):
+    """
+    Tests that the result is fetched while the connection is still checked out.
+    Fetching after the connection is back in the pool lets a concurrent request use
+    the same connection, which fails with `ExaConcurrencyError`.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    checked_out_at_fetch = []
+
+    def fetch(statement):
+        checked_out_at_fetch.append(factory.checked_out)
+        return statement.fetchval()
+
+    result = db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+    assert result == 1
+    assert checked_out_at_fetch == [True]
+
+
+def _record_close(factory: FakeConnectionFactory, statement: MagicMock) -> list[bool]:
+    """
+    Makes the mock statement record, on each close() call, whether the connection
+    was still checked out.
+    """
+    checked_out_at_close = []
+    statement.close.side_effect = lambda: checked_out_at_close.append(
+        factory.checked_out
+    )
+    return checked_out_at_close
+
+
+def test_db_connection_statement_closed_after_fetch(snapshot):
+    """
+    Tests that the statement is closed after `fetch`, while the connection is still
+    checked out, so that no `closeResultSet` is sent later over a pooled connection.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    statement = factory.statements[0]
+    checked_out_at_close = _record_close(factory, statement)
+
+    db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetchval)
+    assert checked_out_at_close == [True]
+
+
+def test_db_connection_statement_close_error_ignored(snapshot):
+    """
+    Tests that a failure to close the statement after a successful fetch is
+    ignored: the fetched result is returned and the query is not retried.
+    """
+    factory = FakeConnectionFactory(results=[1, 2], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    factory.statements[0].close.side_effect = pyexasol.ExaCommunicationError(
+        factory.connection, "connection dropped"
+    )
+
+    result = db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetchval)
+    assert result == 1
+    assert factory.conn_state == [False]
+
+
+def test_db_connection_statement_closed_on_fetch_error(snapshot):
+    """
+    Tests that the statement is closed, while the connection is still checked out,
+    when `fetch` raises.
+    """
+    factory = FakeConnectionFactory(results=[1], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    checked_out_at_close = _record_close(factory, factory.statements[0])
+
+    def fetch(statement):
+        raise pyexasol.ExaRuntimeError(factory.connection, "fetch failed")
+
+    with pytest.raises(RuntimeError):
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+    assert checked_out_at_close == [True]
+
+
+def test_db_connection_previous_statement_closed_on_query_error(snapshot):
+    """
+    Tests that, in a list of queries, the statement of an earlier query is closed,
+    while the connection is still checked out, when a later query fails. The
+    failed query's error keeps the earlier statement referenced after the connection
+    has been returned to the pool.
+    """
+    factory = FakeConnectionFactory(
+        results=[1, pyexasol.ExaQueryError], snapshot=snapshot
+    )
+    db_connection = DbConnection(factory, num_retries=2)
+    checked_out_at_close = _record_close(factory, factory.statements[0])
+
+    with pytest.raises(RuntimeError):
+        db_connection.execute_query(
+            ["SELECT 1", "SELECT 2"], snapshot=snapshot, fetch=fetchval
+        )
+    assert checked_out_at_close == [True]
+
+
+def test_db_connection_fetch_communication_error_not_retried(snapshot):
+    """
+    Tests that a communication error while fetching is not retried, unlike one
+    raised during execution. The query has already run, and a retry would run it
+    again. The connection is discarded.
+    """
+    factory = FakeConnectionFactory(results=[1, 2], snapshot=snapshot)
+    db_connection = DbConnection(factory, num_retries=2)
+    execute = (
+        factory.connection.meta.execute_snapshot
+        if snapshot
+        else factory.connection.execute
+    )
+
+    def fetch(statement):
+        raise pyexasol.ExaCommunicationError(factory.connection, "connection dropped")
+
+    with pytest.raises(RuntimeError):
+        db_connection.execute_query("SELECT 1", snapshot=snapshot, fetch=fetch)
+    assert execute.call_count == 1
+    assert factory.connection.is_closed
 
 
 def test_db_connection_fetch_non_pyexasol_error_propagates_unmodified(snapshot):
