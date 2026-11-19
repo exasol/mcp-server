@@ -96,44 +96,80 @@ def str_to_int(s: str) -> int:
     return int(str_to_str(s))
 
 
+def _union_to_converter(args: tuple) -> Callable[[str], Any]:
+    """
+    Returns the converter for a union with the given members.
+
+    A union with a single non-None member uses that member's converter. A union
+    with a list member, e.g. ``str | list[str]``, uses the converter of that list
+    member, since a list is a valid value for every such parameter.
+    """
+    non_none = [a for a in args if a is not type(None)]
+    literal_args = [a for a in non_none if get_origin(a) is Literal]
+    non_literal = [a for a in non_none if get_origin(a) is not Literal]
+    if non_literal == [bool] and literal_args:
+        return str_to_bool_or_external
+    if len(non_none) == 1:
+        return _type_to_converter(non_none[0])
+    list_args = [a for a in non_none if a is list or get_origin(a) is list]
+    if list_args:
+        return _type_to_converter(list_args[0])
+    return str_to_str
+
+
+def _str_to_bool_field(s: str) -> bool:
+    s_lower = s.lower()
+    if s_lower in ["true", "yes", "y"]:
+        return True
+    if s_lower in ["false", "no", "n"]:
+        return False
+    raise ValueError(f"Invalid boolean value: {s}")
+
+
+# Converters of a single, already parsed, list element.
+_LIST_ELEMENT_CONVERTERS: dict[Any, Callable[[str], Any]] = {
+    int: int,
+    bool: _str_to_bool_field,
+}
+
+
+def _list_to_converter(args: tuple) -> Callable[[str], Any]:
+    """
+    Returns the converter for a list with the given element type. The elements of
+    a ``list[int]`` or ``list[bool]`` are converted one by one. Any other list is
+    returned as a list of strings.
+    """
+    elem_conv = _LIST_ELEMENT_CONVERTERS.get(args[0] if args else str)
+    if elem_conv is None:
+        return str_to_list
+
+    def conv(s: str) -> list:
+        return [elem_conv(fld) for fld in str_to_list(s)]
+
+    return conv
+
+
 def _type_to_converter(annotation) -> Callable[[str], Any]:
     """
     Returns the string-to-value converter that best matches a type annotation.
 
     Handles the common scalar types (str, bool, int), generic collections
-    (list, dict), Optional variants, and the special ``bool | Literal["external"]``
-    union used by several FastMCP providers. Falls back to ``str_to_str`` for any
-    annotation that does not match a known pattern.
+    (list, dict), Optional variants, unions with a list member, and the special
+    ``bool | Literal["external"]`` union used by several FastMCP providers. Falls
+    back to ``str_to_str`` for any annotation that does not match a known pattern.
     """
     origin = get_origin(annotation)
     args = get_args(annotation)
 
-    if origin is Union:
-        non_none = [a for a in args if a is not type(None)]
-        literal_args = [a for a in args if get_origin(a) is Literal]
-        non_none_non_literal = [a for a in non_none if get_origin(a) is not Literal]
-        if (
-            len(non_none_non_literal) == 1
-            and non_none_non_literal[0] is bool
-            and literal_args
-        ):
-            return str_to_bool_or_external
-        if type(None) in args and len(non_none) == 1:
-            return _type_to_converter(non_none[0])
-        return str_to_str
-
-    if hasattr(_types, "UnionType") and isinstance(annotation, _types.UnionType):
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return _type_to_converter(non_none[0])
-        return str_to_str
+    if origin is Union or isinstance(annotation, _types.UnionType):
+        return _union_to_converter(args)
 
     if annotation is bool:
         return str_to_bool
     if annotation is int:
         return str_to_int
     if annotation is list or origin is list:
-        return str_to_list
+        return _list_to_converter(args)
     if annotation is dict or origin is dict:
         return str_to_dict
     return str_to_str
@@ -236,7 +272,7 @@ _generic_providers = [
         parameters=[
             AuthParameter("public_key"),
             AuthParameter("jwks_uri"),
-            AuthParameter("issuer"),
+            AuthParameter("issuer", str_to_list),
             AuthParameter("audience", str_to_list),
             AuthParameter("algorithm"),
             AuthParameter("required_scopes", str_to_list),
@@ -250,6 +286,7 @@ _generic_providers = [
             AuthParameter("client_id"),
             AuthParameter("client_secret"),
             AuthParameter("timeout_seconds", str_to_int),
+            AuthParameter("audience", str_to_list),
             AuthParameter("required_scopes", str_to_list),
             AuthParameter("base_url"),
         ],
