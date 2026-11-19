@@ -24,9 +24,13 @@ On-Prem configuration
 +-----------------------+-------------------------------------------------------------+
 | EXA_BUCKETFS_PASSWORD | Password for the selected bucket.                           |
 +-----------------------+-------------------------------------------------------------+
-| EXA_BUCKETFS_PATH     | Optional path in the bucket to be used as a root,           |
-|                       | defaults to the bucket root.                                |
+| EXA_BUCKETFS_PATH     | Optional path in the bucket to be used as the base          |
+|                       | directory of the tools, defaults to the bucket root.        |
 +-----------------------+-------------------------------------------------------------+
+
+The BucketFS tools only have access to the files and directories under the base
+directory. All paths passed to the tools are relative to the base directory. The tools
+reject absolute paths and paths that use `..` to point outside the base directory.
 
 SaaS configuration
 ------------------

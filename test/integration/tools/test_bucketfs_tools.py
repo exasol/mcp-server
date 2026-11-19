@@ -969,3 +969,74 @@ def test_bucketfs_tool_hints(pyexasol_connection, bucketfs_location) -> None:
         ToolHints(tool_name="delete_bucketfs_directory", destructive=True),
     }
     assert tool_list.issuperset(expected_tool_list)
+
+
+_BASE_DIR = "Species/Carnivores"
+_OUTSIDE_FILE = "Species/Rodents/Squirrel/Eastern_Gray_Squirrel"
+
+
+@pytest.fixture
+def base_dir_location(bucketfs_location) -> bfs.path.PathLike:
+    """
+    A non-empty base directory of the BucketFS tools.
+    """
+    return bucketfs_location.joinpath(_BASE_DIR)
+
+
+def test_read_file_in_base_dir(base_dir_location, bfs_data) -> None:
+    item = next(iter(bfs_data.find_descendants(["Cougar"]).values()))
+    result = _run_tool(base_dir_location, "read_bucketfs_text_file", path="Cat/Cougar")
+    assert get_result_content(result) == str(item.content, encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "path", [f"/{_OUTSIDE_FILE}", "../Rodents/Squirrel/Eastern_Gray_Squirrel"]
+)
+def test_read_file_outside_base_dir(base_dir_location, path) -> None:
+    with pytest.raises(ToolError):
+        _run_tool(base_dir_location, "read_bucketfs_text_file", path=path)
+
+
+@pytest.mark.parametrize("path", ["/", "/Species", "..", "../Rodents"])
+def test_list_outside_base_dir(base_dir_location, path) -> None:
+    with pytest.raises(ToolError):
+        _run_tool(base_dir_location, "list_bucketfs_files", directory=path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        f"/{_OUTSIDE_FILE}",
+        "../Rodents/Squirrel/Eastern_Gray_Squirrel",
+        "Cat/../../Rodents/Squirrel/Eastern_Gray_Squirrel",
+    ],
+)
+def test_write_file_outside_base_dir(
+    bucketfs_location, base_dir_location, no_elicit_config, path
+) -> None:
+    outside_file = bucketfs_location.joinpath(_OUTSIDE_FILE)
+    content_before = b"".join(outside_file.read())
+    with pytest.raises(ToolError):
+        _run_tool(
+            base_dir_location,
+            "write_text_to_bucketfs_file",
+            config=no_elicit_config,
+            path=path,
+            content=_chimpanzee,
+        )
+    assert b"".join(outside_file.read()) == content_before
+
+
+@pytest.mark.parametrize("path", ["", "/", "..", "Cat/.."])
+def test_delete_directory_outside_base_dir(
+    bucketfs_location, base_dir_location, no_elicit_config, path
+) -> None:
+    with pytest.raises(ToolError):
+        _run_tool(
+            base_dir_location,
+            "delete_bucketfs_directory",
+            config=no_elicit_config,
+            path=path,
+        )
+    assert bucketfs_location.joinpath(_OUTSIDE_FILE).is_file()
+    assert bucketfs_location.joinpath(_BASE_DIR, "Cat/Cougar").is_file()

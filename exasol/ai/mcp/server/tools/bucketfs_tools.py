@@ -1,5 +1,6 @@
 import asyncio
 import os
+import posixpath
 import tempfile
 from collections.abc import Callable
 from contextlib import AsyncExitStack
@@ -56,28 +57,38 @@ PATH_WARNINGS = {
         "proceed. Please choose another path."
     ),
     PathStatus.Invalid: (
-        "Please note that the chosen path has some invalid characters and must be "
-        "modified."
+        "Please note that the chosen path is invalid and must be modified. The path "
+        "must be relative to the base directory and must not point outside it or to "
+        "the base directory itself. Spaces and colons are not allowed."
     ),
 }
 
-DirectoryArg = Annotated[str, Field(description="Full path of the BucketFS directory")]
+DirectoryArg = Annotated[
+    str,
+    Field(description="Path of the BucketFS directory, relative to the base directory"),
+]
 
 OptionalDirectoryArg = Annotated[
     str,
     Field(
-        description="Full path of the BucketFS directory. Defaults to bucket root.",
+        description=(
+            "Path of the BucketFS directory, relative to the base directory. "
+            "Defaults to the base directory."
+        ),
         default="",
     ),
 ]
 
-FileArg = Annotated[str, Field(description="Full path of the BucketFS file")]
+FileArg = Annotated[
+    str, Field(description="Path of the BucketFS file, relative to the base directory")
+]
 
 NewFileArg = Annotated[
     str,
     Field(
         description=(
-            "Full path where the BucketFS file should be saved. "
+            "Path where the BucketFS file should be saved, relative to the base "
+            "directory. "
             "Spaces and colons are not allowed in the path."
         )
     ),
@@ -141,19 +152,73 @@ def check_answer(
     return path_status == expected_status
 
 
+def normalize_path(path: str, allow_base_dir: bool = True) -> str:
+    """
+    Normalises a BucketFS path, relative to the base directory, and checks that it
+    stays within the base directory. Returns the normalised path, which is an empty
+    string for the base directory itself.
+
+    The base directory is the BucketFS location the tools are restricted to
+    (``EXA_BUCKETFS_PATH``). It is the bucket root, unless configured otherwise.
+
+    Args:
+        path:
+            The path, relative to the base directory.
+        allow_base_dir:
+            If False, the path must not resolve to the base directory itself, as
+            required by the tools that write or delete files.
+
+    Raises:
+        ValueError: if the path is absolute, goes outside the base directory, or
+            resolves to the base directory when this is not allowed.
+    """
+    if path.startswith("/"):
+        raise ValueError(
+            f"The path {path} is absolute. The path must be relative to the base "
+            "directory. Use an empty string for the base directory itself."
+        )
+    norm_path = posixpath.normpath(path)
+    if norm_path == ".." or norm_path.startswith("../"):
+        raise ValueError(f"The path {path} points outside the base directory.")
+    if norm_path == ".":
+        if not allow_base_dir:
+            raise ValueError(
+                f"The path {path} points to the base directory, which is not "
+                "allowed in this operation."
+            )
+        return ""
+    return norm_path
+
+
 class BucketFsTools:
     def __init__(self, bfs_location: bfs.path.PathLike, config: McpServerSettings):
         self.bfs_location = bfs_location
         self.config = config
 
+    def _get_abs_path(
+        self, path: str, allow_base_dir: bool = True
+    ) -> bfs.path.PathLike:
+        """
+        Joins a path, relative to the base directory, to the base directory, after
+        checking that the path stays within it (see ``normalize_path``).
+        """
+        return self.bfs_location.joinpath(normalize_path(path, allow_base_dir))
+
     def _list_items(
         self, directory: str, item_filter: Callable[[bfs.path.PathLike], bool]
     ) -> list[str]:
-        abs_dir = self.bfs_location.joinpath(directory)
+        abs_dir = self._get_abs_path(directory)
         return [str(pth) for pth in abs_dir.iterdir() if item_filter(pth)]
 
     def _get_path_status(self, path: str) -> PathStatus:
-        # First check if the path has any of the BucketFS own disallowed characters.
+        # The path must stay within the base directory, and, since the status is
+        # only checked by the tools that write or delete files, it must not point
+        # to the base directory itself.
+        try:
+            bfs_path = self._get_abs_path(path, allow_base_dir=False)
+        except ValueError:
+            return PathStatus.Invalid
+        # Then check if the path has any of the BucketFS own disallowed characters.
         if any(c in path for c in ": "):
             return PathStatus.Invalid
         # Then check the normal Linux rules.
@@ -161,7 +226,6 @@ class BucketFsTools:
             validate_filepath(path, platform="Linux")
         except ValidationError:
             return PathStatus.Invalid
-        bfs_path = self.bfs_location.joinpath(path)
         # If the path is OK, check if it points to an existing file or directory.
         if bfs_path.is_file():
             return PathStatus.FileExists
@@ -298,14 +362,14 @@ class BucketFsTools:
     def list_directories(self, directory: OptionalDirectoryArg) -> list[str]:
         """
         Lists subdirectories at the given directory. The directory path is relative
-        to the root location.
+        to the base directory.
         """
         return self._list_items(directory, lambda pth: pth.is_dir())
 
     def list_files(self, directory: OptionalDirectoryArg) -> list[str]:
         """
         Lists files at the given directory. The directory path is relative to the
-        root location.
+        base directory.
         """
         return self._list_items(directory, lambda pth: pth.is_file())
 
@@ -324,9 +388,9 @@ class BucketFsTools:
     ) -> list[str]:
         """
         Performs a keyword search of files at the given directory and all its descendant
-        subdirectories. The path is relative to the root location.
+        subdirectories. The path is relative to the base directory.
         """
-        abs_dir = self.bfs_location.joinpath(directory)
+        abs_dir = self._get_abs_path(directory)
         content = [
             {PATH_FIELD: str(dir_path.joinpath(file_name))}
             for dir_path, dir_names, file_names in abs_dir.walk()
@@ -338,9 +402,9 @@ class BucketFsTools:
     def read_file(self, path: FileArg) -> str:
         """
         Reads the content of a text file at the provided path in BucketFS and returns
-        it as a string. The path is relative to the root location.
+        it as a string. The path is relative to the base directory.
         """
-        abs_path = self.bfs_location.joinpath(path)
+        abs_path = self._get_abs_path(path)
         if not abs_path.is_file():
             raise FileNotFoundError(abs_path)
         byte_content = b"".join(abs_path.read())
@@ -354,7 +418,7 @@ class BucketFsTools:
     ) -> None | InputRequiredResult:
         """
         Writes a piece of text to a file at the provided path in BucketFS.
-        The path is relative to the root location. An existing file will be overwritten.
+        The path is relative to the base directory. An existing file will be overwritten.
         Elicitation is required. If the path is modified in elicitation and there is an
         existing file at the modified path, the elicitation is repeated, to get an
         explicit confirmation that the existing file can be deleted. Writing a file
@@ -386,7 +450,7 @@ class BucketFsTools:
         answer = await self._elicitate(message, ctx, response_type_factory)
         if isinstance(answer, InputRequiredResult):
             return answer
-        abs_path = self.bfs_location.joinpath(answer.file_path)
+        abs_path = self._get_abs_path(answer.file_path, allow_base_dir=False)
         byte_content = answer.file_content.encode(encoding="utf-8")
         abs_path.write(byte_content)
 
@@ -400,7 +464,7 @@ class BucketFsTools:
     ) -> None | InputRequiredResult:
         """
         Downloads a file from a given url and writes to a file at the provided path in
-        BucketFS. The path is relative to the root location. The same rules apply in
+        BucketFS. The path is relative to the base directory. The same rules apply in
         regard to the path as in the ``write_text_to_file`` tool.
         """
 
@@ -414,7 +478,7 @@ class BucketFsTools:
         answer = await self._elicitate(message, ctx, response_type_factory)
         if isinstance(answer, InputRequiredResult):
             return answer
-        abs_path = self.bfs_location.joinpath(answer.file_path)
+        abs_path = self._get_abs_path(answer.file_path, allow_base_dir=False)
 
         # A file in a temporary directory, rather than a NamedTemporaryFile, can be
         # reopened by name on Windows.
@@ -454,7 +518,7 @@ class BucketFsTools:
         )
         if isinstance(answer, InputRequiredResult):
             return answer
-        abs_path = self.bfs_location.joinpath(answer.file_path)
+        abs_path = self._get_abs_path(answer.file_path, allow_base_dir=False)
         abs_path.rm()
 
     async def delete_directory(
@@ -474,5 +538,5 @@ class BucketFsTools:
         )
         if isinstance(answer, InputRequiredResult):
             return answer
-        abs_path = self.bfs_location.joinpath(answer.file_path)
+        abs_path = self._get_abs_path(answer.file_path, allow_base_dir=False)
         abs_path.rmdir(recursive=True)
