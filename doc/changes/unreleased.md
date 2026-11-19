@@ -28,3 +28,7 @@ the client.
   * The tool no longer fails when fewer than two of the tables, views, functions and scripts are enabled
   * Schemas without visible objects of an enabled type can now be found by their name and comment
 * #341: Fixed a database connection being returned to the pool before its query result was fetched
+* #348: Fixed the validation of the read queries:
+  * SELECT statements combined with `UNION [ALL]`, `INTERSECT`, `MINUS` and `EXCEPT`, and a parenthesised SELECT, are accepted
+  * A query that cannot be parsed gets its own error message instead of "not a SELECT statement"
+  * A query with more than one statement is rejected, instead of running only the first statement
