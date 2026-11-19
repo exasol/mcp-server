@@ -1,13 +1,22 @@
+import importlib
+import inspect
+import logging
+import pkgutil
+import sys
 from typing import (
+    Any,
     Literal,
     Optional,
     Union,
+    get_args,
+    get_origin,
 )
 from unittest.mock import (
     MagicMock,
     patch,
 )
 
+import fastmcp.server.auth.providers as fastmcp_providers
 import pytest
 from fastmcp.server.auth import (
     AuthProvider,
@@ -29,6 +38,8 @@ from key_value.aio.stores.memory import MemoryStore
 from pydantic import AnyHttpUrl
 
 from exasol.ai.mcp.server.setup.generic_auth import (
+    _SKIP_KINDS,
+    _SKIP_PARAMS,
     ENV_DYNAMODB_AWS_ACCESS_KEY_ID,
     ENV_DYNAMODB_AWS_SECRET_ACCESS_KEY,
     ENV_DYNAMODB_AWS_SESSION_TOKEN,
@@ -47,6 +58,8 @@ from exasol.ai.mcp.server.setup.generic_auth import (
     AuthParameter,
     AuthProviderInfo,
     _build_provider_info_from_type,
+    _get_constructor_signature,
+    _get_constructor_type_hints,
     _import_type,
     _type_to_converter,
     create_auth_provider,
@@ -735,6 +748,241 @@ def test__build_provider_info_from_type_str_or_list() -> None:
     converters = {p.name: p.conv for p in info.parameters}
     assert converters["required_scopes"]("read, write") == ["read", "write"]
     assert converters["audience"]("aud1, aud2") == ["aud1", "aud2"]
+
+
+def test__build_provider_info_from_type_azure() -> None:
+    """
+    AzureProvider annotates a parameter with ``AnyHttpUrl``, which fastmcp imports
+    only under ``TYPE_CHECKING``. All other parameters must keep their types.
+    """
+    info = _build_provider_info_from_type(AzureProvider)
+    converters = {p.name: p.conv for p in info.parameters}
+    assert converters["required_scopes"]("read, write") == ["read", "write"]
+    assert converters["additional_authorize_scopes"]("a, b") == ["a", "b"]
+    assert converters["allowed_client_redirect_uris"]("u1, u2") == ["u1", "u2"]
+    assert converters["enable_cimd"]("false") is False
+    assert converters["forward_resource"]("false") is False
+    assert converters["token_expiry_threshold_seconds"]("30") == 30
+    assert converters["extra_authorize_params"]("k, v") == {"k": "v"}
+    assert converters["resource_base_url"]("https://x.example.com") == (
+        "https://x.example.com"
+    )
+
+
+def test__get_constructor_type_hints_resolved() -> None:
+    """
+    If all hints can be resolved at once, they are returned without the return
+    type, and the per-parameter fallback is not used.
+    """
+    with patch(
+        "exasol.ai.mcp.server.setup.generic_auth._resolve_annotation"
+    ) as mock_resolve_annotation:
+        hints = _get_constructor_type_hints(TypeAnnotatedFakeProvider)
+    mock_resolve_annotation.assert_not_called()
+    assert hints == {
+        "str_param": str,
+        "bool_param": bool,
+        "int_param": int,
+        "list_param": list[str],
+        "dict_param": dict[str, str],
+        "optional_param": str | None,
+    }
+
+
+class UnresolvedRefFakeProvider(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(
+        self,
+        url_param: "UnknownUrlType | str | None" = None,  # noqa: F821
+        generic_param: "UnknownGeneric[int] | None" = None,  # noqa: F821
+        module_param: "unknown_module.Timeout | None" = None,  # noqa: F821
+        invalid_param: "1 +" = None,  # noqa: F722
+        partial_param: list["UnknownType"] | None = None,  # noqa: F821
+        list_param: list[str] | None = None,
+        bool_param: bool = False,
+        client_storage: "UnknownStore | None" = None,  # noqa: F821
+        **kwargs: "UnknownKwargs",  # noqa: F821
+    ) -> None:
+        pass
+
+
+_UNRESOLVED_PARAMS = ["url_param", "generic_param", "module_param", "invalid_param"]
+
+
+def test__get_constructor_type_hints_unresolved(caplog) -> None:
+    """
+    Annotations that cannot be resolved are left out of the hints and logged,
+    while all other parameters keep their types. A partially resolved annotation
+    is kept and logged.
+    """
+    with caplog.at_level(logging.WARNING):
+        hints = _get_constructor_type_hints(UnresolvedRefFakeProvider)
+    assert hints == {
+        "partial_param": list["UnknownType"] | None,  # noqa: F821
+        "list_param": list[str] | None,
+        "bool_param": bool,
+    }
+    for param in [*_UNRESOLVED_PARAMS, "partial_param"]:
+        assert param in caplog.text
+    assert "client_storage" not in caplog.text
+    assert "kwargs" not in caplog.text
+
+
+def test__build_provider_info_from_type_unresolved() -> None:
+    """
+    Parameters with unresolved annotations are parsed as strings. A parameter
+    with a partially resolved list annotation is parsed as a list of strings.
+    """
+    info = _build_provider_info_from_type(UnresolvedRefFakeProvider)
+    converters = {p.name: p.conv for p in info.parameters}
+    for param in _UNRESOLVED_PARAMS:
+        assert converters[param](" v, w ") == "v"
+    assert converters["partial_param"]("v, w") == ["v", "w"]
+    assert converters["list_param"]("a, b") == ["a", "b"]
+    assert converters["bool_param"]("false") is False
+
+
+_TYPE_CHECKING_PROVIDER_SOURCE = """
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pydantic import AnyHttpUrl
+
+
+def make_provider():
+    class LocalType:
+        pass
+
+    class TypeCheckingFakeProvider(AuthProvider):
+        def __init__(
+            self,
+            url_param: AnyHttpUrl | str | None = None,
+            list_param: list[str] | None = None,
+            local_param: LocalType | None = None,
+            url_list_param: list[AnyHttpUrl] | None = None,
+        ) -> None:
+            self.kwargs = {
+                "url_param": url_param,
+                "list_param": list_param,
+                "url_list_param": url_list_param,
+            }
+
+    return TypeCheckingFakeProvider, LocalType
+"""
+
+
+@pytest.fixture
+def type_checking_provider() -> tuple[type, type]:
+    """
+    A provider defined in a function of a module without
+    ``from __future__ import annotations``, that uses a ``TYPE_CHECKING`` import
+    and a local type in unquoted annotations. Only Python 3.14+ allows this.
+    """
+    namespace: dict[str, Any] = {"AuthProvider": AuthProvider}
+    # pylint: disable-next=exec-used
+    exec(_TYPE_CHECKING_PROVIDER_SOURCE, namespace)  # nosec B102
+    return namespace["make_provider"]()
+
+
+_LAZY_ANNOTATIONS = pytest.mark.skipif(
+    sys.version_info < (3, 14),
+    reason="Unquoted TYPE_CHECKING annotations need lazy evaluation (Python 3.14+)",
+)
+
+
+@_LAZY_ANNOTATIONS
+def test__get_constructor_type_hints_lazy_annotations(type_checking_provider) -> None:
+    """
+    Only the annotation that is just the ``TYPE_CHECKING`` name is left out.
+    The local type is still resolved, and the list of ``TYPE_CHECKING`` names is
+    kept as a list.
+    """
+    provider_type, local_type = type_checking_provider
+    hints = _get_constructor_type_hints(provider_type)
+    assert hints.keys() == {"list_param", "local_param", "url_list_param"}
+    assert hints["list_param"] == list[str] | None
+    assert hints["local_param"] == local_type | None
+    assert get_origin(get_args(hints["url_list_param"])[0]) is list
+
+
+@_LAZY_ANNOTATIONS
+def test_create_auth_provider_lazy_annotations(
+    monkeypatch, type_checking_provider
+) -> None:
+    """A provider with lazy annotations is configured from the env variables."""
+    provider_type, _ = type_checking_provider
+    info = _build_provider_info_from_type(provider_type)
+    monkeypatch.setenv(f"{info.env_prefix}URL_PARAM", "https://x.example.com")
+    monkeypatch.setenv(f"{info.env_prefix}LIST_PARAM", "a, b")
+    monkeypatch.setenv(f"{info.env_prefix}URL_LIST_PARAM", "https://a, https://b")
+    provider = create_auth_provider(info)
+    assert provider.kwargs == {
+        "url_param": "https://x.example.com",
+        "list_param": ["a", "b"],
+        "url_list_param": ["https://a", "https://b"],
+    }
+
+
+def _fastmcp_provider_types() -> list:
+    """
+    Returns all AuthProvider classes defined in fastmcp.server.auth.providers.
+    A module that cannot be imported is reported as a skipped test parameter.
+    """
+    params: dict[str, Any] = {}
+
+    def skip_module(module_name: str, error: BaseException | None = None) -> None:
+        params[module_name] = pytest.param(
+            None,
+            id=module_name,
+            marks=pytest.mark.skip(reason=f"Cannot import: {error!r}"),
+        )
+
+    for module_info in pkgutil.walk_packages(
+        fastmcp_providers.__path__,
+        f"{fastmcp_providers.__name__}.",
+        onerror=skip_module,
+    ):
+        try:
+            module = importlib.import_module(module_info.name)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            skip_module(module_info.name, error)
+            continue
+        for obj in vars(module).values():
+            if (
+                inspect.isclass(obj)
+                and issubclass(obj, AuthProvider)
+                and obj.__module__ == module.__name__
+            ):
+                params[f"{obj.__module__}.{obj.__qualname__}"] = pytest.param(
+                    obj, id=obj.__qualname__
+                )
+    return list(params.values())
+
+
+# Parameters of the fastmcp providers known to have types that cannot be resolved
+# at runtime. They are parsed as strings, which is correct for these parameters.
+_KNOWN_UNRESOLVED_PARAMS = {
+    "AzureProvider": {"resource_base_url"},
+}
+
+
+@pytest.mark.parametrize("provider_type", _fastmcp_provider_types())
+def test__get_constructor_type_hints_fastmcp_providers(provider_type) -> None:
+    """
+    The type hints of every annotated constructor parameter are resolved, except
+    for the known unresolvable ones. Catches fastmcp changes that would make a
+    parameter be parsed as a string.
+    """
+    hints = _get_constructor_type_hints(provider_type)
+    annotated = {
+        name
+        for name, param in _get_constructor_signature(provider_type).parameters.items()
+        if param.annotation is not inspect.Parameter.empty
+        and param.kind not in _SKIP_KINDS
+        and name not in _SKIP_PARAMS
+    }
+    known = _KNOWN_UNRESOLVED_PARAMS.get(provider_type.__qualname__, set())
+    assert annotated - known <= hints.keys()
 
 
 # ---------------------------------------------------------------------------

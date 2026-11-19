@@ -17,7 +17,9 @@ hardcoded, the old FastMCP v2 prefix names are also accepted for backward compat
 import csv
 import importlib
 import inspect
+import logging
 import os
+import sys
 import types as _types
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,6 +27,7 @@ from functools import cache
 from io import StringIO
 from typing import (
     Any,
+    ForwardRef,
     Literal,
     Union,
     get_args,
@@ -60,6 +63,10 @@ ENV_MONGODB_URL = "EXA_MCP_OAUTH_MONGODB_URL"
 ENV_MONGODB_DB_NAME = "EXA_MCP_OAUTH_MONGODB_DB_NAME"
 _EXA_ENV_PREFIX = "EXA_AUTH_"
 _SKIP_PARAMS = frozenset({"client_storage"})
+_SKIP_KINDS = frozenset(
+    {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
+)
+logger = logging.getLogger(__name__)
 
 
 def str_to_list(s) -> list[str]:
@@ -226,6 +233,92 @@ _FASTMCP_V2_PREFIXES: dict[str, str] = {
 }
 
 
+def _get_constructor_signature(provider_type: type) -> inspect.Signature:
+    """
+    Returns the signature of the ``provider_type`` constructor, without failing on
+    annotations with names that cannot be resolved at runtime.
+
+    Before Python 3.14, such annotations can only exist as strings, e.g. with
+    ``from __future__ import annotations``, and are returned as they are. Starting
+    with Python 3.14, annotations are evaluated lazily, and ``inspect.signature``
+    would fail on them. Instead, the names that cannot be resolved are returned as
+    forward references, e.g. ``list[ForwardRef('AnyHttpUrl')]``.
+    """
+    if sys.version_info >= (3, 14):
+        import annotationlib  # pylint: disable=import-outside-toplevel
+
+        return inspect.signature(
+            provider_type.__init__, annotation_format=annotationlib.Format.FORWARDREF
+        )
+    return inspect.signature(provider_type.__init__)
+
+
+def _resolve_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+    """
+    Resolves a single annotation, including any forward references in it, in the
+    given global namespace.
+    """
+
+    def holder() -> None:
+        pass
+
+    holder.__annotations__ = {"value": annotation}
+    return get_type_hints(holder, globalns=globalns)["value"]
+
+
+def _get_constructor_type_hints(provider_type: type) -> dict[str, Any]:
+    """
+    Returns the resolved type hints of the ``provider_type`` constructor.
+
+    The hints are resolved with ``get_type_hints``. Only if that fails, each
+    parameter annotation is resolved separately. Some providers import the
+    types used in their annotations only under ``TYPE_CHECKING``, e.g.
+    ``AnyHttpUrl`` in ``AzureProvider``. Such annotations cannot be resolved at
+    runtime, and a warning is logged for each of them. The parameters annotated
+    with them get the default string converter, while all other parameters keep
+    their types. Starting with Python 3.14, a partially resolved annotation, e.g.
+    ``list[ForwardRef('AnyHttpUrl')]``, is kept, so that the parameter still gets
+    the converter of the resolved part, e.g. a list of strings.
+    """
+    try:
+        hints = get_type_hints(provider_type.__init__)
+        hints.pop("return", None)
+        return hints
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+    fn = inspect.unwrap(provider_type.__init__)
+    globalns = getattr(fn, "__globals__", {})
+    hints = {}
+    for name, param in _get_constructor_signature(provider_type).parameters.items():
+        annotation = param.annotation
+        if (
+            annotation is inspect.Parameter.empty
+            or param.kind in _SKIP_KINDS
+            or name in _SKIP_PARAMS
+        ):
+            continue
+        try:
+            hints[name] = _resolve_annotation(annotation, globalns)
+        except Exception:  # pylint: disable=broad-exception-caught
+            if isinstance(annotation, (str, ForwardRef)):
+                logger.warning(
+                    "Cannot resolve the type of the %s parameter %s. "
+                    "It will be parsed as a string.",
+                    provider_type.__qualname__,
+                    name,
+                )
+            else:
+                hints[name] = annotation
+                logger.warning(
+                    "Cannot fully resolve the type of the %s parameter %s. "
+                    "The unresolved parts will be parsed as strings.",
+                    provider_type.__qualname__,
+                    name,
+                )
+    return hints
+
+
 def _build_provider_info_from_type(provider_type: type) -> AuthProviderInfo:
     """
     Builds an ``AuthProviderInfo`` by introspecting the constructor of
@@ -241,18 +334,14 @@ def _build_provider_info_from_type(provider_type: type) -> AuthProviderInfo:
     ``_type_to_converter``. Parameters without a type annotation default to
     ``str_to_str``.
     """
-    try:
-        hints = get_type_hints(provider_type.__init__)
-    except Exception:
-        hints = {}
+    hints = _get_constructor_type_hints(provider_type)
 
-    _skip_kinds = {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
-    sig = inspect.signature(provider_type.__init__)
+    sig = _get_constructor_signature(provider_type)
     parameters = [
         AuthParameter(name=pname, conv=_type_to_converter(hints.get(pname, str)))
         for pname, param in sig.parameters.items()
         if pname != "self"
-        and param.kind not in _skip_kinds
+        and param.kind not in _SKIP_KINDS
         and pname not in _SKIP_PARAMS
     ]
 
@@ -478,7 +567,7 @@ def create_auth_provider(
     if "client_storage" not in kwargs and "client_storage" not in extra_kwargs:
         if (
             "client_storage"
-            in inspect.signature(provider_info.provider_type.__init__).parameters
+            in _get_constructor_signature(provider_info.provider_type).parameters
         ):
             storage = create_client_storage()
             if storage is not None:
