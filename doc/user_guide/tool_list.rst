@@ -359,6 +359,12 @@ directory. The tools reject absolute paths and paths that use ``..`` to point ou
 the base directory. The tools that write or delete files also reject paths that point
 to the base directory itself.
 
+The tools that write or delete files check the path, even if the elicitation is
+disabled. ``delete_bucketfs_file`` requires an existing file, and
+``delete_bucketfs_directory`` requires an existing directory. The tools that write
+files do not write a file in place of an existing directory, and reject paths with
+spaces or colons.
+
 list_bucketfs_directories
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

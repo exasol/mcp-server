@@ -29,3 +29,4 @@ the client.
   * Schemas without visible objects of an enabled type can now be found by their name and comment
 * #341: Fixed a database connection being returned to the pool before its query result was fetched
 * #343: Prevented the BucketFS tools from accessing paths outside the configured base directory (`EXA_BUCKETFS_PATH`)
+* #350: Made the BucketFS write and delete tools check the path when elicitation is disabled
