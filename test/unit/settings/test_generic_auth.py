@@ -1,4 +1,8 @@
-from typing import Union
+from typing import (
+    Literal,
+    Optional,
+    Union,
+)
 from unittest.mock import (
     MagicMock,
     patch,
@@ -19,8 +23,10 @@ from fastmcp.server.auth.providers.azure import AzureProvider
 from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.auth.providers.jwt import JWTVerifier
+from fastmcp.server.auth.providers.keycloak import KeycloakAuthProvider
 from fastmcp.server.auth.providers.workos import AuthKitProvider
 from key_value.aio.stores.memory import MemoryStore
+from pydantic import AnyHttpUrl
 
 from exasol.ai.mcp.server.setup.generic_auth import (
     ENV_DYNAMODB_AWS_ACCESS_KEY_ID,
@@ -296,6 +302,29 @@ def test_get_token_verifier(monkeypatch, verifier_type, provider_type, params) -
     verifier, verifier_name = get_token_verifier(provider_name)
     assert isinstance(verifier, verifier_type)
     assert verifier_name == exa_provider_name(verifier_type)
+
+
+def test_get_token_verifier_jwt_list_params(monkeypatch) -> None:
+    provider_name = exa_provider_name(JWTVerifier)
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, provider_name)
+    params = _join_params(
+        _JWT_params, {"issuer": "iss1, iss2", "audience": "aud1, aud2"}
+    )
+    for key, value in params.items():
+        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+    verifier, _ = get_token_verifier(provider_name)
+    assert verifier.issuer == ["iss1", "iss2"]
+    assert verifier.audience == ["aud1", "aud2"]
+
+
+def test_get_token_verifier_introspection_audience(monkeypatch) -> None:
+    provider_name = exa_provider_name(IntrospectionTokenVerifier)
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, provider_name)
+    params = _join_params(_Introspection_params, {"audience": "aud1, aud2"})
+    for key, value in params.items():
+        monkeypatch.setenv(exa_parameter_env_name(AuthParameter(key)), value)
+    verifier, _ = get_token_verifier(provider_name)
+    assert verifier.audience == ["aud1", "aud2"]
 
 
 def test_get_token_verifier_error(monkeypatch) -> None:
@@ -578,6 +607,21 @@ def test_get_auth_kwargs_empty() -> None:
         (bool | None, "yes", True),
         (int | None, "3", 3),
         (list[str] | None, "a,b", ["a", "b"]),
+        # Unions with a list member
+        (str | list[str] | None, "a, b", ["a", "b"]),
+        (list[str] | str | None, "a, b", ["a", "b"]),
+        (Optional[Union[str, list[str]]], "a, b", ["a", "b"]),
+        (Union[str, list[str]], "a", ["a"]),
+        (str | list, "a, b", ["a", "b"]),
+        (bool | Literal["external"], "true", True),
+        # Lists with non-string elements
+        (list[int], "1, 2", [1, 2]),
+        (list[bool], "yes, false", [True, False]),
+        (list[int] | None, "3", [3]),
+        (int | list[int] | None, "1, 2", [1, 2]),
+        (list[str], 'a, "b,c"', ["a", "b,c"]),
+        (list[AnyHttpUrl], 'x, "http://a/b,c"', ["x", "http://a/b,c"]),
+        (list[str] | str | None, '"http://a/b,c"', ["http://a/b,c"]),
     ],
     ids=[
         "str",
@@ -593,6 +637,19 @@ def test_get_auth_kwargs_empty() -> None:
         "optional_bool",
         "optional_int",
         "optional_list",
+        "str_or_list",
+        "list_or_str",
+        "optional_union_str_list",
+        "union_str_list_single",
+        "str_or_bare_list",
+        "bool_or_literal_pipe",
+        "list_int",
+        "list_bool",
+        "optional_list_int",
+        "int_or_list_int",
+        "list_str_quoted",
+        "list_url_quoted",
+        "str_or_list_quoted",
     ],
 )
 def test__type_to_converter(annotation, input_str, expected) -> None:
@@ -600,9 +657,13 @@ def test__type_to_converter(annotation, input_str, expected) -> None:
     assert converter(input_str) == expected
 
 
-def test__type_to_converter_bool_or_external() -> None:
-    from typing import Literal
+def test__type_to_converter_list_bool_error() -> None:
+    converter = _type_to_converter(list[bool])
+    with pytest.raises(ValueError, match="Invalid boolean value"):
+        converter("true, maybe")
 
+
+def test__type_to_converter_bool_or_external() -> None:
     annotation = Union[bool, Literal["external"]]
     conv = _type_to_converter(annotation)
     assert conv("true") is True
@@ -669,6 +730,13 @@ def test__build_provider_info_from_type() -> None:
     assert converters["optional_param"](" x ") == "x"
 
 
+def test__build_provider_info_from_type_str_or_list() -> None:
+    info = _build_provider_info_from_type(KeycloakAuthProvider)
+    converters = {p.name: p.conv for p in info.parameters}
+    assert converters["required_scopes"]("read, write") == ["read", "write"]
+    assert converters["audience"]("aud1, aud2") == ["aud1", "aud2"]
+
+
 # ---------------------------------------------------------------------------
 # get_auth_provider — fully dynamic path (TypeAnnotatedFakeProvider)
 # ---------------------------------------------------------------------------
@@ -691,6 +759,29 @@ def test_get_auth_provider_dynamic(monkeypatch) -> None:
     assert provider.kwargs["list_param"] == ["a", "b", "c"]
     assert provider.kwargs["dict_param"] == {"k1": "v1", "k2": "v2"}
     assert provider.kwargs["optional_param"] is None
+
+
+class StrOrListFakeProvider(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(
+        self,
+        required_scopes: list[str] | str | None = None,
+        audience: str | list[str] | None = None,
+    ) -> None:
+        self.kwargs = {"required_scopes": required_scopes, "audience": audience}
+
+
+def test_get_auth_provider_dynamic_str_or_list(monkeypatch) -> None:
+    qualified_name = (
+        f"{StrOrListFakeProvider.__module__}.{StrOrListFakeProvider.__qualname__}"
+    )
+    prefix = f"FASTMCP_SERVER_AUTH_{StrOrListFakeProvider.__name__.upper()}_"
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, qualified_name)
+    monkeypatch.setenv(f"{prefix}REQUIRED_SCOPES", "a,b")
+    monkeypatch.setenv(f"{prefix}AUDIENCE", "aud")
+    provider = get_auth_provider()
+    assert isinstance(provider, StrOrListFakeProvider)
+    assert provider.kwargs == {"required_scopes": ["a", "b"], "audience": ["aud"]}
 
 
 # ---------------------------------------------------------------------------
