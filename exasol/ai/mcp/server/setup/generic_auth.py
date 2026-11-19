@@ -257,9 +257,19 @@ def _resolve_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """
     Resolves a single annotation, including any forward references in it, in the
     given global namespace.
+
+    Before Python 3.14, there is no public API that resolves a single annotation,
+    only ``get_type_hints``, which resolves all annotations of an object.
+    The annotation is therefore attached to a dummy function, as if it were the
+    annotation of a parameter, and resolved with ``get_type_hints``. The names are
+    looked up in ``globalns``, which should be the globals of the module where the
+    annotation comes from, not this one.
+
+    Raises an exception, e.g. ``NameError``, if the annotation cannot be resolved.
     """
 
     def holder() -> None:
+        # Never called. Only carries the annotation for get_type_hints.
         pass
 
     holder.__annotations__ = {"value": annotation}
@@ -282,11 +292,17 @@ def _get_constructor_type_hints(provider_type: type) -> dict[str, Any]:
     """
     try:
         hints = get_type_hints(provider_type.__init__)
-        hints.pop("return", None)
-        return hints
     except Exception:  # pylint: disable=broad-exception-caught
-        pass
+        return _resolve_each_type_hint(provider_type)
+    hints.pop("return", None)
+    return hints
 
+
+def _resolve_each_type_hint(provider_type: type) -> dict[str, Any]:
+    """
+    Resolves the type hint of each ``provider_type`` constructor parameter
+    separately. See ``_get_constructor_type_hints``.
+    """
     fn = inspect.unwrap(provider_type.__init__)
     globalns = getattr(fn, "__globals__", {})
     hints = {}
