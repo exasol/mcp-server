@@ -24,3 +24,4 @@ the client.
   * The error for a missing settings file now shows the resolved file path
   * A lowercase or invalid `EXA_MCP_LOG_LEVEL` no longer crashes the server
   * Corrected the default HTTP host in the README
+* #341: Fixed a database connection being returned to the pool before its query result was fetched
