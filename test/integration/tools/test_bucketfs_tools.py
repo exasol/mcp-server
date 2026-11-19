@@ -993,13 +993,14 @@ def test_download_file_to_dir_no_elicitation(
     url = "/fake_science"
     httpserver.expect_request(url).respond_with_data(_human)
     abs_path = bucketfs_location.joinpath(path)
+    full_url = httpserver.url_for(url)
     with _protect(abs_path):
         with pytest.raises(ToolError, match="existing directory at the path"):
             _run_tool(
                 bucketfs_location,
                 "download_file",
                 config=no_elicit_config,
-                url=httpserver.url_for(url),
+                url=full_url,
                 path=path,
             )
         assert not abs_path.is_file()
