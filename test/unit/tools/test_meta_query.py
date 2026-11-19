@@ -330,7 +330,7 @@ def test_find_schemas(meta_params) -> None:
             "S"."SCHEMA_COMMENT" AS "{COMMENT_FIELD}",
             "O"."{INFO_COLUMN}"
         FROM SYS.EXA_ALL_SCHEMAS AS "S"
-        JOIN
+        LEFT JOIN
         SELECT
             "SCHEMA",
             CONCAT('[', GROUP_CONCAT(DISTINCT "OBJ_INFO" SEPARATOR ', '), ']') AS "{INFO_COLUMN}"
@@ -374,6 +374,86 @@ def test_find_schemas(meta_params) -> None:
             )
         GROUP BY "SCHEMA"
         AS "O" ON "S"."SCHEMA_NAME" = "O"."SCHEMA"
+        {meta_params.schema_based_where_clause}
+    """)
+    assert query == expected_query
+
+
+_SCHEMA_PARAMS = [
+    MetaParams(),
+    MetaParams(schema_pattern="EXASOL%", schema_pattern_type="LIKE"),
+    MetaParams(schema_pattern="EXASOL", schema_pattern_type="REGEXP_LIKE"),
+]
+_SCHEMA_PARAM_IDS = ["no-pattern", "like", "regexp"]
+
+
+@pytest.mark.parametrize(
+    ["tables", "views", "functions", "scripts", "meta_name", "script_predicate"],
+    [
+        (True, False, False, False, "TABLE", ""),
+        (False, True, False, False, "VIEW", ""),
+        (False, False, True, False, "FUNCTION", ""),
+        (False, False, False, True, "SCRIPT", """WHERE "SCRIPT_TYPE" = 'UDF'"""),
+    ],
+    ids=["tables", "views", "functions", "scripts"],
+)
+@pytest.mark.parametrize("meta_params", _SCHEMA_PARAMS, ids=_SCHEMA_PARAM_IDS)
+def test_find_schemas_single_meta_type(
+    meta_params, tables, views, functions, scripts, meta_name, script_predicate
+) -> None:
+    config = McpServerSettings(
+        schemas=meta_params.schema_settings,
+        tables=MetaListSettings(enable=tables),
+        views=MetaListSettings(enable=views),
+        functions=MetaListSettings(enable=functions),
+        scripts=MetaListSettings(enable=scripts),
+    )
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(meta_query.find_schemas())
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "S"."SCHEMA_NAME" AS "{NAME_FIELD}",
+            "S"."SCHEMA_COMMENT" AS "{COMMENT_FIELD}",
+            "O"."{INFO_COLUMN}"
+        FROM SYS.EXA_ALL_SCHEMAS AS "S"
+        LEFT JOIN
+        SELECT
+            "SCHEMA",
+            CONCAT('[', GROUP_CONCAT(DISTINCT "OBJ_INFO" SEPARATOR ', '), ']') AS "{INFO_COLUMN}"
+        FROM (
+            SELECT
+                "{meta_name}_SCHEMA" AS "SCHEMA",
+                CONCAT(
+                    '{{"{meta_name}": "', "{meta_name}_NAME",
+                    NVL2("{meta_name}_COMMENT", CONCAT('", "COMMENT": "', "{meta_name}_COMMENT"), ''),
+                    '"}}'
+                ) AS "OBJ_INFO"
+            FROM SYS.EXA_ALL_{meta_name}S
+            {script_predicate}
+            )
+        GROUP BY "SCHEMA"
+        AS "O" ON "S"."SCHEMA_NAME" = "O"."SCHEMA"
+        {meta_params.schema_based_where_clause}
+    """)
+    assert query == expected_query
+
+
+@pytest.mark.parametrize("meta_params", _SCHEMA_PARAMS, ids=_SCHEMA_PARAM_IDS)
+def test_find_schemas_no_meta_type(meta_params) -> None:
+    config = McpServerSettings(
+        schemas=meta_params.schema_settings,
+        tables=MetaListSettings(enable=False),
+        views=MetaListSettings(enable=False),
+        functions=MetaListSettings(enable=False),
+        scripts=MetaListSettings(enable=False),
+    )
+    meta_query = ExasolMetaQuery(config)
+    query = collapse_spaces(meta_query.find_schemas())
+    expected_query = collapse_spaces(f"""
+        SELECT
+            "S"."SCHEMA_NAME" AS "{NAME_FIELD}",
+            "S"."SCHEMA_COMMENT" AS "{COMMENT_FIELD}"
+        FROM SYS.EXA_ALL_SCHEMAS AS "S"
         {meta_params.schema_based_where_clause}
     """)
     assert query == expected_query

@@ -284,55 +284,61 @@ class ExasolMetaQuery:
         metadata is applied when the support information is collected.
         The support information is formated as json. For an example see the
         `_inner_meta_query`.
+
+        Schemas that contain no visible objects of an enabled type are included as
+        well, with an empty support information, so that they can still be found by
+        their name or comment. If none of the tables, views, functions or scripts
+        is enabled, the support information column is omitted altogether.
         """
-        inner_queries = exp.Paren(
-            this=exp.union(
-                *(
-                    _inner_meta_query(
-                        meta_type,
-                        [MetaType.SCHEMA],
-                        predicate,
-                        *_get_meta_predicates(
-                            f"{meta_type.value}_NAME", self._meta_conf[meta_type]
-                        ),
-                    )
-                    for meta_type, predicate in [
-                        (MetaType.TABLE, ""),
-                        (MetaType.VIEW, ""),
-                        (MetaType.FUNCTION, ""),
-                        (
-                            MetaType.SCRIPT,
-                            exp.column("SCRIPT_TYPE").eq(exp.Literal.string("UDF")),
-                        ),
-                    ]
-                    if self._meta_conf[meta_type].enable
-                ),
-                dialect="exasol",
-            )
-        )
-
         predicates = _get_meta_predicates("SCHEMA_NAME", self._config.schemas)
-
         query = (
             exp.Select()
             .select(
                 exp.column("SCHEMA_NAME", table="S").as_(NAME_FIELD),
                 exp.column("SCHEMA_COMMENT", table="S").as_(COMMENT_FIELD),
-                exp.column(INFO_COLUMN, db="O"),
             )
             .from_(exp.Table(this="EXA_ALL_SCHEMAS", db="SYS").as_("S"))
             .where(*predicates)
-            .join(
+        )
+
+        inner_queries = [
+            _inner_meta_query(
+                meta_type,
+                [MetaType.SCHEMA],
+                predicate,
+                *_get_meta_predicates(
+                    f"{meta_type.value}_NAME", self._meta_conf[meta_type]
+                ),
+            )
+            for meta_type, predicate in [
+                (MetaType.TABLE, ""),
+                (MetaType.VIEW, ""),
+                (MetaType.FUNCTION, ""),
+                (
+                    MetaType.SCRIPT,
+                    exp.column("SCRIPT_TYPE").eq(exp.Literal.string("UDF")),
+                ),
+            ]
+            if self._meta_conf[meta_type].enable
+        ]
+        if inner_queries:
+            inner_query = (
+                inner_queries[0]
+                if len(inner_queries) == 1
+                else exp.union(*inner_queries, dialect="exasol")
+            )
+            query = query.select(exp.column(INFO_COLUMN, table="O")).join(
                 exp.Select()
                 .select(exp.column("SCHEMA"), _info_concat_func())
-                .from_(inner_queries)
+                .from_(exp.Paren(this=inner_query))
                 .group_by("SCHEMA")
                 .as_("O"),
                 on=exp.column("SCHEMA_NAME", table="S").eq(
                     exp.column("SCHEMA", table="O")
                 ),
+                join_type="left",
             )
-        )
+
         query_sql = query.sql(dialect="exasol", identify=True)
         return _fix_group_concat(query_sql, separator=", ")
 
