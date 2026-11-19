@@ -62,6 +62,12 @@ name in uppercase and ``<PARAM>`` is the parameter name in uppercase. For exampl
 Use the FastMCP v3 documentation page for the chosen provider to find the available
 parameters and which ones are required.
 
+A parameter that takes a list, including one that takes either a single value or a
+list, such as ``audience`` or ``required_scopes``, is given as a comma-separated list,
+e.g. ``read,write``. A value that contains a comma must be enclosed in double quotes,
+e.g. ``"https://api.example.com/x?a=1,b=2"``. The same rules apply to the ``EXA_AUTH_*``
+variables described below.
+
 For the following five providers, the FastMCP v2 environment variable prefix names are
 also accepted for backward compatibility with existing deployments:
 
@@ -147,7 +153,7 @@ JWT Token Verification
 +--------------------------+----------+-----------------------------------------------------------------------------+
 | EXA_AUTH_JWKS_URI        |    no    | URI to fetch JSON Web Key Set (only for asymmetric algorithms).             |
 +--------------------------+----------+-----------------------------------------------------------------------------+
-| EXA_AUTH_ISSUER          |    no    | Expected issuer claim.                                                      |
+| EXA_AUTH_ISSUER          |    no    | Expected issuer claim(s).                                                   |
 +--------------------------+----------+-----------------------------------------------------------------------------+
 | EXA_AUTH_AUDIENCE        |    no    | Expected audience claim(s).                                                 |
 +--------------------------+----------+-----------------------------------------------------------------------------+
@@ -175,6 +181,8 @@ Opaque Token Verification (Token Introspection)
 | EXA_AUTH_CLIENT_SECRET     |   yes    | OAuth client secret for authenticating to the introspection endpoint. |
 +----------------------------+----------+-----------------------------------------------------------------------+
 | EXA_AUTH_TIMEOUT_SECONDS   |    no    | HTTP request timeout in seconds (default: 10).                        |
++----------------------------+----------+-----------------------------------------------------------------------+
+| EXA_AUTH_AUDIENCE          |    no    | Expected audience claim(s).                                           |
 +----------------------------+----------+-----------------------------------------------------------------------+
 | EXA_AUTH_REQUIRED_SCOPES   |    no    | Required scopes for all tokens.                                       |
 +----------------------------+----------+-----------------------------------------------------------------------+
