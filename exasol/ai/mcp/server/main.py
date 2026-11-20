@@ -165,7 +165,9 @@ def _register_execute_query(mcp_server: ExasolMCPServer) -> None:
         fn,
         name="execute_exasol_query",
         description=(
-            "The query must be a SELECT statement. Returns data selected by the query."
+            "The query must be a SELECT statement, or SELECT statements combined "
+            "with UNION [ALL], INTERSECT, MINUS or EXCEPT. Returns data selected by "
+            "the query."
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )
@@ -182,7 +184,9 @@ def _register_profile_query(mcp_server: ExasolMCPServer) -> None:
         name="profile_exasol_query",
         description=(
             "Runs the query with profiling enabled and returns a breakdown of the "
-            "execution plan. Use this to understand why a query is slow."
+            "execution plan. Use this to understand why a query is slow. The query "
+            "must be a SELECT statement, or SELECT statements combined with "
+            "UNION [ALL], INTERSECT, MINUS or EXCEPT."
         ),
         annotations=ToolAnnotations(read_only_hint=True),
     )

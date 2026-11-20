@@ -296,8 +296,10 @@ execute_exasol_query
 ~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Executes the specified query, which must be a SELECT statement.
-    The query should not modify the data. SELECT INTO command is not allowed.
+    Executes the specified query, which must be a SELECT statement. SELECT statements
+    can be combined with the table operators ``UNION [ALL]``, ``INTERSECT``, ``MINUS``
+    and ``EXCEPT``. The query should not modify the data. SELECT INTO command is not
+    allowed.
     An optional ``row_limit`` parameter can be used to preview a sample of results
     without fetching all rows. The query is then wrapped in
     ``SELECT * FROM (<query>) LIMIT <row_limit>``. If ``row_limit`` is omitted, the
@@ -319,7 +321,8 @@ profile_exasol_query
 
 :Description:
     Runs the specified SELECT query with profiling enabled and returns a breakdown
-    of the execution plan. Use this to understand why a query is slow.
+    of the execution plan. Use this to understand why a query is slow. The query is
+    validated in the same way as in ``execute_exasol_query``.
 
 :Returns:
     - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting
