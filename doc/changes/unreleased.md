@@ -30,6 +30,7 @@ the client.
 * #341: Fixed a database connection being returned to the pool before its query result was fetched
 * #346: Fixed auth parameters that accept either a string or a list
 * #343: Prevented the BucketFS tools from accessing paths outside the configured base directory (`EXA_BUCKETFS_PATH`)
+* #352: Fixed auth provider parameters being parsed as plain strings when some of the provider's type annotations cannot be resolved, e.g. in `AzureProvider`
 * #350: Made the BucketFS write and delete tools check the path when elicitation is disabled
 * #348: Fixed the validation of the read queries:
   * SELECT statements combined with `UNION [ALL]`, `INTERSECT`, `MINUS` and `EXCEPT`, and a parenthesised SELECT, are accepted
