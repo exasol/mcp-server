@@ -7,10 +7,12 @@ import pytest
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.bucketfs_tools import (
+    PATH_ERRORS,
     PATH_WARNINGS,
     BucketFsTools,
     PathStatus,
     check_answer,
+    get_path_error,
     get_path_warning,
     normalize_path,
 )
@@ -234,3 +236,95 @@ def test_delete_directory_outside_base_dir(bfs_tools, bucket_dir, path) -> None:
         asyncio.run(coro)
     _assert_outside_intact(bucket_dir)
     assert (bucket_dir / "root" / "a" / "inside.txt").read_text() == "INSIDE"
+
+
+@pytest.mark.parametrize(
+    ["status", "expected_status", "expected_error"],
+    [
+        (PathStatus.DirExists, None, PATH_ERRORS[PathStatus.DirExists]),
+        (PathStatus.Invalid, None, PATH_ERRORS[PathStatus.Invalid]),
+        (PathStatus.Vacant, PathStatus.FileExists, "existing file"),
+        (PathStatus.DirExists, PathStatus.FileExists, "existing file"),
+        (PathStatus.Invalid, PathStatus.FileExists, PATH_ERRORS[PathStatus.Invalid]),
+        (PathStatus.Vacant, PathStatus.DirExists, "existing directory"),
+        (PathStatus.FileExists, PathStatus.DirExists, "existing directory"),
+        (PathStatus.Invalid, PathStatus.DirExists, PATH_ERRORS[PathStatus.Invalid]),
+    ],
+    ids=lambda p: p.name if isinstance(p, PathStatus) else "",
+)
+def test_get_path_error(status, expected_status, expected_error) -> None:
+    assert expected_error in get_path_error(status, expected_status)
+
+
+def _bucket_snapshot(bucket_dir: Path) -> dict[str, str | None]:
+    """
+    Returns the content of the bucket as a dictionary - relative path => file content,
+    or None for a directory.
+    """
+    return {
+        str(pth.relative_to(bucket_dir)): (pth.read_text() if pth.is_file() else None)
+        for pth in bucket_dir.rglob("*")
+    }
+
+
+@pytest.mark.parametrize(
+    ["path", "expected_error"],
+    [
+        ("a", "existing directory"),
+        ("a/", "existing directory"),
+        ("a/new file.txt", "path is invalid"),
+        ("a/new:file.txt", "path is invalid"),
+        ("a/new\0file.txt", "path is invalid"),
+    ],
+)
+def test_write_text_to_file_invalid_no_elicitation(
+    bfs_tools, bucket_dir, path, expected_error
+) -> None:
+    snapshot = _bucket_snapshot(bucket_dir)
+    coro = bfs_tools.write_text_to_file(path, "NEW", MagicMock())
+    with pytest.raises(ValueError, match=expected_error):
+        asyncio.run(coro)
+    assert _bucket_snapshot(bucket_dir) == snapshot
+
+
+def test_write_text_to_file_overwrite_no_elicitation(bfs_tools, bucket_dir) -> None:
+    asyncio.run(bfs_tools.write_text_to_file("a/inside.txt", "NEW", MagicMock()))
+    assert (bucket_dir / "root" / "a" / "inside.txt").read_text() == "NEW"
+
+
+@pytest.mark.parametrize("path", ["a", "a/", "a/new file.txt", "a/new:file.txt"])
+def test_download_file_invalid_no_elicitation(bfs_tools, bucket_dir, path) -> None:
+    snapshot = _bucket_snapshot(bucket_dir)
+    coro = bfs_tools.download_file(path, "http://localhost/never-called", MagicMock())
+    with pytest.raises(ValueError):
+        asyncio.run(coro)
+    assert _bucket_snapshot(bucket_dir) == snapshot
+
+
+@pytest.mark.parametrize("path", ["a", "a/", "a/missing.txt", "missing/inside.txt"])
+def test_delete_file_invalid_no_elicitation(bfs_tools, bucket_dir, path) -> None:
+    snapshot = _bucket_snapshot(bucket_dir)
+    coro = bfs_tools.delete_file(path, MagicMock())
+    with pytest.raises(ValueError, match="must point to an existing file"):
+        asyncio.run(coro)
+    assert _bucket_snapshot(bucket_dir) == snapshot
+
+
+def test_delete_file_no_elicitation(bfs_tools, bucket_dir) -> None:
+    asyncio.run(bfs_tools.delete_file("a/inside.txt", MagicMock()))
+    assert not (bucket_dir / "root" / "a" / "inside.txt").exists()
+
+
+@pytest.mark.parametrize("path", ["missing", "a/missing", "a/inside.txt"])
+def test_delete_directory_invalid_no_elicitation(bfs_tools, bucket_dir, path) -> None:
+    snapshot = _bucket_snapshot(bucket_dir)
+    coro = bfs_tools.delete_directory(path, MagicMock())
+    with pytest.raises(ValueError, match="must point to an existing directory"):
+        asyncio.run(coro)
+    assert _bucket_snapshot(bucket_dir) == snapshot
+
+
+def test_delete_directory_no_elicitation(bfs_tools, bucket_dir) -> None:
+    asyncio.run(bfs_tools.delete_directory("a", MagicMock()))
+    assert not (bucket_dir / "root" / "a" / "inside.txt").exists()
+    _assert_outside_intact(bucket_dir)

@@ -9,6 +9,9 @@ import sqlglot.expressions as exp
 
 from exasol.ai.mcp.server.setup.server_settings import McpServerSettings
 from exasol.ai.mcp.server.tools.mcp_server import (
+    MULTIPLE_STATEMENTS_MESSAGE,
+    NOT_SELECT_QUERY_MESSAGE,
+    UNPARSABLE_QUERY_MESSAGE,
     ExasolMCPServer,
     _build_column_summaries,
     _build_current_preprocessor_query,
@@ -23,7 +26,7 @@ from exasol.ai.mcp.server.tools.mcp_server import (
     _statement_to_tabular,
     create_query_elicitation_type,
     remove_info_column,
-    verify_query,
+    validate_select_query,
 )
 from exasol.ai.mcp.server.tools.meta_query import INFO_COLUMN
 from exasol.ai.mcp.server.tools.schema.db_output_schema import (
@@ -165,6 +168,11 @@ def sample_invalid_query() -> str:
     return "FOR cnt := 1 TO max_cnt SELECT cnt"
 
 
+_S1 = 'SELECT "A" FROM "S"."T1"'
+_S2 = 'SELECT "B" FROM "S"."T2"'
+_S_INTO = 'SELECT "B" INTO TABLE "S"."T3" FROM "S"."T2"'
+
+
 @pytest.mark.parametrize(
     ["query", "expected_result"],
     [
@@ -176,6 +184,35 @@ def sample_invalid_query() -> str:
         (sample_export_query(), False),
         (sample_select_udf_emits_query(), True),
         (sample_invalid_query(), False),
+        (f"{_S1} UNION ALL {_S2}", True),
+        (f"{_S1} UNION {_S2}", True),
+        (f"{_S1} INTERSECT {_S2}", True),
+        (f"{_S1} MINUS {_S2}", True),
+        (f"{_S1} EXCEPT {_S2}", True),
+        (f"{_S1} UNION ALL {_S2} INTERSECT {_S1} MINUS {_S2}", True),
+        (f"({_S1})", True),
+        (f"({_S1}) UNION ALL ({_S2}) ORDER BY 1 LIMIT 4", True),
+        (f"({_S1} ORDER BY 1 LIMIT 4) MINUS ({_S2})", True),
+        (f'WITH "C" AS ({_S1}) SELECT * FROM "C" UNION ALL {_S2}', True),
+        (f'WITH "C" AS ({_S1}) (SELECT * FROM "C") UNION ALL ({_S2})', True),
+        (f'({_S1}) UNION ALL (WITH "C" AS ({_S2}) SELECT * FROM "C")', True),
+        ("SELECT 'MINUS' AS \"MINUS\" FROM DUAL", True),
+        (f"{_S_INTO} UNION ALL {_S1}", False),
+        (f"{_S1} UNION ALL {_S_INTO}", False),
+        (f"({_S1}) MINUS ({_S_INTO})", False),
+        (f"({_S_INTO})", False),
+        (f'WITH "C" AS ({_S1}) SELECT * INTO TABLE "S"."T3" FROM "C"', False),
+        (f"SELECT * FROM ({_S_INTO})", False),
+        (f'INSERT INTO "S"."T3" {_S1} UNION ALL {_S2}', False),
+        (f"{_S1} UNION DISTINCT {_S2}", True),
+        (f"{_S1};", True),
+        (f"{_S1};;", True),
+        (f"{_S1}; -- comment", True),
+        ("SELECT ';' FROM DUAL", True),
+        (f"{_S1}; {_S2}", False),
+        (f'{_S1}; DELETE FROM "S"."T1"', False),
+        ("", False),
+        ("SELECT 'abc", False),
     ],
     ids=[
         "select",
@@ -186,9 +223,38 @@ def sample_invalid_query() -> str:
         "export",
         "select-udf-emits",
         "invalid",
+        "union-all",
+        "union",
+        "intersect",
+        "minus",
+        "except",
+        "mixed-table-operators",
+        "parenthesised-select",
+        "table-operator-order-by-limit",
+        "operand-order-by-limit",
+        "cte-union",
+        "cte-parenthesised-operands",
+        "cte-in-operand",
+        "minus-literal-and-identifier",
+        "select-into-left-operand",
+        "select-into-right-operand",
+        "select-into-parenthesised-operand",
+        "parenthesised-select-into",
+        "cte-select-into",
+        "select-into-in-subquery",
+        "insert-union",
+        "union-distinct",
+        "trailing-semicolon",
+        "double-semicolon",
+        "trailing-comment",
+        "semicolon-in-literal",
+        "two-selects",
+        "select-and-delete",
+        "empty",
+        "unterminated-string",
     ],
 )
-def test_verify_query(query, expected_result):
+def test_validate_select_query(query, expected_result):
     """
     The test checks that the query validation recognises as a SELECT statement
     only a query that selects data. There are various forms of valid SQL statements
@@ -198,7 +264,33 @@ def test_verify_query(query, expected_result):
     Exasol dialect, for instance MERGE and EXPORT. Frustrating as it is, what matters
     in this case is that such queries are not recognised as valid SQL statements.
     """
-    assert verify_query(query) == expected_result
+    if expected_result:
+        validate_select_query(query)
+    else:
+        with pytest.raises(ValueError):
+            validate_select_query(query)
+
+
+def test_validate_select_query_not_select():
+    query = sample_insert_query()
+    with pytest.raises(ValueError, match=NOT_SELECT_QUERY_MESSAGE):
+        validate_select_query(query)
+
+
+@pytest.mark.parametrize(
+    "query",
+    [sample_invalid_query(), "SELECT 'abc"],
+    ids=["parse-error", "token-error"],
+)
+def test_validate_select_query_unparsable(query):
+    with pytest.raises(ValueError, match=UNPARSABLE_QUERY_MESSAGE):
+        validate_select_query(query)
+
+
+def test_validate_select_query_multiple_statements():
+    query = 'SELECT 1 FROM DUAL; DELETE FROM "S"."T1"'
+    with pytest.raises(ValueError, match=MULTIPLE_STATEMENTS_MESSAGE):
+        validate_select_query(query)
 
 
 def test_remove_info_column():
@@ -825,6 +917,31 @@ def test_build_preview_query_preserves_inner_query():
     query = 'SELECT "A", "B" FROM "S"."T" WHERE "X" > 0 ORDER BY "A"'
     sql = collapse_spaces(_build_preview_query(query, 1))
     expected = collapse_spaces(f"SELECT * FROM ({query}) LIMIT 1")
+    assert sql == expected
+
+
+@pytest.mark.parametrize(
+    ["query", "expected_inner_query"],
+    [
+        (
+            'SELECT "A" FROM "T1" UNION ALL SELECT "B" FROM "T2"',
+            'SELECT "A" FROM "T1" UNION ALL SELECT "B" FROM "T2"',
+        ),
+        (
+            'SELECT "A" FROM "T1" MINUS SELECT "B" FROM "T2"',
+            'SELECT "A" FROM "T1" MINUS SELECT "B" FROM "T2"',
+        ),
+        (
+            'SELECT "A" FROM "T1" EXCEPT SELECT "B" FROM "T2"',
+            'SELECT "A" FROM "T1" MINUS SELECT "B" FROM "T2"',
+        ),
+        ('(SELECT "A" FROM "T1")', '(SELECT "A" FROM "T1")'),
+    ],
+    ids=["union-all", "minus", "except", "parenthesised-select"],
+)
+def test_build_preview_query_table_operators(query, expected_inner_query):
+    sql = collapse_spaces(_build_preview_query(query, 5))
+    expected = collapse_spaces(f"SELECT * FROM ({expected_inner_query}) LIMIT 5")
     assert sql == expected
 
 

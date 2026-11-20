@@ -296,8 +296,10 @@ execute_exasol_query
 ~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Executes the specified query, which must be a SELECT statement.
-    The query should not modify the data. SELECT INTO command is not allowed.
+    Executes the specified query, which must be a SELECT statement. SELECT statements
+    can be combined with the table operators ``UNION [ALL]``, ``INTERSECT``, ``MINUS``
+    and ``EXCEPT``. The query should not modify the data. SELECT INTO command is not
+    allowed.
     An optional ``row_limit`` parameter can be used to preview a sample of results
     without fetching all rows. The query is then wrapped in
     ``SELECT * FROM (<query>) LIMIT <row_limit>``. If ``row_limit`` is omitted, the
@@ -319,7 +321,8 @@ profile_exasol_query
 
 :Description:
     Runs the specified SELECT query with profiling enabled and returns a breakdown
-    of the execution plan. Use this to understand why a query is slow.
+    of the execution plan. Use this to understand why a query is slow. The query is
+    validated in the same way as in ``execute_exasol_query``.
 
 :Returns:
     - **Type**: ``dict`` or ``list``, depending on the ``query_result_format`` setting
@@ -358,6 +361,12 @@ directory, which is set by ``EXA_BUCKETFS_PATH`` and defaults to the bucket root
 directory. The tools reject absolute paths and paths that use ``..`` to point outside
 the base directory. The tools that write or delete files also reject paths that point
 to the base directory itself.
+
+The tools that write or delete files check the path, even if the elicitation is
+disabled. ``delete_bucketfs_file`` requires an existing file, and
+``delete_bucketfs_directory`` requires an existing directory. The tools that write
+files do not write a file in place of an existing directory, and reject paths with
+spaces or colons.
 
 list_bucketfs_directories
 ~~~~~~~~~~~~~~~~~~~~~~~~~
