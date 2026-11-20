@@ -824,6 +824,9 @@ def test__get_constructor_type_hints_unresolved(caplog) -> None:
     }
     for param in [*_UNRESOLVED_PARAMS, "partial_param"]:
         assert param in caplog.text
+    # The warnings include the errors.
+    for error_type in ["NameError", "SyntaxError"]:
+        assert error_type in caplog.text
     assert "client_storage" not in caplog.text
     assert "kwargs" not in caplog.text
 

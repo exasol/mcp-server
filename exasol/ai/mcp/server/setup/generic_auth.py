@@ -316,21 +316,29 @@ def _resolve_each_type_hint(provider_type: type) -> dict[str, Any]:
             continue
         try:
             hints[name] = _resolve_annotation(annotation, globalns)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            # Resolving an annotation evaluates arbitrary expressions, which can
+            # raise any exception, e.g. NameError, SyntaxError, AttributeError,
+            # TypeError. A parameter that cannot be resolved must not stop the
+            # server, but the error is logged.
             if isinstance(annotation, (str, ForwardRef)):
                 logger.warning(
-                    "Cannot resolve the type of the %s parameter %s. "
+                    "Cannot resolve the type of the %s parameter %s (%s: %s). "
                     "It will be parsed as a string.",
                     provider_type.__qualname__,
                     name,
+                    type(error).__name__,
+                    error,
                 )
             else:
                 hints[name] = annotation
                 logger.warning(
-                    "Cannot fully resolve the type of the %s parameter %s. "
-                    "The unresolved parts will be parsed as strings.",
+                    "Cannot fully resolve the type of the %s parameter %s "
+                    "(%s: %s). The unresolved parts will be parsed as strings.",
                     provider_type.__qualname__,
                     name,
+                    type(error).__name__,
+                    error,
                 )
     return hints
 
