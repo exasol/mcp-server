@@ -218,6 +218,10 @@ To disable elicitation, add the following line:
         "disable_elicitation": true
     }
 
+With elicitation disabled, the BucketFS tools still check the path. For example, the
+tools will not write a file in place of an existing directory, or delete a file or a
+directory that does not exist. In such a case, the tool returns an error.
+
 Elicitation and the MCP protocol version
 ----------------------------------------
 

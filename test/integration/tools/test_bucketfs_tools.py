@@ -3,7 +3,10 @@ from collections.abc import (
     ByteString,
     Generator,
 )
-from contextlib import contextmanager
+from contextlib import (
+    contextmanager,
+    nullcontext,
+)
 from dataclasses import dataclass
 from unittest.mock import (
     create_autospec,
@@ -948,6 +951,98 @@ def test_delete_directory_no_elicitation(bucketfs_location, no_elicit_config) ->
             path=path,
         )
         assert not abs_path.exists()
+
+
+def _protect(bfs_path: bfs.path.PathLike):
+    """
+    Restores an existing file or directory after a test that is not supposed to
+    modify it, in case it does. Nothing needs restoring if the path doesn't exist.
+    """
+    return tmp_path_write(bfs_path) if bfs_path.exists() else nullcontext()
+
+
+@pytest.mark.parametrize(
+    ["path", "expected_error"],
+    [
+        ("Species/Carnivores/Dog", "existing directory at the path"),
+        ("No_elicitation/bad name:file", "path is invalid"),
+    ],
+)
+def test_write_file_invalid_no_elicitation(
+    bucketfs_location, no_elicit_config, path, expected_error
+) -> None:
+    abs_path = bucketfs_location.joinpath(path)
+    was_dir = abs_path.is_dir()
+    with _protect(abs_path):
+        with pytest.raises(ToolError, match=expected_error):
+            _run_tool(
+                bucketfs_location,
+                "write_text_to_bucketfs_file",
+                config=no_elicit_config,
+                path=path,
+                content=_human,
+            )
+        assert not abs_path.is_file()
+        assert abs_path.is_dir() == was_dir
+
+
+def test_download_file_to_dir_no_elicitation(
+    bucketfs_location, httpserver, no_elicit_config
+) -> None:
+    path = "Species/Carnivores/Dog"
+    url = "/fake_science"
+    httpserver.expect_request(url).respond_with_data(_human)
+    abs_path = bucketfs_location.joinpath(path)
+    full_url = httpserver.url_for(url)
+    with _protect(abs_path):
+        with pytest.raises(ToolError, match="existing directory at the path"):
+            _run_tool(
+                bucketfs_location,
+                "download_file",
+                config=no_elicit_config,
+                url=full_url,
+                path=path,
+            )
+        assert not abs_path.is_file()
+        assert abs_path.is_dir()
+
+
+@pytest.mark.parametrize(
+    "path", ["Species/Carnivores/Dog", "Species/Carnivores/Unicorn"]
+)
+def test_delete_file_invalid_no_elicitation(
+    bucketfs_location, no_elicit_config, path
+) -> None:
+    abs_path = bucketfs_location.joinpath(path)
+    was_dir = abs_path.is_dir()
+    with _protect(abs_path):
+        with pytest.raises(ToolError, match="must point to an existing file"):
+            _run_tool(
+                bucketfs_location,
+                "delete_bucketfs_file",
+                config=no_elicit_config,
+                path=path,
+            )
+        assert abs_path.is_dir() == was_dir
+
+
+@pytest.mark.parametrize(
+    "path", ["Species/Even-toed_Ungulates/Deer/Elk", "Species/Unicorns"]
+)
+def test_delete_directory_invalid_no_elicitation(
+    bucketfs_location, no_elicit_config, path
+) -> None:
+    abs_path = bucketfs_location.joinpath(path)
+    was_file = abs_path.is_file()
+    with _protect(abs_path):
+        with pytest.raises(ToolError, match="must point to an existing directory"):
+            _run_tool(
+                bucketfs_location,
+                "delete_bucketfs_directory",
+                config=no_elicit_config,
+                path=path,
+            )
+        assert abs_path.is_file() == was_file
 
 
 def test_bucketfs_tool_hints(pyexasol_connection, bucketfs_location) -> None:

@@ -41,7 +41,7 @@ class PathStatus(Enum):
     Vacant = auto()
     Invalid = auto()
     FileExists = auto()
-    DirExists = ()
+    DirExists = auto()
 
 
 PATH_FIELD = "FULL_PATH"
@@ -109,6 +109,36 @@ def get_path_warning(
     ) or path_status == expected_status:
         return ""
     return PATH_WARNINGS[path_status]
+
+
+PATH_ERRORS = {
+    PathStatus.Invalid: (
+        "The path is invalid. It must be relative to the base directory and must not "
+        "point outside it or to the base directory itself. Spaces and colons are not "
+        "allowed."
+    ),
+    PathStatus.DirExists: (
+        "There is an existing directory at the path. A file cannot be written in "
+        "place of a directory."
+    ),
+}
+
+EXPECTED_STATUS_ERRORS = {
+    PathStatus.FileExists: "The path must point to an existing file.",
+    PathStatus.DirExists: "The path must point to an existing directory.",
+}
+
+
+def get_path_error(path_status: PathStatus, expected_status: PathStatus | None) -> str:
+    """
+    Returns an explanation of why the path cannot be used, when there is no
+    elicitation. Unlike the warnings, which are written for the user reviewing the
+    path in the elicitation, this message is addressed to the caller of the tool.
+    The function should only be called for a path that failed the checks.
+    """
+    if (path_status == PathStatus.Invalid) or (expected_status is None):
+        return PATH_ERRORS[path_status]
+    return EXPECTED_STATUS_ERRORS[expected_status]
 
 
 def compose_message(
@@ -249,6 +279,9 @@ class BucketFsTools:
         user may need to know, for instance there is an existing file at this path, the
         elicitation may be repeated.
 
+        If the elicitation is disabled, the initial data is accepted as is, provided
+        it passes the same path checks. Otherwise, a ValueError is raised.
+
         Args:
             message:
                 Generic message to be displayed in the elicitation. This message can be
@@ -270,7 +303,14 @@ class BucketFsTools:
         path, response_type = response_type_factory()
         if self.config.disable_elicitation:
             # If elicitation is disabled, then emulate the acceptance of the
-            # default data.
+            # default data, after applying the same path checks as for the
+            # accepted elicitation data.
+            path_status = self._get_path_status(path)
+            if not check_answer(path, path, path_status, expected_status):
+                raise ValueError(
+                    f"The path {path} cannot be used in this operation. "
+                    f"{get_path_error(path_status, expected_status)}"
+                )
             return response_type()
         if is_input_required_era(ctx):
             return self._elicitate_with_guard(
