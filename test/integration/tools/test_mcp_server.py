@@ -1217,3 +1217,98 @@ def test_profile_query_error(
             tool_name="profile_exasol_query",
             query=query,
         )
+
+
+_ROWS_123 = (
+    'SELECT 1 AS "A" FROM DUAL UNION ALL SELECT 2 FROM DUAL '
+    "UNION ALL SELECT 3 FROM DUAL"
+)
+_ROWS_23 = 'SELECT 2 AS "A" FROM DUAL UNION ALL SELECT 3 FROM DUAL'
+
+_TABLE_OPERATOR_QUERIES = [
+    (f"{_ROWS_123} UNION ALL {_ROWS_23}", [1, 2, 2, 3, 3]),
+    (f"({_ROWS_123}) UNION ({_ROWS_23})", [1, 2, 3]),
+    (f"({_ROWS_123}) INTERSECT ({_ROWS_23})", [2, 3]),
+    (f"({_ROWS_123}) MINUS ({_ROWS_23})", [1]),
+    (f"({_ROWS_123}) EXCEPT ({_ROWS_23})", [1]),
+    (f"({_ROWS_23})", [2, 3]),
+    (
+        f'WITH "C" AS ({_ROWS_23}) (SELECT * FROM "C") UNION ALL '
+        f'(SELECT 1 AS "A" FROM DUAL)',
+        [1, 2, 3],
+    ),
+    (f"({_ROWS_123}) MINUS ({_ROWS_23});", [1]),
+]
+_TABLE_OPERATOR_IDS = [
+    "union-all",
+    "union",
+    "intersect",
+    "minus",
+    "except",
+    "parenthesised-select",
+    "cte-union-all",
+    "trailing-semicolon",
+]
+
+
+@pytest.mark.parametrize("row_limit", [None, 2])
+@pytest.mark.parametrize(
+    ["query", "expected_values"], _TABLE_OPERATOR_QUERIES, ids=_TABLE_OPERATOR_IDS
+)
+def test_execute_query_table_operators(
+    pyexasol_connection, query, expected_values, row_limit
+):
+    """
+    Test that `execute_exasol_query` accepts the SELECTs combined with the table
+    operators, with and without the row limit.
+    """
+    config = McpServerSettings(enable_read_query=True)
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name="execute_exasol_query",
+        query=query,
+        row_limit=row_limit,
+    )
+    values = sorted(row["A"] for row in get_query_result_json(result))
+    if row_limit is None:
+        assert values == expected_values
+    else:
+        assert len(values) == min(row_limit, len(expected_values))
+        assert set(values) <= set(expected_values)
+
+
+def test_execute_query_table_operator_with_select_into(pyexasol_connection):
+    """
+    Test that `execute_exasol_query` rejects a SELECT INTO in an operand of a table
+    operator.
+    """
+    config = McpServerSettings(enable_read_query=True)
+    query = (
+        'SELECT 1 AS "A" FROM DUAL UNION ALL '
+        'SELECT 2 INTO TABLE "ANOTHER_TABLE" FROM DUAL'
+    )
+    with pytest.raises(ToolError):
+        run_tool(
+            pyexasol_connection,
+            config,
+            tool_name="execute_exasol_query",
+            query=query,
+        )
+
+
+def test_profile_query_table_operator(pyexasol_connection):
+    """
+    Test that `profile_exasol_query` accepts the SELECTs combined with a table
+    operator.
+    """
+    config = McpServerSettings(enable_query_profiling=True)
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name="profile_exasol_query",
+        query=f"({_ROWS_123}) MINUS ({_ROWS_23})",
+    )
+    result_json = get_query_result_json(result)
+    assert len(result_json) > 0
+    assert "PART_NAME" in result_json[0]

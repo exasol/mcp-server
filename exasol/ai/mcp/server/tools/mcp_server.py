@@ -21,9 +21,15 @@ from pydantic import (
 from pyexasol import ExaStatement
 from sqlglot import (
     exp,
+    parse,
     parse_one,
 )
-from sqlglot.errors import ParseError
+from sqlglot.dialects.exasol import Exasol
+from sqlglot.errors import (
+    ParseError,
+    TokenError,
+)
+from sqlglot.tokens import TokenType
 from starlette.responses import JSONResponse
 
 from exasol.ai.mcp.server.connection.db_connection import (
@@ -204,10 +210,83 @@ def _get_emits_pattern() -> re.Pattern:
     return re.compile(pattern, flags=regex_flags)
 
 
-def verify_query(query: str) -> bool:
+class ExtendedExasolDialect(Exasol):
     """
-    Verifies that the query is a valid SELECT query.
-    Declines any other types of statements including the SELECT INTO.
+    The SQLGlot Exasol dialect, extended with the Exasol syntax that SQLGlot misses.
+    Use it for parsing a user query everywhere the server parses one.
+    """
+
+    class Tokenizer(Exasol.Tokenizer):
+        """Adds the Exasol keywords missing in the SQLGlot Exasol tokenizer."""
+
+        KEYWORDS = {
+            **Exasol.Tokenizer.KEYWORDS,
+            # MINUS is the Exasol alias of the EXCEPT table operator.
+            "MINUS": TokenType.EXCEPT,
+        }
+
+    class Generator(Exasol.Generator):
+        """Writes the set difference as MINUS, which all Exasol versions support."""
+
+        def set_operation(self, expression: exp.SetOperation) -> str:
+            sql = super().set_operation(expression)
+            if isinstance(expression, exp.Except):
+                return sql.replace("EXCEPT", "MINUS", 1)
+            return sql
+
+
+NOT_SELECT_QUERY_MESSAGE = "The query is not a SELECT statement."
+UNPARSABLE_QUERY_MESSAGE = (
+    "The query could not be parsed. It may be invalid or use syntax that "
+    "the query validator does not support."
+)
+MULTIPLE_STATEMENTS_MESSAGE = "The query must be a single statement."
+
+
+def _parse_query(query: str) -> exp.Expression:
+    return parse_one(query, read=ExtendedExasolDialect)
+
+
+def _parse_statements(query: str) -> list[exp.Expression]:
+    """
+    Parses all statements in the query. Skips the empty statements, such as the
+    ones after a trailing semicolon.
+    """
+    return [
+        statement
+        for statement in parse(query, read=ExtendedExasolDialect)
+        if statement is not None and not isinstance(statement, exp.Semicolon)
+    ]
+
+
+def _is_select_query(node: exp.Expression) -> bool:
+    """
+    Checks that the query is a SELECT, or the SELECTs combined with the table
+    operators (UNION [ALL], INTERSECT, MINUS/EXCEPT), possibly in parentheses.
+    """
+    if isinstance(node, exp.Subquery):
+        return _is_select_query(node.this)
+    if isinstance(node, exp.SetOperation):
+        return _is_select_query(node.this) and _is_select_query(node.expression)
+    if isinstance(node, exp.Select):
+        return node.args.get("into") is None
+    return False
+
+
+def _has_data_modification(node: exp.Expression) -> bool:
+    """
+    Checks if any part of the query, e.g. a CTE, modifies the data.
+    """
+    if node.find(exp.DML, exp.Create, exp.Drop, exp.Alter):
+        return True
+    return any(select.args.get("into") for select in node.find_all(exp.Select))
+
+
+def validate_select_query(query: str) -> None:
+    """
+    Verifies that the query is a single valid SELECT query. The SELECTs can be
+    combined with the table operators. Declines any other types of statements
+    including the SELECT INTO. Raises a ValueError if the query is not accepted.
     """
 
     # Here is a fix for the SQLGlot deficiency in understanding the syntax of variadic
@@ -216,12 +295,17 @@ def verify_query(query: str) -> bool:
     query = _get_emits_pattern().sub("", query)
 
     try:
-        ast = parse_one(query, read="exasol")
-        if isinstance(ast, exp.Select):
-            return "into" not in ast.args
-        return False
-    except ParseError:
-        return False
+        statements = _parse_statements(query)
+    except (ParseError, TokenError) as e:
+        raise ValueError(UNPARSABLE_QUERY_MESSAGE) from e
+    if len(statements) > 1:
+        raise ValueError(MULTIPLE_STATEMENTS_MESSAGE)
+    if (
+        not statements
+        or not _is_select_query(statements[0])
+        or _has_data_modification(statements[0])
+    ):
+        raise ValueError(NOT_SELECT_QUERY_MESSAGE)
 
 
 def remove_info_column(result: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -371,9 +455,9 @@ def _build_column_summaries(
 def _build_preview_query(query: str, row_limit: int) -> str:
     return (
         exp.select(exp.Star())
-        .from_(parse_one(query, read="exasol").subquery())
+        .from_(_parse_query(query).subquery())
         .limit(row_limit)
-        .sql(dialect="exasol")
+        .sql(dialect=ExtendedExasolDialect)
     )
 
 
@@ -842,8 +926,7 @@ class ExasolMCPServer(FastMCP):
     ) -> T:
         if not self.config.enable_read_query:
             raise RuntimeError("Query execution is disabled.")
-        if not verify_query(query):
-            raise ValueError("The query is invalid or not a SELECT statement.")
+        validate_select_query(query)
         effective_row_limit = (
             row_limit if row_limit is not None else self.config.default_row_limit
         )
@@ -869,8 +952,7 @@ class ExasolMCPServer(FastMCP):
     def _run_profile_query(self, query: str, fetch: Callable[[ExaStatement], T]) -> T:
         if not self.config.enable_query_profiling:
             raise RuntimeError("Query profiling is disabled.")
-        if not verify_query(query):
-            raise ValueError("The query is invalid or not a SELECT statement.")
+        validate_select_query(query)
         profile_already_on = (
             self.connection.execute_query(
                 _build_profile_status_query(),
