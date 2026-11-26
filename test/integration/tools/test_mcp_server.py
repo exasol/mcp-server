@@ -1280,20 +1280,14 @@ def test_execute_query_table_operators(
 
 @pytest.fixture
 def variadic_emits_udf(pyexasol_connection, db_schema_name) -> Generator[str]:
-    """
-    Creates a UDF with dynamic output columns, which emits 1, 2, ..., n.
-    It's written in Lua, which runs in the database itself, without a script
-    language container.
-    """
+    """Creates a UDF with dynamic output columns, which emits 1, 2, ..., n."""
     name = "emit_sequence"
     pyexasol_connection.execute(f"""
-CREATE OR REPLACE LUA SCALAR SCRIPT "{db_schema_name}"."{name}"(n DOUBLE) EMITS (...)
+CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{db_schema_name}"."{name}"(n INT) EMITS (...)
 AS
-function run(ctx)
-    for i = 1, ctx.n do
-        ctx.emit(i)
-    end
-end
+def run(ctx):
+    for i in range(ctx.n):
+        ctx.emit(i + 1)
 /
 """)
     yield f'"{db_schema_name}"."{name}"'
@@ -1325,7 +1319,7 @@ def test_execute_query_variadic_emits_udf(
         default_row_limit=default_row_limit,
         query_result_format=query_result_format,
     )
-    query = f'SELECT {variadic_emits_udf}(3) EMITS ("A" DOUBLE) FROM DUAL{terminator}'
+    query = f'SELECT {variadic_emits_udf}(3) EMITS ("A" INT) FROM DUAL{terminator}'
     result = run_tool(
         pyexasol_connection,
         config,
