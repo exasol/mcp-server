@@ -71,7 +71,6 @@ from exasol.ai.mcp.server.setup.generic_auth import (
     get_token_verifier,
     parameter_env_name,
     str_to_bool,
-    str_to_bool_or_external,
     str_to_dict,
     str_to_int,
     str_to_list,
@@ -152,10 +151,16 @@ def test_str_to_bool_error():
 
 @pytest.mark.parametrize(
     ["input_str", "expected_value"],
-    [(" true ", True), (" false ", False), (" external ", "external")],
+    [
+        (" true ", True),
+        (" false ", False),
+        (" external ", "external"),
+        ("EXTERNAL", "external"),
+    ],
 )
-def test_str_to_bool_or_external(input_str, expected_value):
-    assert str_to_bool_or_external(input_str) == expected_value
+def test__type_to_converter_bool_or_external_values(input_str, expected_value):
+    conv = _type_to_converter(bool | Literal["external"])
+    assert conv(input_str) == expected_value
 
 
 @pytest.mark.parametrize(
@@ -627,6 +632,12 @@ def test_get_auth_kwargs_empty() -> None:
         (Union[str, list[str]], "a", ["a"]),
         (str | list, "a, b", ["a", "b"]),
         (bool | Literal["external"], "true", True),
+        (bool | Literal["remember", "external"], "remember", "remember"),
+        (bool | Literal["remember", "external"], " Remember ", "remember"),
+        (bool | Literal["remember", "external"], "external", "external"),
+        (bool | Literal["remember", "external"], "no", False),
+        (bool | Literal["remember"] | Literal["external"], "external", "external"),
+        (Optional[Union[bool, Literal["remember"]]], "remember", "remember"),
         # Lists with non-string elements
         (list[int], "1, 2", [1, 2]),
         (list[bool], "yes, false", [True, False]),
@@ -656,6 +667,12 @@ def test_get_auth_kwargs_empty() -> None:
         "union_str_list_single",
         "str_or_bare_list",
         "bool_or_literal_pipe",
+        "bool_or_literals_first",
+        "bool_or_literals_case",
+        "bool_or_literals_second",
+        "bool_or_literals_bool",
+        "bool_or_two_literals",
+        "optional_bool_or_literal",
         "list_int",
         "list_bool",
         "optional_list_int",
@@ -682,6 +699,12 @@ def test__type_to_converter_bool_or_external() -> None:
     assert conv("true") is True
     assert conv("false") is False
     assert conv("external") == "external"
+
+
+def test__type_to_converter_bool_or_literal_error() -> None:
+    conv = _type_to_converter(bool | Literal["remember", "external"])
+    with pytest.raises(ValueError, match="remember"):
+        conv("remeber")
 
 
 # ---------------------------------------------------------------------------
@@ -986,6 +1009,60 @@ def test__get_constructor_type_hints_fastmcp_providers(provider_type) -> None:
     }
     known = _KNOWN_UNRESOLVED_PARAMS.get(provider_type.__qualname__, set())
     assert annotated - known <= hints.keys()
+
+
+def _consent_provider_types() -> list:
+    """
+    Returns the fastmcp AuthProvider classes that have the
+    require_authorization_consent constructor parameter.
+    """
+    return [
+        param
+        for param in _fastmcp_provider_types()
+        if param.values[0] is not None
+        and "require_authorization_consent"
+        in _get_constructor_signature(param.values[0]).parameters
+    ]
+
+
+@pytest.mark.parametrize("provider_type", _consent_provider_types())
+@pytest.mark.parametrize(
+    ["value", "expected"],
+    [("remember", "remember"), ("external", "external"), ("false", False)],
+)
+def test_require_authorization_consent_fastmcp_providers(
+    provider_type, value, expected
+) -> None:
+    """
+    All values of require_authorization_consent are accepted by every fastmcp
+    provider that has this parameter.
+    """
+    info = _build_provider_info_from_type(provider_type)
+    param = next(
+        p for p in info.parameters if p.name == "require_authorization_consent"
+    )
+    assert param.conv(value) == expected
+
+
+class ConsentFakeProvider(AuthProvider):
+    # pylint: disable=super-init-not-called
+    def __init__(
+        self,
+        require_authorization_consent: bool | Literal["remember", "external"] = True,
+    ) -> None:
+        self.require_authorization_consent = require_authorization_consent
+
+
+def test_get_auth_provider_dynamic_consent_remember(monkeypatch) -> None:
+    qualified_name = (
+        f"{ConsentFakeProvider.__module__}.{ConsentFakeProvider.__qualname__}"
+    )
+    prefix = f"FASTMCP_SERVER_AUTH_{ConsentFakeProvider.__name__.upper()}_"
+    monkeypatch.setenv(ENV_PROVIDER_TYPE, qualified_name)
+    monkeypatch.setenv(f"{prefix}REQUIRE_AUTHORIZATION_CONSENT", "remember")
+    provider = get_auth_provider()
+    assert isinstance(provider, ConsentFakeProvider)
+    assert provider.require_authorization_consent == "remember"
 
 
 # ---------------------------------------------------------------------------
