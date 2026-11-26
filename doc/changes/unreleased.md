@@ -32,6 +32,7 @@ the client.
 * #343: Prevented the BucketFS tools from accessing paths outside the configured base directory (`EXA_BUCKETFS_PATH`)
 * #352: Fixed auth provider parameters being parsed as plain strings when some of the provider's type annotations cannot be resolved, e.g. in `AzureProvider`
 * #350: Made the BucketFS write and delete tools check the path when elicitation is disabled
+* #358: Fixed `require_authorization_consent=remember` disabling the auth provider; the parameter now accepts `true`, `false`, `remember` and `external`
 * #348: Fixed the validation of the read queries:
   * SELECT statements combined with `UNION [ALL]`, `INTERSECT`, `MINUS` and `EXCEPT`, and a parenthesised SELECT, are accepted
   * A query that cannot be parsed gets its own error message instead of "not a SELECT statement"

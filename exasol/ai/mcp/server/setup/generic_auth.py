@@ -92,11 +92,28 @@ def str_to_bool(s) -> bool:
     raise ValueError(f"Invalid boolean parameter: {s}")
 
 
-def str_to_bool_or_external(s) -> bool | Literal["external"]:
-    s_lower = str_to_str(s).lower()
-    if s_lower == "external":
-        return "external"
-    return str_to_bool(s)
+def _bool_or_literal_converter(literals: tuple) -> Callable[[str], Any]:
+    """
+    Returns the converter for a union of ``bool`` and ``Literal`` types, e.g.
+    ``bool | Literal["remember", "external"]``. A string equal to one of the
+    literal values, ignoring the case, is converted to that value. Any other string
+    is converted to a boolean.
+    """
+    str_literals = [lit for lit in literals if isinstance(lit, str)]
+
+    def conv(s: str) -> Any:
+        s_lower = str_to_str(s).lower()
+        for lit in str_literals:
+            if s_lower == lit.lower():
+                return lit
+        try:
+            return str_to_bool(s)
+        except ValueError:
+            raise ValueError(
+                f"Invalid parameter: {s}. Expected a boolean or one of {str_literals}."
+            ) from None
+
+    return conv
 
 
 def str_to_int(s: str) -> int:
@@ -115,7 +132,8 @@ def _union_to_converter(args: tuple) -> Callable[[str], Any]:
     literal_args = [a for a in non_none if get_origin(a) is Literal]
     non_literal = [a for a in non_none if get_origin(a) is not Literal]
     if non_literal == [bool] and literal_args:
-        return str_to_bool_or_external
+        literals = tuple(value for lit in literal_args for value in get_args(lit))
+        return _bool_or_literal_converter(literals)
     if len(non_none) == 1:
         return _type_to_converter(non_none[0])
     list_args = [a for a in non_none if a is list or get_origin(a) is list]
@@ -161,9 +179,10 @@ def _type_to_converter(annotation) -> Callable[[str], Any]:
     Returns the string-to-value converter that best matches a type annotation.
 
     Handles the common scalar types (str, bool, int), generic collections
-    (list, dict), Optional variants, unions with a list member, and the special
-    ``bool | Literal["external"]`` union used by several FastMCP providers. Falls
-    back to ``str_to_str`` for any annotation that does not match a known pattern.
+    (list, dict), Optional variants, unions with a list member, and unions of
+    ``bool`` and ``Literal`` types, e.g. ``bool | Literal["remember", "external"]``
+    used by several FastMCP providers. Falls back to ``str_to_str`` for any
+    annotation that does not match a known pattern.
     """
     origin = get_origin(annotation)
     args = get_args(annotation)
