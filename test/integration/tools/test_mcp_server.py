@@ -1278,6 +1278,83 @@ def test_execute_query_table_operators(
         assert set(values) <= set(expected_values)
 
 
+@pytest.fixture
+def variadic_emits_udf(pyexasol_connection, db_schema_name) -> Generator[str]:
+    """Creates a UDF with dynamic output columns, which emits 1, 2, ..., n."""
+    name = "emit_sequence"
+    pyexasol_connection.execute(f"""
+CREATE OR REPLACE PYTHON3 SCALAR SCRIPT "{db_schema_name}"."{name}"(n INT) EMITS (...)
+AS
+def run(ctx):
+    for i in range(ctx.n):
+        ctx.emit(i + 1)
+/
+""")
+    yield f'"{db_schema_name}"."{name}"'
+    pyexasol_connection.execute(f'DROP SCRIPT IF EXISTS "{db_schema_name}"."{name}"')
+
+
+@pytest.mark.parametrize(
+    "default_row_limit, row_limit, expected_count",
+    [(None, None, 3), (None, 2, 2), (2, None, 2)],
+    ids=["no-row-limit", "row-limit", "default-row-limit"],
+)
+@pytest.mark.parametrize("query_result_format", ["tabular", "dict"])
+@pytest.mark.parametrize("terminator", ["", ";", "; -- comment", " -- comment"])
+def test_execute_query_variadic_emits_udf(
+    pyexasol_connection,
+    variadic_emits_udf,
+    query_result_format,
+    default_row_limit,
+    row_limit,
+    expected_count,
+    terminator,
+):
+    """
+    Test that a variadic UDF with the EMITS clause can be called with and without
+    the row limit, also when the query ends with a semicolon or a comment.
+    """
+    config = McpServerSettings(
+        enable_read_query=True,
+        default_row_limit=default_row_limit,
+        query_result_format=query_result_format,
+    )
+    query = f'SELECT {variadic_emits_udf}(3) EMITS ("A" INT) FROM DUAL{terminator}'
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name="execute_exasol_query",
+        query=query,
+        row_limit=row_limit,
+    )
+    values = [row["A"] for row in get_query_result_json(result)]
+    assert len(values) == expected_count
+    assert set(values) <= {1, 2, 3}
+
+
+def test_execute_query_keeps_column_names_with_row_limit(pyexasol_connection):
+    """
+    Test that the row limit doesn't change the names of the result columns, which
+    Exasol derives from the expression text for an expression without an alias.
+    """
+    config = McpServerSettings(enable_read_query=True)
+    query = "SELECT NVL(NULL, 1) FROM DUAL"
+    results = [
+        get_query_result_json(
+            run_tool(
+                pyexasol_connection,
+                config,
+                tool_name="execute_exasol_query",
+                query=query,
+                row_limit=row_limit,
+            )
+        )
+        for row_limit in [None, 5]
+    ]
+    assert results[0] == results[1]
+    assert list(results[0][0]) == ["NVL(NULL,1)"]
+
+
 def test_execute_query_table_operator_with_select_into(pyexasol_connection):
     """
     Test that `execute_exasol_query` rejects a SELECT INTO in an operand of a table

@@ -412,6 +412,35 @@ def test_execute_query_row_limit(default_row_limit, row_limit, expected_query):
     assert collapse_spaces(query) == collapse_spaces(expected_query)
 
 
+@pytest.mark.parametrize(
+    "default_row_limit, row_limit, expected_limit",
+    [(5, None, 5), (None, 3, 3)],
+    ids=["default-row-limit", "row-limit"],
+)
+@pytest.mark.parametrize("tabular", [False, True], ids=["dict", "tabular"])
+def test_execute_query_emits_with_row_limit(
+    default_row_limit, row_limit, expected_limit, tabular
+):
+    """
+    Test that a variadic UDF query with the EMITS clause can run with a row limit,
+    and that the EMITS clause is passed to the database unchanged.
+    """
+    connection = _mock_connection()
+    connection.execute_query.return_value.fetchall.return_value = []
+    connection.execute_query.return_value.column_names.return_value = []
+    connection.execute_query.return_value.__iter__.return_value = iter([])
+    config = MagicMock()
+    config.enable_read_query = True
+    config.default_row_limit = default_row_limit
+    server = ExasolMCPServer(connection=connection, config=config)
+    emits_query = sample_select_udf_emits_query()
+    execute = server.execute_query_tabular if tabular else server.execute_query
+    execute(emits_query, row_limit=row_limit)
+    query = connection.execute_query.call_args[0][0]
+    expected_query = f"SELECT * FROM ({emits_query}) LIMIT {expected_limit}"
+    assert collapse_spaces(query) == collapse_spaces(expected_query)
+
+
 def test_list_keywords():
     connection = _mock_connection()
     connection.execute_query.return_value.fetchcol.return_value = ["SELECT", "INSERT"]
@@ -933,7 +962,7 @@ def test_build_preview_query_preserves_inner_query():
         ),
         (
             'SELECT "A" FROM "T1" EXCEPT SELECT "B" FROM "T2"',
-            'SELECT "A" FROM "T1" MINUS SELECT "B" FROM "T2"',
+            'SELECT "A" FROM "T1" EXCEPT SELECT "B" FROM "T2"',
         ),
         ('(SELECT "A" FROM "T1")', '(SELECT "A" FROM "T1")'),
     ],
@@ -943,6 +972,49 @@ def test_build_preview_query_table_operators(query, expected_inner_query):
     sql = collapse_spaces(_build_preview_query(query, 5))
     expected = collapse_spaces(f"SELECT * FROM ({expected_inner_query}) LIMIT 5")
     assert sql == expected
+
+
+@pytest.mark.parametrize(
+    ["query", "expected_inner_query"],
+    [
+        (sample_select_udf_emits_query(), sample_select_udf_emits_query().rstrip()),
+        (
+            "SELECT NVL(NULL, 1), DECODE(1, 1, 'a', 'b') FROM DUAL",
+            "SELECT NVL(NULL, 1), DECODE(1, 1, 'a', 'b') FROM DUAL",
+        ),
+        ("SELECT 1 FROM DUAL;", "SELECT 1 FROM DUAL"),
+        ("SELECT 1 FROM DUAL ; ;\n", "SELECT 1 FROM DUAL"),
+        ("SELECT 1 FROM DUAL; -- comment", "SELECT 1 FROM DUAL"),
+        ("SELECT 1 FROM DUAL -- comment", "SELECT 1 FROM DUAL"),
+        ("SELECT 1 FROM DUAL /* ; */ ;", "SELECT 1 FROM DUAL"),
+        ("SELECT ';' FROM \"T;\"", "SELECT ';' FROM \"T;\""),
+        (
+            "SELECT 1 -- comment\nFROM DUAL",
+            "SELECT 1 -- comment\nFROM DUAL",
+        ),
+        ("SELECT 'äöü€' FROM \"Tä\";", "SELECT 'äöü€' FROM \"Tä\""),
+    ],
+    ids=[
+        "emits",
+        "functions-not-rewritten",
+        "semicolon",
+        "multiple-semicolons",
+        "semicolon-comment",
+        "trailing-comment",
+        "semicolon-in-comment",
+        "semicolon-in-literals",
+        "inner-comment",
+        "non-ascii",
+    ],
+)
+def test_build_preview_query_inserts_query_verbatim(query, expected_inner_query):
+    sql = _build_preview_query(query, 7)
+    assert sql == f"SELECT * FROM (\n{expected_inner_query}\n) LIMIT 7"
+
+
+def test_build_preview_query_empty_query():
+    with pytest.raises(ValueError, match="not a SELECT statement"):
+        _build_preview_query(" ; -- comment", 7)
 
 
 _PROFILE_TABLE_SQL = "EXA_STATISTICS.EXA_USER_PROFILE_LAST_DAY"
