@@ -750,10 +750,8 @@ def test_describe_tables(
             pyexasol_connection,
             config,
             "describe_exasol_tables_and_views",
-            schema_name=_get_db_name_param(schema, case_sensitive),
-            table_names=[
-                _get_db_name_param(table, case_sensitive) for table in db_tables
-            ],
+            schema_name=schema.name,
+            table_names=[table.name for table in db_tables],
         )
         result_json = get_sort_result_json_list(result)
         expected_json = [
@@ -798,8 +796,8 @@ def test_describe_view_comment(
             pyexasol_connection,
             config,
             "describe_exasol_tables_and_views",
-            schema_name=_get_db_name_param(schema, case_sensitive),
-            table_names=[_get_db_name_param(view, case_sensitive) for view in db_views],
+            schema_name=schema.name,
+            table_names=[view.name for view in db_views],
         )
         result_json = get_sort_result_json_list(result)
         assert [r[COMMENT_FIELD] for r in result_json] == [v.comment for v in db_views]
@@ -877,10 +875,8 @@ def test_describe_functions(
             pyexasol_connection,
             config,
             "describe_exasol_custom_functions",
-            schema_name=_get_db_name_param(schema, case_sensitive),
-            func_names=[
-                _get_db_name_param(func, case_sensitive) for func in db_functions
-            ],
+            schema_name=schema.name,
+            func_names=[func.name for func in db_functions],
         )
         result_json = get_result_json(result)
         expected_json = []
@@ -910,10 +906,8 @@ def test_describe_scripts(
             pyexasol_connection,
             config,
             "describe_exasol_user_defined_functions",
-            schema_name=_get_db_name_param(schema, case_sensitive),
-            func_names=[
-                _get_db_name_param(script, case_sensitive) for script in db_scripts
-            ],
+            schema_name=schema.name,
+            func_names=[script.name for script in db_scripts],
         )
         result_json = get_result_json(result)
         for script, script_json in zip(db_scripts, result_json):
@@ -923,6 +917,186 @@ def test_describe_scripts(
             script_json.pop(USAGE_FIELD)
             expected_json = _get_expected_param_json(script, schema.name)
             assert script_json == expected_json
+
+
+@pytest.mark.parametrize(
+    ["tool_name", "name_arg", "name"],
+    [
+        ("describe_exasol_tables_and_views", "table_names", ["ski_resort"]),
+        ("describe_exasol_custom_functions", "func_names", ["factorial"]),
+        ("describe_exasol_user_defined_functions", "func_names", ["fibonacci"]),
+        ("summarize_exasol_table", "table_name", "ski_resort"),
+    ],
+    ids=["describe_tables", "describe_functions", "describe_scripts", "summarize"],
+)
+@pytest.mark.parametrize("case_sensitive", [True, False])
+@pytest.mark.parametrize("swap", ["schema", "object"])
+def test_retrieval_requires_exact_name(
+    pyexasol_connection,
+    setup_database,
+    db_schema_name,
+    tool_name,
+    name_arg,
+    name,
+    case_sensitive,
+    swap,
+) -> None:
+    """
+    The tools retrieving a specific object require its exact name, regardless of
+    the `case_sensitive` setting. The call with the exact names succeeds, the call
+    with the case of one name swapped fails.
+    """
+    config = McpServerSettings(
+        columns=MetaSettings(enable=True),
+        parameters=MetaSettings(enable=True),
+        enable_summarize_table=True,
+        case_sensitive=case_sensitive,
+    )
+    # The exact names work.
+    run_tool(
+        pyexasol_connection,
+        config,
+        tool_name,
+        schema_name=db_schema_name,
+        **{name_arg: name},
+    )
+    schema_name = db_schema_name.swapcase() if swap == "schema" else db_schema_name
+    if swap == "object":
+        name = (
+            [n.swapcase() for n in name] if isinstance(name, list) else name.swapcase()
+        )
+    with pytest.raises(ToolError, match="not found"):
+        run_tool(
+            pyexasol_connection,
+            config,
+            tool_name,
+            schema_name=schema_name,
+            **{name_arg: name},
+        )
+
+
+@pytest.fixture
+def case_variant_objects(pyexasol_connection, db_schema_name) -> Generator[str]:
+    """
+    Creates pairs of tables, functions and scripts whose names differ only in case.
+    Each object of a pair has a distinct signature, so the test can tell them apart.
+    Returns the schema name.
+    """
+    schema = db_schema_name
+    objects = [
+        ("TABLE", "orders", '("lower_id" DECIMAL(9,0) PRIMARY KEY)'),
+        ("TABLE", "ORDERS", '("UPPER_ID" DECIMAL(9,0))'),
+        (
+            "FUNCTION",
+            "twice",
+            '("lower_x" DECIMAL(9,0)) RETURN DECIMAL(9,0) IS '
+            'BEGIN RETURN "lower_x" * 2; END;',
+        ),
+        (
+            "FUNCTION",
+            "TWICE",
+            '("UPPER_X" DOUBLE) RETURN DOUBLE IS BEGIN RETURN "UPPER_X" * 2; END;',
+        ),
+        (
+            "LUA SCALAR SCRIPT",
+            "echo",
+            '("lower_s" VARCHAR(10)) RETURNS VARCHAR(10) AS\n'
+            "function run(ctx) return ctx.lower_s end",
+        ),
+        (
+            "LUA SCALAR SCRIPT",
+            "ECHO",
+            '("UPPER_S" DOUBLE) RETURNS DOUBLE AS\n'
+            "function run(ctx) return ctx.UPPER_S end",
+        ),
+    ]
+    try:
+        for obj_type, name, definition in objects:
+            # Functions and scripts must end with a slash on its own line.
+            terminator = "" if obj_type == "TABLE" else "\n/\n"
+            pyexasol_connection.execute(
+                f'CREATE OR REPLACE {obj_type} "{schema}"."{name}" '
+                f"{definition}{terminator}"
+            )
+        yield schema
+    finally:
+        for obj_type, name, _ in objects:
+            drop_type = obj_type.split()[-1]
+            pyexasol_connection.execute(
+                f'DROP {drop_type} IF EXISTS "{schema}"."{name}"'
+            )
+
+
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_tables_case_variants(
+    pyexasol_connection, case_variant_objects, case_sensitive
+) -> None:
+    """
+    Tables whose names differ only in case are described separately, each with its
+    own columns and constraints, regardless of the `case_sensitive` setting.
+    """
+    schema = case_variant_objects
+    config = McpServerSettings(
+        columns=MetaSettings(enable=True), case_sensitive=case_sensitive
+    )
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        "describe_exasol_tables_and_views",
+        schema_name=schema,
+        table_names=["orders", "ORDERS"],
+    )
+    result_json = get_result_json(result)
+    summary = [
+        (
+            t[NAME_FIELD],
+            [c[NAME_FIELD] for c in t[COLUMNS_FIELD]],
+            [c[CONSTRAINT_TYPE_FIELD] for c in t[CONSTRAINTS_FIELD]],
+        )
+        for t in result_json
+    ]
+    assert summary == [
+        ("orders", ["lower_id"], ["PRIMARY KEY"]),
+        ("ORDERS", ["UPPER_ID"], []),
+    ]
+
+
+@pytest.mark.parametrize(
+    ["tool_name", "name", "expected_input"],
+    [
+        ("describe_exasol_custom_functions", "twice", "lower_x"),
+        ("describe_exasol_custom_functions", "TWICE", "UPPER_X"),
+        ("describe_exasol_user_defined_functions", "echo", "lower_s"),
+        ("describe_exasol_user_defined_functions", "ECHO", "UPPER_S"),
+    ],
+)
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_functions_case_variants(
+    pyexasol_connection,
+    case_variant_objects,
+    tool_name,
+    name,
+    expected_input,
+    case_sensitive,
+) -> None:
+    """
+    A function or script is described by its exact name, even if another one exists
+    whose name differs only in case, regardless of the `case_sensitive` setting.
+    """
+    config = McpServerSettings(
+        parameters=MetaSettings(enable=True), case_sensitive=case_sensitive
+    )
+    result = run_tool(
+        pyexasol_connection,
+        config,
+        tool_name,
+        schema_name=case_variant_objects,
+        func_names=[name],
+    )
+    result_json = get_result_json(result)
+    assert [
+        (f[NAME_FIELD], [p[NAME_FIELD] for p in f[INPUT_FIELD]]) for f in result_json
+    ] == [(name, [expected_input])]
 
 
 def test_list_preprocessors(

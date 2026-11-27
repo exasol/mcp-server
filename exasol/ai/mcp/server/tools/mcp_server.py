@@ -84,6 +84,20 @@ from exasol.ai.mcp.server.version import __version__
 
 SchemaNameArg = Annotated[str, Field(description="Name of the database schema")]
 
+_EXACT_NAME_HINT = "Use the exact, case-sensitive name, as returned by the {tools}."
+_LIST_OR_FIND_TOOLS = "list or find tools"
+_EXACT_NAMES_HINT = (
+    "Use the exact, case-sensitive names, as returned by the list or find tools."
+)
+
+ExactSchemaNameArg = Annotated[
+    str,
+    Field(
+        description="Name of the database schema. "
+        + _EXACT_NAME_HINT.format(tools=_LIST_OR_FIND_TOOLS)
+    ),
+]
+
 OptionalSchemaNameArg = Annotated[
     str | None,
     Field(
@@ -107,7 +121,21 @@ KeywordsArg = Annotated[
     ),
 ]
 
-TableNameArg = Annotated[str, Field(description="Name of the table or view")]
+TableNameArg = Annotated[
+    str,
+    Field(
+        description="Name of the table or view. "
+        + _EXACT_NAME_HINT.format(tools=_LIST_OR_FIND_TOOLS)
+    ),
+]
+
+SystemTableNameArg = Annotated[
+    str,
+    Field(
+        description="Name of the table or view. "
+        + _EXACT_NAME_HINT.format(tools="list tool")
+    ),
+]
 
 TableNamesArg = Annotated[
     list[str],
@@ -115,7 +143,7 @@ TableNamesArg = Annotated[
         description=(
             "Names of the tables and/or views to describe. Pass every table or "
             "view you need in a single call instead of calling this tool once "
-            "per name."
+            "per name. " + _EXACT_NAMES_HINT
         )
     ),
 ]
@@ -125,13 +153,18 @@ FunctionNamesArg = Annotated[
     Field(
         description=(
             "Names of the functions to describe. Pass every function you need "
-            "in a single call instead of calling this tool once per name."
+            "in a single call instead of calling this tool once per name. "
+            + _EXACT_NAMES_HINT
         )
     ),
 ]
 
 PreprocessorScriptNameArg = Annotated[
-    str, Field(description="Name of the preprocessor script")
+    str,
+    Field(
+        description="Name of the preprocessor script. "
+        + _EXACT_NAME_HINT.format(tools="list tool")
+    ),
 ]
 
 QueryArg = Annotated[
@@ -616,35 +649,26 @@ class ExasolMCPServer(FastMCP):
             result = remove_info_column(result)
         return [model_cls.model_validate(row) for row in result]
 
-    def _normalize_name(self, name: str) -> str:
-        return self.config.normalize_name(name)
-
     def _index_by_name(
         self, objects: list[QualifiedDBObject]
     ) -> dict[str, QualifiedDBObject]:
         """
-        Builds a dict from a normalized object name to the object itself.
-        On a duplicate normalized name, the first occurrence wins.
+        Builds a dict from the exact object name to the object itself.
         """
-        result: dict[str, QualifiedDBObject] = {}
-        for obj in objects:
-            result.setdefault(self._normalize_name(obj.name), obj)
-        return result
+        return {obj.name: obj for obj in objects}
 
     def _group_rows_by_table(
         self, rows: list[dict[str, Any]], table_column: str, model_cls: type[M]
     ) -> dict[str, list[M]]:
         """
-        Groups raw metadata rows by the (normalized) value of `table_column`,
+        Groups raw metadata rows by the exact value of `table_column`,
         validating each row into `model_cls`. `table_column` itself is not part
         of the model and is dropped before validation.
         """
         result: dict[str, list[M]] = {}
         for row in rows:
             table_name = row.pop(table_column)
-            result.setdefault(self._normalize_name(table_name), []).append(
-                model_cls.model_validate(row)
-            )
+            result.setdefault(table_name, []).append(model_cls.model_validate(row))
         return result
 
     def list_schemas(self) -> list[DBObject]:
@@ -722,7 +746,7 @@ class ExasolMCPServer(FastMCP):
     ) -> dict[str, list[DBColumn]]:
         """
         Fetches columns for one or more tables in a single query, grouped by
-        normalized table name. A table with no rows in the result is simply
+        the exact table name. A table with no rows in the result is simply
         absent from the returned dict.
         """
         if not self.config.columns.enable:
@@ -739,7 +763,7 @@ class ExasolMCPServer(FastMCP):
     ) -> dict[str, list[DBConstraint]]:
         """
         Fetches constraints for one or more tables in a single query, grouped by
-        normalized table name. A table with no rows in the result is simply
+        the exact table name. A table with no rows in the result is simply
         absent from the returned dict.
         """
         if not self.config.columns.enable:
@@ -752,7 +776,7 @@ class ExasolMCPServer(FastMCP):
         )
 
     def describe_tables(
-        self, schema_name: SchemaNameArg, table_names: TableNamesArg
+        self, schema_name: ExactSchemaNameArg, table_names: TableNamesArg
     ) -> list[DBTable]:
         """
         Describes one or more tables or views in the given schema. Pass every
@@ -780,8 +804,7 @@ class ExasolMCPServer(FastMCP):
         results: list[DBTable] = []
         errors: list[str] = []
         for table_name in table_names:
-            key = self._normalize_name(table_name)
-            meta = meta_by_name.get(key)
+            meta = meta_by_name.get(table_name)
             if meta is None:
                 errors.append(
                     f"The table or view {schema_name}.{table_name} not found."
@@ -790,7 +813,7 @@ class ExasolMCPServer(FastMCP):
             # A table or view in Exasol always has at least one column, so an
             # empty result here indicates something went wrong, not that the
             # table or view legitimately has no columns.
-            columns = columns_by_name.get(key)
+            columns = columns_by_name.get(table_name)
             if not columns:
                 errors.append(
                     f"Failed to retrieve columns for the table or view "
@@ -802,7 +825,9 @@ class ExasolMCPServer(FastMCP):
                     **meta.model_dump(),
                     columns=columns,
                     constraints=(
-                        None if system_table else constraints_by_name.get(key, [])
+                        None
+                        if system_table
+                        else constraints_by_name.get(table_name, [])
                     ),
                 )
             )
@@ -839,9 +864,7 @@ class ExasolMCPServer(FastMCP):
     ) -> tuple[str | None, int, list[DBColumnSummary], list[dict[str, Any]]]:
         if not self.config.enable_summarize_table:
             raise RuntimeError("The table summarization is disabled.")
-        columns = self._fetch_columns(schema_name, [table_name]).get(
-            self._normalize_name(table_name), []
-        )
+        columns = self._fetch_columns(schema_name, [table_name]).get(table_name, [])
         comment = self._get_table_comment(schema_name, table_name)
         table_ref = exp.Table(
             this=exp.Identifier(this=table_name, quoted=True),
@@ -868,7 +891,7 @@ class ExasolMCPServer(FastMCP):
 
     def summarize_table(
         self,
-        schema_name: SchemaNameArg,
+        schema_name: ExactSchemaNameArg,
         table_name: TableNameArg,
         sample_size: SampleSizeArg = 10,
         top_values: TopValuesArg = 5,
@@ -887,7 +910,7 @@ class ExasolMCPServer(FastMCP):
 
     def summarize_table_tabular(
         self,
-        schema_name: SchemaNameArg,
+        schema_name: ExactSchemaNameArg,
         table_name: TableNameArg,
         sample_size: SampleSizeArg = 10,
         top_values: TopValuesArg = 5,
@@ -909,7 +932,7 @@ class ExasolMCPServer(FastMCP):
         )
 
     def describe_functions(
-        self, schema_name: SchemaNameArg, func_names: FunctionNamesArg
+        self, schema_name: ExactSchemaNameArg, func_names: FunctionNamesArg
     ) -> list[DBReturnFunction]:
         """
         Describes one or more custom functions in the given schema. Pass every
@@ -922,7 +945,7 @@ class ExasolMCPServer(FastMCP):
         )
 
     def describe_scripts(
-        self, schema_name: SchemaNameArg, func_names: FunctionNamesArg
+        self, schema_name: ExactSchemaNameArg, func_names: FunctionNamesArg
     ) -> list[DBReturnFunction | DBEmitFunction]:
         """
         Describes one or more User Defined Functions (UDFs) in the given schema.
@@ -1045,10 +1068,10 @@ class ExasolMCPServer(FastMCP):
     def list_statistics_tables(self) -> list[str]:
         return self._list_system_tables(SysInfoType.STATISTICS)
 
-    def describe_system_table(self, table_name: TableNameArg) -> DBTable:
+    def describe_system_table(self, table_name: SystemTableNameArg) -> DBTable:
         return self.describe_tables(SysInfoType.SYSTEM.value, [table_name])[0]
 
-    def describe_statistics_table(self, table_name: TableNameArg) -> DBTable:
+    def describe_statistics_table(self, table_name: SystemTableNameArg) -> DBTable:
         return self.describe_tables(SysInfoType.STATISTICS.value, [table_name])[0]
 
     def list_keywords(
@@ -1083,7 +1106,7 @@ class ExasolMCPServer(FastMCP):
 
     def set_preprocessor(
         self,
-        schema_name: SchemaNameArg,
+        schema_name: ExactSchemaNameArg,
         script_name: PreprocessorScriptNameArg,
     ) -> str:
         self.connection.execute_query(

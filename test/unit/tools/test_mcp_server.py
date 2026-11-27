@@ -580,19 +580,36 @@ def test_describe_tables_batch_duplicate_name_in_request():
     assert [t.name for t in result] == ["T1", "T1"]
 
 
-def test_describe_tables_batch_preserves_stored_casing():
+@pytest.mark.parametrize("case_sensitive", [True, False])
+def test_describe_tables_batch_keeps_case_variants_apart(case_sensitive):
+    """
+    Tables whose names differ only in case are described separately, each with its
+    own columns, regardless of the `case_sensitive` setting.
+    """
     connection = _mock_connection()
     statement = connection.execute_query.return_value
     statement.fetchall.side_effect = [
-        [{"schema": "MY_SCHEMA", "name": "T1", "comment": None}],
-        [_column_row("T1")],
+        [
+            {"schema": "MY_SCHEMA", "name": "t1", "comment": None},
+            {"schema": "MY_SCHEMA", "name": "T1", "comment": None},
+        ],
+        [_column_row("t1", "lower_col"), _column_row("T1", "UPPER_COL")],
         [],
     ]
     server = ExasolMCPServer(
-        connection=connection, config=McpServerSettings(case_sensitive=False)
+        connection=connection, config=McpServerSettings(case_sensitive=case_sensitive)
     )
-    result = server.describe_tables("MY_SCHEMA", ["t1"])
-    assert [t.name for t in result] == ["T1"]
+    result = server.describe_tables("MY_SCHEMA", ["T1", "t1"])
+    assert [(t.name, [c.name for c in t.columns]) for t in result] == [
+        ("T1", ["UPPER_COL"]),
+        ("t1", ["lower_col"]),
+    ]
+
+
+def test_describe_tables_batch_requires_exact_name():
+    server, _ = _make_table_batch_server([], [], [])
+    with pytest.raises(ValueError, match="MY_SCHEMA.t1 not found"):
+        server.describe_tables("MY_SCHEMA", ["t1"])
 
 
 def test_describe_system_table_returns_single_object():

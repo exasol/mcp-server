@@ -148,17 +148,16 @@ class McpServerSettings(BaseModel):
 
     case_sensitive: bool = False
     """
-    This setting effects the selection of database objects in the tools that are looking
-    for a particular object or a collection of objects. Depending on this setting, the
-    parameters provided to these tools, e.g. a schema name, are used in case sensitive
-    or case insensitive way.
+    This setting affects the tools that search for database objects, i.e. the list
+    and find tools. Depending on this setting, the schema name provided to these
+    tools is matched in a case sensitive or case insensitive way. The tools that
+    retrieve a specific object, e.g. describe a table, always require the exact
+    name of the object, regardless of this setting.
     """
 
     def normalize_name(self, name: str) -> str:
         """
-        Normalizes a database object name according to the `case_sensitive` setting,
-        so that names originating from different sources (e.g. a caller-provided
-        name and a name read back from the database) can be compared or used as a
-        lookup key consistently.
+        Normalizes a database object name for use in a search, which matches the
+        name case sensitively or not, depending on the `case_sensitive` setting.
         """
         return name if self.case_sensitive else name.upper()

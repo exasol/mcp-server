@@ -159,8 +159,8 @@ set_exasol_preprocessor
     Can be disabled in the settings (see :doc:`tool_setup`).
 
 :Arguments:
-    - ``schema_name``: name of the schema containing the preprocessor script
-    - ``script_name``: name of the preprocessor script
+    - ``schema_name``: exact, case-sensitive name of the schema containing the preprocessor script
+    - ``script_name``: exact, case-sensitive name of the preprocessor script
 
 :Returns:
     - **Type**: ``string``
@@ -174,8 +174,8 @@ describe_exasol_tables_and_views
     views. Pass the names of every table or view needed in a single call.
 
 :Parameters:
-    - ``schema_name``: name of the schema containing the tables and/or views
-    - ``table_names``: list of table and/or view names to describe
+    - ``schema_name``: exact, case-sensitive name of the schema containing the tables and/or views
+    - ``table_names``: list of exact, case-sensitive table and/or view names to describe
 
 :Returns:
     - **Type**: ``list``
@@ -214,8 +214,8 @@ summarize_exasol_table
     Must be explicitly enabled in the settings (see :doc:`tool_setup`).
 
 :Parameters:
-    - ``schema_name``: name of the schema
-    - ``table_name``: name of the table or view
+    - ``schema_name``: exact, case-sensitive name of the schema
+    - ``table_name``: exact, case-sensitive name of the table or view
     - ``sample_size`` *(optional, default 10)*: number of sample rows to include, between 1 and 100
     - ``top_values`` *(optional, default 5)*: number of most common distinct values to return per column, between 1 and 100
 
@@ -248,8 +248,8 @@ describe_exasol_custom_functions
     functions. Pass the names of every function needed in a single call.
 
 :Parameters:
-    - ``schema_name``: name of the schema containing the functions
-    - ``func_names``: list of function names to describe
+    - ``schema_name``: exact, case-sensitive name of the schema containing the functions
+    - ``func_names``: list of exact, case-sensitive function names to describe
 
 :Returns:
     - **Type**: ``list``
@@ -270,8 +270,8 @@ describe_exasol_user_defined_functions
     Functions (UDFs). Pass the names of every UDF needed in a single call.
 
 :Parameters:
-    - ``schema_name``: name of the schema containing the UDFs
-    - ``func_names``: list of UDF names to describe
+    - ``schema_name``: exact, case-sensitive name of the schema containing the UDFs
+    - ``func_names``: list of exact, case-sensitive UDF names to describe
 
 :Returns:
     - **Type**: ``list``
@@ -496,6 +496,9 @@ describe_exasol_system_table
     Provides full available information about the specified system table.
     Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
 
+:Parameters:
+    - ``table_name``: exact, case-sensitive name of the system table, as returned by ``list_exasol_system_tables``
+
 :Returns:
     - **Type**: ``dict``
     - **Data**:
@@ -521,6 +524,9 @@ describe_exasol_statistics_table
 :Description:
     Provides full available information about the specified statistics table.
     Can be hidden globally via ``enable_dialect_tools`` in the settings (see :doc:`tool_setup`).
+
+:Parameters:
+    - ``table_name``: exact, case-sensitive name of the statistics table, as returned by ``list_exasol_statistics_tables``
 
 :Returns:
     - **Type**: ``dict``

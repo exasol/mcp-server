@@ -150,7 +150,8 @@ def _info_concat_func() -> exp.Expression:
 
 
 def is_system_schema(schema_name: str) -> bool:
-    return schema_name.upper() in ["SYS", "EXA_STATISTICS"]
+    # The match is exact, as for any retrieval of a specific object by its name.
+    return schema_name in [info_type.value for info_type in SysInfoType]
 
 
 class ExasolMetaQuery:
@@ -173,38 +174,36 @@ class ExasolMetaQuery:
     def config(self) -> McpServerSettings:
         return self._config
 
-    def _get_column_eq_predicate(
-        self, column: str, value: str, table: str | None = None
-    ) -> exp.Predicate:
+    def _get_column_search_predicate(self, column: str, value: str) -> exp.Predicate:
         """
-        Builds an expression of a text column equality, considering the
-        case sensitivity setting.
+        Builds a predicate for searching objects by a name, e.g. restricting a
+        listing to a schema. Considers the case sensitivity setting.
         """
         normalized_value = self.config.normalize_name(value)
         if self.config.case_sensitive:
-            return exp.column(column, table=table).eq(
-                exp.Literal.string(normalized_value)
-            )
-        return exp.func("UPPER", exp.column(column, table=table)).eq(
+            return exp.column(column).eq(exp.Literal.string(normalized_value))
+        return exp.func("UPPER", exp.column(column)).eq(
             exp.Literal.string(normalized_value)
         )
 
-    def _get_column_in_predicate(
-        self, column: str, values: list[str], table: str | None = None
-    ) -> exp.Predicate:
+    @staticmethod
+    def _get_column_eq_predicate(column: str, value: str) -> exp.Predicate:
         """
-        Builds an expression of a text column membership in a list of values,
-        considering the case sensitivity setting. This is the batched analog of
-        `_get_column_eq_predicate`.
+        Builds a predicate for retrieving a specific object by its name. The match
+        is exact, regardless of the case sensitivity setting, so that objects whose
+        names differ only in case are never mixed up.
+        """
+        return exp.column(column).eq(exp.Literal.string(value))
+
+    @staticmethod
+    def _get_column_in_predicate(column: str, values: list[str]) -> exp.Predicate:
+        """
+        Builds a predicate for retrieving specific objects by their names. This is
+        the batched analog of `_get_column_eq_predicate`; the match is exact as well.
         """
         if not values:
             raise ValueError("The list of values must not be empty.")
-        normalized_values = [self.config.normalize_name(value) for value in values]
-        if self.config.case_sensitive:
-            return exp.column(column, table=table).isin(*normalized_values)
-        return exp.func("UPPER", exp.column(column, table=table)).isin(
-            *normalized_values
-        )
+        return exp.column(column).isin(*values)
 
     def get_metadata(self, meta_type: MetaType, schema_name: str | None = None) -> str:
         """
@@ -236,7 +235,7 @@ class ExasolMetaQuery:
             schema_column = f"{meta_name}_SCHEMA"
             if schema_name:
                 predicates.append(
-                    self._get_column_eq_predicate(schema_column, schema_name)
+                    self._get_column_search_predicate(schema_column, schema_name)
                 )
             else:
                 # Adds the schema restriction if specified in the settings.
@@ -353,7 +352,9 @@ class ExasolMetaQuery:
         It is formated as json. For an example see the `_inner_meta_query`.
         """
         if schema_name:
-            predicates = [self._get_column_eq_predicate("COLUMN_SCHEMA", schema_name)]
+            predicates = [
+                self._get_column_search_predicate("COLUMN_SCHEMA", schema_name)
+            ]
         else:
             predicates = _get_meta_predicates("COLUMN_SCHEMA", self.config.schemas)
         inner_query = _inner_meta_query(

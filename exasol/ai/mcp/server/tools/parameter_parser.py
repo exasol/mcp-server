@@ -46,9 +46,6 @@ class ParameterParser(ABC):
     def _execute_query(self, query: str) -> list[dict[str, Any]]:
         return self.connection.execute_query(query=query, fetch=fetchall)
 
-    def _normalize_name(self, name: str) -> str:
-        return self._meta_query.config.normalize_name(name)
-
     def get_func_query(self, schema_name: str, func_names: list[str]) -> str:
         """
         Builds a query requesting metadata for one or more functions or scripts.
@@ -83,14 +80,14 @@ class ParameterParser(ABC):
 
         query = self.get_func_query(schema_name, func_names)
         rows_by_name = {
-            self._normalize_name(row[f"{self.meta_type.value}_NAME"]): row
+            row[f"{self.meta_type.value}_NAME"]: row
             for row in self._execute_query(query=query)
         }
 
         results: list[DBFunction] = []
         errors: list[str] = []
         for func_name in func_names:
-            row = rows_by_name.get(self._normalize_name(func_name))
+            row = rows_by_name.get(func_name)
             if row is None:
                 errors.append(
                     f"The function or script {schema_name}.{func_name} not found."
