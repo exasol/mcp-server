@@ -62,7 +62,7 @@ def test_describe_system_table(pyexasol_connection):
     result = _run_tool(
         pyexasol_connection,
         "describe_exasol_system_table",
-        table_name="exa_all_columns",
+        table_name="EXA_ALL_COLUMNS",
     )
     result_json = get_result_json(result)
     assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])
@@ -83,7 +83,7 @@ def test_describe_statistics_tables(pyexasol_connection):
     result = _run_tool(
         pyexasol_connection,
         "describe_exasol_statistics_table",
-        table_name="exa_sql_daily",
+        table_name="EXA_SQL_DAILY",
     )
     result_json = get_result_json(result)
     assert all(col in result_json for col in [SCHEMA_FIELD, NAME_FIELD, COMMENT_FIELD])

@@ -39,12 +39,15 @@ def _column_predicate(column: str, value: str, case_sensitive: bool) -> str:
     return f"""UPPER("{column}") = '{value.upper()}'"""
 
 
-def _in_predicate(column: str, values: list[str], case_sensitive: bool) -> str:
-    if case_sensitive:
-        value_list = ", ".join(f"'{value}'" for value in values)
-        return f""""{column}" IN ({value_list})"""
-    value_list = ", ".join(f"'{value.upper()}'" for value in values)
-    return f"""UPPER("{column}") IN ({value_list})"""
+def _eq_predicate(column: str, value: str) -> str:
+    """An exact match, used to retrieve a specific object regardless of the case."""
+    return f""""{column}" = '{value}'"""
+
+
+def _in_predicate(column: str, values: list[str]) -> str:
+    """An exact match, used to retrieve specific objects regardless of the case."""
+    value_list = ", ".join(f"'{value}'" for value in values)
+    return f""""{column}" IN ({value_list})"""
 
 
 @dataclass
@@ -275,8 +278,8 @@ def test_get_object_metadata(case_sensitive) -> None:
     expected_query = collapse_spaces(f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
         WHERE
-            {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
-            {_in_predicate("FUNCTION_NAME", ['my_table'], case_sensitive)}
+            {_eq_predicate("FUNCTION_SCHEMA", 'my_schema')} AND
+            {_in_predicate("FUNCTION_NAME", ['my_table'])}
         """)
     assert query == expected_query
 
@@ -293,8 +296,8 @@ def test_get_object_metadata_multiple_names(case_sensitive) -> None:
     expected_query = collapse_spaces(f"""
         SELECT * FROM SYS.EXA_ALL_FUNCTIONS
         WHERE
-            {_column_predicate("FUNCTION_SCHEMA", 'my_schema', case_sensitive)} AND
-            {_in_predicate("FUNCTION_NAME", ['my_table1', 'my_table2'], case_sensitive)}
+            {_eq_predicate("FUNCTION_SCHEMA", 'my_schema')} AND
+            {_in_predicate("FUNCTION_NAME", ['my_table1', 'my_table2'])}
         """)
     assert query == expected_query
 
@@ -624,8 +627,8 @@ def test_describe_columns(case_sensitive) -> None:
             "COLUMN_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
-            {_column_predicate("COLUMN_SCHEMA", "my''_schema", case_sensitive)} AND
-            {_in_predicate("COLUMN_TABLE", ["my''_table"], case_sensitive)}
+            {_eq_predicate("COLUMN_SCHEMA", "my''_schema")} AND
+            {_in_predicate("COLUMN_TABLE", ["my''_table"])}
         """)
     assert query == expected_query
 
@@ -644,8 +647,8 @@ def test_describe_columns_multiple_names(case_sensitive) -> None:
             "COLUMN_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_COLUMNS
         WHERE
-            {_column_predicate("COLUMN_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("COLUMN_TABLE", ["t1", "t1", "t2"], case_sensitive)}
+            {_eq_predicate("COLUMN_SCHEMA", "my_schema")} AND
+            {_in_predicate("COLUMN_TABLE", ["t1", "t1", "t2"])}
         """)
     assert query == expected_query
 
@@ -674,8 +677,8 @@ def test_describe_constraints(case_sensitive) -> None:
                 AS "{REFERENCED_COLUMNS_FIELD}"
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
-            {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("CONSTRAINT_TABLE", ["my_table"], case_sensitive)}
+            {_eq_predicate("CONSTRAINT_SCHEMA", "my_schema")} AND
+            {_in_predicate("CONSTRAINT_TABLE", ["my_table"])}
         GROUP BY "CONSTRAINT_TABLE", "CONSTRAINT_NAME"
         """)
     assert query == expected_query
@@ -699,8 +702,8 @@ def test_describe_constraints_multiple_names(case_sensitive) -> None:
                 AS "{REFERENCED_COLUMNS_FIELD}"
         FROM SYS.EXA_ALL_CONSTRAINT_COLUMNS
         WHERE
-            {_column_predicate("CONSTRAINT_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("CONSTRAINT_TABLE", ["t1", "t2"], case_sensitive)}
+            {_eq_predicate("CONSTRAINT_SCHEMA", "my_schema")} AND
+            {_in_predicate("CONSTRAINT_TABLE", ["t1", "t2"])}
         GROUP BY "CONSTRAINT_TABLE", "CONSTRAINT_NAME"
         """)
     assert query == expected_query
@@ -723,8 +726,8 @@ def test_describe_table(case_sensitive) -> None:
             "TABLE_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_TABLES
         WHERE
-            {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("TABLE_NAME", ["my_table"], case_sensitive)}
+            {_eq_predicate("TABLE_SCHEMA", "my_schema")} AND
+            {_in_predicate("TABLE_NAME", ["my_table"])}
         UNION
         SELECT
             "VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
@@ -732,8 +735,8 @@ def test_describe_table(case_sensitive) -> None:
             "VIEW_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_VIEWS
         WHERE
-            {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("VIEW_NAME", ["my_table"], case_sensitive)}
+            {_eq_predicate("VIEW_SCHEMA", "my_schema")} AND
+            {_in_predicate("VIEW_NAME", ["my_table"])}
         """)
     assert query == expected_query
 
@@ -749,8 +752,8 @@ def test_describe_table_multiple_names(case_sensitive) -> None:
             "TABLE_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_TABLES
         WHERE
-            {_column_predicate("TABLE_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("TABLE_NAME", ["t1", "t2"], case_sensitive)}
+            {_eq_predicate("TABLE_SCHEMA", "my_schema")} AND
+            {_in_predicate("TABLE_NAME", ["t1", "t2"])}
         UNION
         SELECT
             "VIEW_SCHEMA" AS "{SCHEMA_FIELD}",
@@ -758,8 +761,8 @@ def test_describe_table_multiple_names(case_sensitive) -> None:
             "VIEW_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_ALL_VIEWS
         WHERE
-            {_column_predicate("VIEW_SCHEMA", "my_schema", case_sensitive)} AND
-            {_in_predicate("VIEW_NAME", ["t1", "t2"], case_sensitive)}
+            {_eq_predicate("VIEW_SCHEMA", "my_schema")} AND
+            {_in_predicate("VIEW_NAME", ["t1", "t2"])}
         """)
     assert query == expected_query
 
@@ -793,7 +796,7 @@ def test_get_system_table_list(info_type) -> None:
             "OBJECT_NAME" AS "{NAME_FIELD}",
             "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
-        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
+        WHERE "SCHEMA_NAME" = '{info_type.value}'
     """)
     assert query == expected_query
 
@@ -811,8 +814,8 @@ def test_get_system_table_details(info_type) -> None:
             "OBJECT_NAME" AS "{NAME_FIELD}",
             "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
-        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
-        AND UPPER("OBJECT_NAME") IN ('THE_TABLE')
+        WHERE "SCHEMA_NAME" = '{info_type.value}'
+        AND "OBJECT_NAME" IN ('the_table')
     """)
     assert query == expected_query
 
@@ -830,8 +833,8 @@ def test_get_system_table_details_multiple_names(info_type) -> None:
             "OBJECT_NAME" AS "{NAME_FIELD}",
             "OBJECT_COMMENT" AS "{COMMENT_FIELD}"
         FROM SYS.EXA_SYSCAT
-        WHERE UPPER("SCHEMA_NAME") = '{info_type.value.upper()}'
-        AND UPPER("OBJECT_NAME") IN ('TABLE1', 'TABLE2')
+        WHERE "SCHEMA_NAME" = '{info_type.value}'
+        AND "OBJECT_NAME" IN ('table1', 'table2')
     """)
     assert query == expected_query
 

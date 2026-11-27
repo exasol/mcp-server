@@ -561,6 +561,30 @@ def test_describe_many_returns_list_in_order(mock_execute_query, func_parameter_
 @mock.patch(
     "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
 )
+def test_describe_many_keeps_case_variants_apart(
+    mock_execute_query, func_parameter_parser
+):
+    # The parser is configured as case-insensitive. The functions are still
+    # matched by their exact names.
+    mock_execute_query.return_value = [
+        {
+            "FUNCTION_SCHEMA": "MySchema",
+            "FUNCTION_NAME": name,
+            "FUNCTION_COMMENT": None,
+            "FUNCTION_TEXT": f'FUNCTION "{name}"({param} INT) RETURN BOOL BEGIN END;',
+        }
+        for name, param in [("func", "lower_p"), ("FUNC", "UPPER_P")]
+    ]
+    result = func_parameter_parser.describe_many("MySchema", ["FUNC", "func"])
+    assert [(f.name, [p.name for p in f.input]) for f in result] == [
+        ("FUNC", ["UPPER_P"]),
+        ("func", ["lower_p"]),
+    ]
+
+
+@mock.patch(
+    "exasol.ai.mcp.server.tools.parameter_parser.ParameterParser._execute_query"
+)
 def test_describe_many_missing_name_raises(mock_execute_query, func_parameter_parser):
     mock_execute_query.return_value = []
     with pytest.raises(ValueError, match="MySchema.Missing not found"):

@@ -328,15 +328,25 @@ Below is an example of configuration settings that sets the language to English.
 Set the case-sensitive search option
 ------------------------------------
 
-By default, the database objects are searched in case-insensitive way, i.e. it is assumed
-that the names "My_Table" and "MY_TABLE" refer to the same table. If this is undesirable,
-the configuration setting ``case_sensitive`` should be set to true, as in the example below.
+By default, the list and find tools search for the database objects in a case-insensitive
+way, i.e. it is assumed that the schema names "My_Schema" and "MY_SCHEMA" refer to the same
+schema. If this is undesirable, the configuration setting ``case_sensitive`` should be
+set to true, as in the example below.
 
 .. code-block:: json
 
     {
         "case_sensitive": true
     }
+
+The setting affects only the tools that search for objects, i.e. the ``list_*`` and
+``find_*`` tools, where it applies to the ``schema_name`` parameter. The tools that
+retrieve a specific object, i.e. the ``describe_*`` tools, ``summarize_exasol_table`` and
+``set_exasol_preprocessor``, always require the exact, case-sensitive names, regardless
+of this setting. This works like a text search in an editor: the search can ignore the
+case, but to use the found text you need to spell it exactly as it was found. In a
+query, the usual SQL rules apply: an unquoted identifier is converted to upper case, a
+quoted identifier must have the exact case.
 
 .. _add-server-configuration-to-mcp-client-configuration:
 

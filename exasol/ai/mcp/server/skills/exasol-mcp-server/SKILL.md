@@ -32,6 +32,8 @@ Start broad, then narrow down:
 
 If you already know roughly what you are looking for, use the `find_*` variants to keyword-search across all schemas at once.
 
+The `describe_*`, `summarize_exasol_table` and `set_exasol_preprocessor` tools need the exact, case-sensitive names of the schema and the objects. Copy the names from the output of the `list_*` and `find_*` tools; don't change their case. For example, a table created as `"orders"` is not found by the name `ORDERS`, and vice versa.
+
 ### Writing and Debugging a Query
 
 ```
